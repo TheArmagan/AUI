@@ -1,0 +1,17 @@
+# Unity text assets are LF and must stay that way
+*.cs text eol=lf
+*.asmdef text eol=lf
+*.json text eol=lf
+*.meta text eol=lf
+*.asset text eol=lf
+*.prefab text eol=lf
+*.unity text eol=lf
+*.aui text eol=lf
+*.auis text eol=lf
+*.md text eol=lf
+
+# Binary
+*.png binary
+*.ttf binary
+*.otf binary
+*.svg text eol=lf

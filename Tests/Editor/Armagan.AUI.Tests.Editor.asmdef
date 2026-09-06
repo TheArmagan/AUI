@@ -1,0 +1,26 @@
+{
+  "name": "Armagan.AUI.Tests.Editor",
+  "rootNamespace": "Armagan.AUI.Tests",
+  "references": [
+    "Armagan.AUI.Core",
+    "Armagan.AUI.Editor",
+    "Armagan.AUI",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

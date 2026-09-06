@@ -1,0 +1,33 @@
+{
+  "name": "Armagan.AUI.Editor",
+  "rootNamespace": "Armagan.AUI.Editor",
+  "references": [
+    "Armagan.AUI",
+    "Armagan.AUI.Core",
+    "VRC.Udon",
+    "VRC.Udon.Editor",
+    "UdonSharp.Runtime",
+    "UdonSharp.Editor",
+    "Unity.TextMeshPro",
+    "Unity.TextMeshPro.Editor",
+    "Unity.VectorGraphics",
+    "Unity.VectorGraphics.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [
+    "VRCSDKBase.dll",
+    "VRCSDK3.dll",
+    "VRC.Udon.Common.dll"
+  ],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "UDONSHARP"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
