@@ -104,7 +104,6 @@ namespace Armagan.AUI.Editor
                 IconExists = ws.IconExists,
                 ImageSize = (string src, out float w, out float h) => ImageSize(absolutePath, src, out w, out h),
                 ChildInfo = name => ChildInfo(name, ws, settings, read),
-                Namespace = settings != null ? settings.generatedNamespace : "",
                 BoundTextSample = settings != null && !string.IsNullOrEmpty(settings.boundTextSample) ? settings.boundTextSample : "Mmmmmmmmmmmm",
             };
             AuiCompileResult r = AuiCompiler.Compile(text, absolutePath, opt);

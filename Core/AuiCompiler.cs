@@ -17,7 +17,6 @@ namespace Armagan.AUI.Core
         public AuiImageSizeLookup ImageSize;
         /// <summary>Analyzed model of a nested view by name (for typed child properties).</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
-        public string Namespace;
         public string BoundTextSample = "Mmmmmmmmmmmm";
     }
 
@@ -121,7 +120,7 @@ namespace Armagan.AUI.Core
             };
             r.Layout = new AuiLayoutSolver(r.Doc, r.Styles, r.Info, lctx, r.Diagnostics).Solve();
 
-            var cg = new AuiCodegenContext { Hash = "", Namespace = opt.Namespace, ChildInfo = opt.ChildInfo };
+            var cg = new AuiCodegenContext { Hash = "", ChildInfo = opt.ChildInfo };
             string unhashed = AuiCodegen.Emit(r.Info, r.Map, cg, r.Diagnostics);
             r.Hash = ComputeHash(r, unhashed);
             cg.Hash = r.Hash;

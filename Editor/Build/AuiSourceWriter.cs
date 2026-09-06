@@ -54,7 +54,8 @@ namespace Armagan.AUI.Editor
         public static string Scaffold(AuiCompileResult r, AuiSettings settings)
         {
             var sb = new StringBuilder();
-            string ns = settings != null ? settings.generatedNamespace : "";
+            // Same namespace as the generated half: the two files are one partial class.
+            string ns = AuiCodegenContext.Namespace;
             sb.Append("using UnityEngine;\n");
             sb.Append("using Armagan.AUI;\n\n");
             string indent = "";

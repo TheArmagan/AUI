@@ -46,73 +46,73 @@ namespace Armagan.AUI
         public const int PAGE_CROSSFADE = 0, PAGE_SEQUENTIAL = 1;
 
         [Header("Wiring (baked by the AUI builder)")]
-        public AuiLanguageService lang;
-        public AuiInputPanel inputPanel;
-        public GameObject content;
-        public CanvasGroup contentGroup;
-        public RectTransform contentRect;
+        [HideInInspector] public AuiLanguageService lang;
+        [HideInInspector] public AuiInputPanel inputPanel;
+        [HideInInspector] public GameObject content;
+        [HideInInspector] public CanvasGroup contentGroup;
+        [HideInInspector] public RectTransform contentRect;
         [HideInInspector] public string auiBakeHash;
 
         [Header("Element tables, index = runtime element index")]
-        public GameObject[] elemObjects;
-        public RectTransform[] elemRects;
-        public CanvasGroup[] elemGroups;
-        public Image[] elemBg;
-        public Image[] elemBorder;
-        public Image[] elemIcon;
-        public TextMeshProUGUI[] elemText;
-        public Button[] elemButtons;
-        public Slider[] elemSliders;
-        public Vector2[] elemBasePos;
-        public int[] elemSignal;   // signal id or -1
-        public int[] elemKey;      // translation key index or -1 (text label, input placeholder, slider format)
-        public int[] elemKind;     // KIND_*
+        [HideInInspector] public GameObject[] elemObjects;
+        [HideInInspector] public RectTransform[] elemRects;
+        [HideInInspector] public CanvasGroup[] elemGroups;
+        [HideInInspector] public Image[] elemBg;
+        [HideInInspector] public Image[] elemBorder;
+        [HideInInspector] public Image[] elemIcon;
+        [HideInInspector] public TextMeshProUGUI[] elemText;
+        [HideInInspector] public Button[] elemButtons;
+        [HideInInspector] public Slider[] elemSliders;
+        [HideInInspector] public Vector2[] elemBasePos;
+        [HideInInspector] public int[] elemSignal;   // signal id or -1
+        [HideInInspector] public int[] elemKey;      // translation key index or -1 (text label, input placeholder, slider format)
+        [HideInInspector] public int[] elemKind;     // KIND_*
 
         [Header("Signals")]
-        public int[] sigElem;
-        public AuiSignal[] signals;
+        [HideInInspector] public int[] sigElem;
+        [HideInInspector] public AuiSignal[] signals;
 
         [Header("State style rows")]
-        public int[] styleRangeStart;  // [sig * STATE_COUNT + state]
-        public int[] styleRangeCount;
-        public int[] styleProp;
-        public Vector4[] styleValue;
-        public Sprite[] styleSprite;
-        public float[] styleDur;
-        public int[] styleEase;        // VRCTweenEase as int
-        public int[] styleChannel;     // one tween handle slot per (element, property)
-        public int channelCount;
+        [HideInInspector] public int[] styleRangeStart;  // [sig * STATE_COUNT + state]
+        [HideInInspector] public int[] styleRangeCount;
+        [HideInInspector] public int[] styleProp;
+        [HideInInspector] public Vector4[] styleValue;
+        [HideInInspector] public Sprite[] styleSprite;
+        [HideInInspector] public float[] styleDur;
+        [HideInInspector] public int[] styleEase;        // VRCTweenEase as int
+        [HideInInspector] public int[] styleChannel;     // one tween handle slot per (element, property)
+        [HideInInspector] public int channelCount;
 
         [Header("View transition")]
-        public int showKind = TRANS_FADE_SCALE;
-        public float showDur = 0.18f;
-        public float hideDur = 0.14f;
-        public Vector2 slideFrom = new Vector2(0f, -24f);
-        public float scaleFrom = 0.94f;
-        public bool startHidden;
+        [HideInInspector] public int showKind = TRANS_FADE_SCALE;
+        [HideInInspector] public float showDur = 0.18f;
+        [HideInInspector] public float hideDur = 0.14f;
+        [HideInInspector] public Vector2 slideFrom = new Vector2(0f, -24f);
+        [HideInInspector] public float scaleFrom = 0.94f;
+        [HideInInspector] public bool startHidden;
 
         [Header("Pages")]
-        public int[] pageGroupStart;   // index into pageElem
-        public int[] pageGroupCount;
-        public int[] pageGroupMode;
-        public int[] pageGroupDefault;
-        public int[] pageElem;         // element index of each page root
-        public int[] pageTabSig;       // signal id of the tab for each page, or -1
-        public int[] pageKind;         // TRANS_* per page
-        public float pageDur = 0.18f;
+        [HideInInspector] public int[] pageGroupStart;   // index into pageElem
+        [HideInInspector] public int[] pageGroupCount;
+        [HideInInspector] public int[] pageGroupMode;
+        [HideInInspector] public int[] pageGroupDefault;
+        [HideInInspector] public int[] pageElem;         // element index of each page root
+        [HideInInspector] public int[] pageTabSig;       // signal id of the tab for each page, or -1
+        [HideInInspector] public int[] pageKind;         // TRANS_* per page
+        [HideInInspector] public float pageDur = 0.18f;
 
         [Header("Repeats")]
-        public int[] repeatFirst;      // element index of instance 0's root
-        public int[] repeatStride;     // elements per instance
-        public int[] repeatMax;
-        public GameObject[] repeatEmpty;
+        [HideInInspector] public int[] repeatFirst;      // element index of instance 0's root
+        [HideInInspector] public int[] repeatStride;     // elements per instance
+        [HideInInspector] public int[] repeatMax;
+        [HideInInspector] public GameObject[] repeatEmpty;
 
         [Header("Selects")]
-        public int[] selectElem;       // header element (button)
-        public int[] selectPopupElem;  // popup root element (has CanvasGroup)
-        public int[] selectOptionFirst;
-        public int[] selectOptionCount;
-        public int[] selectScrimSig;
+        [HideInInspector] public int[] selectElem;       // header element (button)
+        [HideInInspector] public int[] selectPopupElem;  // popup root element (has CanvasGroup)
+        [HideInInspector] public int[] selectOptionFirst;
+        [HideInInspector] public int[] selectOptionCount;
+        [HideInInspector] public int[] selectScrimSig;
 
         [Header("Written by AuiInputPanel")]
         [HideInInspector] public string inputResult;
@@ -120,7 +120,7 @@ namespace Armagan.AUI
 
         [Header("Nesting (baked)")]
         [Tooltip("The view this one is embedded in, if any. Emit() reports to it.")]
-        public AuiView parentView;
+        [HideInInspector] public AuiView parentView;
 
         // ---- runtime
         private bool[] _hover, _press, _selected, _disabled, _toggleOn;

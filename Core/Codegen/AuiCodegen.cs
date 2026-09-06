@@ -7,8 +7,8 @@ namespace Armagan.AUI.Core
     {
         /// <summary>Hash of the compiled IR, written into the header so the writer can skip unchanged output.</summary>
         public string Hash = "";
-        /// <summary>Namespace for the generated class, or null for the global namespace.</summary>
-        public string Namespace;
+        /// <summary>Every generated class lives here, so view names can never collide with world code.</summary>
+        public const string Namespace = "Armagan.AUI.Generated";
         /// <summary>Analyzed model of a nested view by name, for typed child properties; null = unknown.</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
     }
@@ -156,8 +156,8 @@ namespace Armagan.AUI.Core
                 L("using UnityEngine;");
                 L("using Armagan.AUI;");
                 L();
-                bool ns = !string.IsNullOrEmpty(_ctx.Namespace);
-                if (ns) Open("namespace " + _ctx.Namespace);
+                bool ns = true;
+                Open("namespace " + AuiCodegenContext.Namespace);
                 L("[UdonBehaviourSyncMode(BehaviourSyncMode.None)]");
                 Open("public partial class " + _info.Name + " : AuiView");
 
@@ -175,6 +175,15 @@ namespace Armagan.AUI.Core
                 EmitChildEvents();
 
                 Close();
+                // UdonSharp's override editor claims every UdonSharpBehaviour by exact type, so a
+                // base-class [CustomEditor] on AuiView is never picked. Each view gets its own.
+                L();
+                L("#if !COMPILER_UDONSHARP && UNITY_EDITOR");
+                L("[UnityEditor.CustomEditor(typeof(" + _info.Name + "))]");
+                Open("internal sealed class " + _info.Name + "_AuiInspector : UnityEditor.Editor");
+                L("public override void OnInspectorGUI() { AuiInspectorBridge.Draw(this); }");
+                Close();
+                L("#endif");
                 if (ns) Close();
                 return _sb.ToString();
             }
@@ -242,7 +251,7 @@ namespace Armagan.AUI.Core
                 if (_info.NestedViews.Count == 0) return;
                 L("// ---- nested views (assigned by the builder)");
                 foreach (AuiNestedView nv in _info.NestedViews)
-                    L("public " + nv.ViewName + " " + nv.FieldName + ";");
+                    L("[HideInInspector] public " + nv.ViewName + " " + nv.FieldName + ";");
                 L();
             }
 

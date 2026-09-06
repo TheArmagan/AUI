@@ -64,9 +64,14 @@ Saving the file starts the build. Two editor reloads later there is `SettingsDem
 (generated, do not edit), `SettingsDemo.cs` (yours, scaffolded once with an empty method per
 handler), `SettingsDemo.asset` and `SettingsDemo.prefab`. Drop the prefab into the scene.
 
-`SettingsDemo.cs` is where the logic goes. Bindings are properties, handlers are methods:
+`SettingsDemo.cs` is where the logic goes. Both halves live in the namespace
+`Armagan.AUI.Generated` (the scaffold puts your file there; a partial class needs one namespace),
+so view names never collide with world code and other scripts reach a view with
+`using Armagan.AUI.Generated;`. Bindings are properties, handlers are methods:
 
 ```csharp
+namespace Armagan.AUI.Generated { }   // the file is inside this namespace; shown flat here
+
 public partial class SettingsDemo : AuiView
 {
     protected override void OnStart()
@@ -192,6 +197,12 @@ A flex subset resolved at compile time: one axis per container, `grow` shares le
 `wrap` breaks rows, `anchor` places absolutely. Text is measured with the real font over every
 translation so a box fits its widest language; text and bound content shrink first when a row
 would overflow. Repeats bake `max` copies and page rather than scroll.
+
+## Inspector
+
+A view's inspector shows the UdonSharp header, a summary line, `Rebuild view` / `Open .aui` /
+`Open .cs` buttons, and then only the fields you declared in your own `.cs`. Every baked table
+and generated field is hidden; they are outputs of the `.aui` and `.auis` files, not inputs.
 
 ## Menu
 

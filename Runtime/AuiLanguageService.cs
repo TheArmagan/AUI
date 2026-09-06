@@ -33,13 +33,14 @@ namespace Armagan.AUI
     {
         public const string PD_KEY = "aui.lang";
 
-        [Header("Baked by AUI/Rebuild Language Table")]
-        public string[] langCodes;
-        public string[] langNames;
-        public int defaultLang;
-        public int keyCount;
-        public string[] keys;
-        public string[] values;
+        // Baked by AUI/Rebuild Language Table; hidden because a 3 x 200 string table is noise in
+        // the inspector and editing it by hand would desync the key indices views carry.
+        [HideInInspector] public string[] langCodes;
+        [HideInInspector] public string[] langNames;
+        [HideInInspector] public int defaultLang;
+        [HideInInspector] public int keyCount;
+        [HideInInspector] public string[] keys;
+        [HideInInspector] public string[] values;
 
         private AuiView[] _views = new AuiView[16];
         private int _viewCount;

@@ -15,9 +15,6 @@ namespace Armagan.AUI
         [Tooltip("Language code used when a key is missing in the player's language.")]
         public string defaultLanguage = "en";
 
-        [Tooltip("Namespace for generated view classes; empty = global.")]
-        public string generatedNamespace = "";
-
         [Tooltip("Extra folders searched for nested views by tag name (besides the view's own folder).")]
         public string[] componentFolders = new string[0];
 
