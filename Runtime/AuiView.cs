@@ -367,6 +367,10 @@ namespace Armagan.AUI
             }
             Vector2 from = SlideVector(kind, slide);
             g.alpha = 0f;
+            // Raycasts back on at the START of the enter: the previous Exit/SnapHidden switched them
+            // off, and a popup that only tweens alpha would look open and take no clicks.
+            g.blocksRaycasts = true;
+            g.interactable = true;
             fadeH = VRCTween.TweenFade(g, 1f, dur, VRCTweenEase.OutQuad);
             if (r != null && (kind == TRANS_FADE_SCALE || kind == TRANS_SCALE))
             {

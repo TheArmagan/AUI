@@ -92,6 +92,33 @@ code moves the control silently. Repeats use methods because Udon has no per-row
 Two more author hooks: `OnRetranslate()` runs after a language switch, `Emit("picked")` in a
 nested view runs the parent's `on-picked="Handler"`.
 
+## Linking other scripts
+
+Both directions are typed references; nothing goes through strings.
+
+```csharp
+// UI -> script: the view's .cs half holds a normal public field, set in the inspector on the
+// scene instance (a prefab cannot reference scene objects, so it is an instance override).
+public partial class SettingsDemo : AuiView
+{
+    public DemoBrightness brightness;
+    public void BrightnessChanged(float value) { if (brightness != null) brightness.SetPercent(value); }
+}
+
+// script -> UI: hold the generated class and set its properties. Setters from code repaint
+// every bound element and never call the handler.
+public class DemoBrightness : UdonSharpBehaviour
+{
+    public SettingsDemo panel;
+    private void Start() { if (panel != null) panel.Brightness = 70f; }
+}
+```
+
+A script that must not depend on a specific view (a library) can instead take an `AuiView` and
+use the base API: `Show()`, `Hide()`, `SetSelected(id, on)`, `SetRepeatCount(i, n)`, or send
+`_Retranslate`. For the generated properties the concrete class is the API; that is the point of
+generating it.
+
 ## Languages
 
 `Assets/AUI/lang/en.json`:

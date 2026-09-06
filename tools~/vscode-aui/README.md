@@ -7,14 +7,17 @@ for keys, classes, variables and nested views, and a document outline.
 
 Requires the .NET 8 runtime (or newer) on the PATH as `dotnet`, or `aui.dotnetPath` set.
 
-## Build
+## Install
 
 ```
 cd tools~/vscode-aui
-npm install
-npm run package        # publishes the server into ./server, compiles, writes aui-0.1.0.vsix
-code --install-extension aui-0.1.0.vsix
+./install.ps1          # Windows (PowerShell)
+sh install.sh          # macOS / Linux
 ```
+
+Both build the server into `./server`, compile the client, package `aui-<version>.vsix` and run
+`code --install-extension` on it. The manual steps are `npm install`, `npm run package`,
+`code --install-extension aui-0.1.0.vsix`.
 
 Open the world project folder (the one containing `Assets/` and `Packages/rest.armagan.aui`) or
 the package repository itself. The server finds the theme and the language files from there.

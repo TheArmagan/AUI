@@ -39,7 +39,8 @@ namespace Armagan.AUI.Editor
         // 4: Middle vertical alignment (TMP's Midline moves with descenders: "Language" sat 2 mm above "Audio").
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
-        public const int BuilderVersion = 6;
+        // 7: dropdown popup stays inside the view, on its own sorted canvas.
+        public const int BuilderVersion = 7;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -227,6 +228,7 @@ namespace Armagan.AUI.Editor
             c.Groups[e0] = cg;
             ApplyBackground(c, rootNode, e0, content.transform, false);
             foreach (AuiNode child in rootNode.Children) BuildNode(c, child, content.transform, 0, rootNode);
+            foreach (GameObject popup in c.Popups) popup.transform.SetAsLastSibling();
             return root;
         }
 
@@ -697,8 +699,24 @@ namespace Armagan.AUI.Editor
             var popup = new GameObject(Name(n) + " popup", typeof(RectTransform));
             popup.transform.SetParent(c.Content, false);
             var prt = (RectTransform)popup.transform;
-            var popupRect = new AuiRect(hl.Absolute.X, hl.Absolute.Y + hl.Absolute.H + 4f, hl.Absolute.W, optH + 8f);
-            Place(prt, popupRect, false, c.R.Info.Width, c.R.Info.Height);
+            // INSIDE THE VIEW, ALWAYS. The laser only reaches what the root BoxCollider covers, so a
+            // popup hanging below the panel is visible and unclickable. Open upward when there is no
+            // room below, and clamp horizontally.
+            float popupH = optH + 8f;
+            float viewW = c.R.Info.Width, viewH = c.R.Info.Height;
+            float py = hl.Absolute.Y + hl.Absolute.H + 4f;
+            if (py + popupH > viewH - 4f) py = hl.Absolute.Y - 4f - popupH;
+            if (py < 4f) py = 4f;
+            float px = Mathf.Clamp(hl.Absolute.X, 4f, Mathf.Max(4f, viewW - hl.Absolute.W - 4f));
+            var popupRect = new AuiRect(px, py, hl.Absolute.W, popupH);
+            Place(prt, popupRect, false, viewW, viewH);
+            // Toward the viewer, and on its own sorting layer: whatever is built after it (nested
+            // views, later rows) must never draw over an open dropdown.
+            prt.anchoredPosition3D = new Vector3(prt.anchoredPosition.x, prt.anchoredPosition.y, -1f);
+            var popupCanvas = popup.AddComponent<Canvas>();
+            popupCanvas.overrideSorting = true;
+            popupCanvas.sortingOrder = 100;
+            popup.AddComponent<GraphicRaycaster>();   // a nested Canvas receives no input without its own raycaster
             Register(c, pe, popup, prt, prt.anchoredPosition);
             c.Kind[pe] = AuiIndexMap.KIND_NONE;
             var pg = popup.AddComponent<CanvasGroup>();
