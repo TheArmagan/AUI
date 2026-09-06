@@ -63,10 +63,16 @@ namespace Armagan.AUI.Generated
             PlayerName = value;
         }
 
+        private int _waves;
+
         public void Greet()
         {
+            // Something visible: the footer greeting counts the waves. Setting the property
+            // re-renders "Signed in as {playerName}" in whatever language is active.
+            _waves++;
             VRCPlayerApi lp = Networking.LocalPlayer;
-            PlayerName = lp != null ? lp.displayName : "nobody";
+            string name = lp != null ? lp.displayName : "nobody";
+            PlayerName = name + " (x" + _waves + ")";
         }
 
         // ---- editor test hooks (parameterless so they can be sent as custom events)
