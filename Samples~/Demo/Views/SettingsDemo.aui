@@ -1,4 +1,5 @@
-<view name="SettingsDemo" width="440" height="330">
+<view name="SettingsDemo" width="440" height="360">
+  <!-- Styles come from SettingsDemo.auis (same name, same folder); see the note at its top. -->
   <panel class="row">
     <icon name="sliders-horizontal" size="22"/>
     <text key="demo.title" class="title"/>
@@ -12,9 +13,9 @@
   </tabs>
   <pages id="main">
     <page id="general">
-      <panel class="row"><text key="demo.brightness"/><spacer/><slider bind="{brightness}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="BrightnessChanged"/></panel>
-      <panel class="row"><text key="demo.solid"/><spacer/><toggle bind="{solid}" icon="check" onchange="SolidChanged"/></panel>
-      <panel class="row"><text key="demo.quality"/><spacer/>
+      <panel class="setting"><text key="demo.brightness"/><spacer/><slider bind="{brightness}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="BrightnessChanged"/></panel>
+      <panel class="setting"><text key="demo.solid"/><spacer/><toggle bind="{solid}" icon="check" onchange="SolidChanged"/></panel>
+      <panel class="setting"><text key="demo.quality"/><spacer/>
         <select id="quality" bind="{quality}" onchange="QualityChanged">
           <option value="low" key="demo.q.low"/>
           <option value="medium" key="demo.q.medium"/>
@@ -23,17 +24,17 @@
       </panel>
     </page>
     <page id="audio">
-      <panel class="row"><text key="demo.volume"/><spacer/><slider bind="{volume}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="VolumeChanged"/></panel>
-      <panel class="row"><text key="demo.mute"/><spacer/><toggle bind="{muted}" icon="check" onchange="MuteChanged"/></panel>
-      <panel class="row"><text key="demo.nick"/><spacer/><input bind="{nick}" placeholder-key="demo.nickph" onsubmit="NickSubmitted"/></panel>
+      <panel class="setting"><text key="demo.volume"/><spacer/><slider bind="{volume}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="VolumeChanged"/></panel>
+      <panel class="setting"><text key="demo.mute"/><spacer/><toggle bind="{muted}" icon="check" onchange="MuteChanged"/></panel>
+      <panel class="setting"><text key="demo.nick"/><spacer/><input bind="{nick}" placeholder-key="demo.nickph" onsubmit="NickSubmitted"/></panel>
     </page>
     <page id="lang">
       <AuiLanguagePicker/>
     </page>
   </pages>
-  <panel class="row">
+  <panel class="footer">
     <text key="demo.signedIn" args="{playerName}" class="muted"/>
     <spacer/>
-    <button onclick="Greet" key="demo.greet" icon="sparkles"/>
+    <button onclick="Greet" key="demo.greet" icon="sparkles" class="primary"/>
   </panel>
 </view>
