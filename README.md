@@ -6,8 +6,8 @@ UdonSharp wiring. Every string is a translation key, the player's language switc
 without a rebuild, and nothing is parsed at runtime.
 
 Package id `rest.armagan.aui`, namespace `Armagan.AUI`. Targets Unity 2022.3 and VRChat Worlds
-SDK 3.10.4 or newer. This file is the short guide; `REFERENCE.md` is the complete one for anyone
-changing the package.
+SDK 3.10.4 or newer. This file is the overview; `USAGE.md` is the recipe book for building panels;
+`REFERENCE.md` is the complete specification for anyone changing the package.
 
 ## Install
 
