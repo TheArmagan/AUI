@@ -118,6 +118,10 @@ namespace Armagan.AUI
         [HideInInspector] public string inputResult;
         [HideInInspector] public int inputResultId = -1;
 
+        [Header("Nesting (baked)")]
+        [Tooltip("The view this one is embedded in, if any. Emit() reports to it.")]
+        public AuiView parentView;
+
         // ---- runtime
         private bool[] _hover, _press, _selected, _disabled, _toggleOn;
         private VRCTweenHandle[] _chan;
@@ -827,6 +831,19 @@ namespace Armagan.AUI
             if (elemText[e] == null) return;
             if (value.Length == 0) elemText[e].text = elemKey[e] >= 0 && lang != null ? lang.Get(elemKey[e]) : "";
             else elemText[e].text = value;
+        }
+
+        // ================================================================ nesting
+
+        /// <summary>Author code in a nested view raises a named event; the parent's on-&lt;name&gt; handler runs.</summary>
+        protected void Emit(string eventName)
+        {
+            if (parentView != null) parentView._OnChildEvent(this, eventName);
+        }
+
+        /// <summary>Generated in the parent: routes a child's Emit to the author's handler.</summary>
+        public virtual void _OnChildEvent(AuiView child, string eventName)
+        {
         }
 
         // ================================================================ i18n

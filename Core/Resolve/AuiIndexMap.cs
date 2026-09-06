@@ -106,6 +106,8 @@ namespace Armagan.AUI.Core
         {
             if (KindOfTag(node.Tag) != KIND_NONE) return true;
             if (_styles != null && _styles[node.Index].HasStateRules) return true;
+            // A repeat's onselect is a click on each row root.
+            if (node.Parent != null && node.Parent.Tag == "repeat" && node.Tag != "empty" && node.Parent.HasAttribute("onselect")) return true;
             foreach (AuiAttribute a in node.Attributes)
                 if (a.Name == "onclick" || a.Name == "onhover" || a.Name == "onleave" || a.Name == "onpress" || a.Name == "onrelease") return true;
             return false;
