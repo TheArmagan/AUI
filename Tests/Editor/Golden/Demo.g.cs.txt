@@ -41,7 +41,7 @@ namespace Armagan.AUI.Generated
             get { return _playerName; }
             set
             {
-                _playerName = Escape(value);
+                _playerName = Escape(EnsureStartedS(value));
                 Render_2();
                 if (childLanguagePickerLp != null) childLanguagePickerLp.Title = _playerName;
             }
@@ -52,7 +52,7 @@ namespace Armagan.AUI.Generated
             get { return _status; }
             set
             {
-                _status = Escape(value);
+                _status = Escape(EnsureStartedS(value));
                 Render_3();
             }
         }
@@ -62,7 +62,7 @@ namespace Armagan.AUI.Generated
             get { return _busy; }
             set
             {
-                _busy = value;
+                _busy = EnsureStartedB(value);
                 SetEnabledElem(4, !_busy);
             }
         }
@@ -72,7 +72,7 @@ namespace Armagan.AUI.Generated
             get { return _page; }
             set
             {
-                _page = value;
+                _page = EnsureStartedI(value);
                 SelectPage(0, _page, false);
             }
         }
@@ -82,7 +82,7 @@ namespace Armagan.AUI.Generated
             get { return _volume; }
             set
             {
-                _volume = value;
+                _volume = EnsureStartedF(value);
                 if (elemSliders[25] != null) elemSliders[25].SetValueWithoutNotify(_volume);
                 Render_25();
             }
@@ -93,7 +93,7 @@ namespace Armagan.AUI.Generated
             get { return _muted; }
             set
             {
-                _muted = value;
+                _muted = EnsureStartedB(value);
                 SetToggle(27, _muted);
             }
         }
@@ -103,7 +103,7 @@ namespace Armagan.AUI.Generated
             get { return _nick; }
             set
             {
-                _nick = Escape(value);
+                _nick = Escape(EnsureStartedS(value));
                 RenderInput(28, _nick);
             }
         }
@@ -113,7 +113,7 @@ namespace Armagan.AUI.Generated
             get { return _isVip; }
             set
             {
-                _isVip = value;
+                _isVip = EnsureStartedB(value);
                 SetActiveElem(29, _isVip);
             }
         }
@@ -123,7 +123,7 @@ namespace Armagan.AUI.Generated
             get { return _quality; }
             set
             {
-                _quality = value;
+                _quality = EnsureStartedI(value);
                 SetSelect(0, _quality);
             }
         }
@@ -136,12 +136,14 @@ namespace Armagan.AUI.Generated
         }
         public void SetRowsName(int row, string value)
         {
+            if (!_started) { _auiStashI = row; _auiStashS = value; _AuiStart(); row = _auiStashI; value = _auiStashS; }
             if (row < 0 || row >= 3) return;
             string v = Escape(value);
             if (elemText[7 + row * 4] != null) elemText[7 + row * 4].text = v;
         }
         public void SetRowsFav(int row, bool value)
         {
+            if (!_started) { _auiStashI = row; _auiStashB = value; _AuiStart(); row = _auiStashI; value = _auiStashB; }
             if (row < 0 || row >= 3) return;
             SetToggle(9 + row * 4, value);
         }
@@ -204,6 +206,7 @@ namespace Armagan.AUI.Generated
 
         protected override void _AfterStart()
         {
+            if (childLanguagePickerLp != null) childLanguagePickerLp.EnsureStarted();
             Render_3();
             if (elemSliders[25] != null) _volume = elemSliders[25].value;
             Render_25();

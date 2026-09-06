@@ -282,7 +282,10 @@ namespace Armagan.AUI.Core
                     Open("public " + t + " " + b.PropertyName);
                     L("get { return " + f + "; }");
                     Open("set");
-                    L(f + " = " + (b.Type == AuiBindingType.String ? "Escape(value)" : "value") + ";");
+                    // EnsureStartedX starts a not-yet-started view and returns the value the CALLER
+                    // passed, even when OnStart wrote this same property meanwhile (see AuiView).
+                    string started = "EnsureStarted" + StashSuffix(b.Type) + "(value)";
+                    L(f + " = " + (b.Type == AuiBindingType.String ? "Escape(" + started + ")" : started) + ";");
                     foreach (AuiBindingUse u in b.Uses) EmitApplyUse(b, u, f, null);
                     Close();
                     Close();
@@ -371,6 +374,8 @@ namespace Armagan.AUI.Core
                         bool stored = b.Type == AuiBindingType.String && UsedByArgs(b);
                         if (stored) L("private string[] _" + AuiNaming.Identifier(r.Id) + "_" + b.Name + " = new string[" + r.Max + "];");
                         Open("public void Set" + P + b.PropertyName + "(int row, " + b.CsType + " value)");
+                        string stash = "_auiStash" + StashSuffix(b.Type);
+                        L("if (!_started) { _auiStashI = row; " + stash + " = value; _AuiStart(); row = _auiStashI; value = " + stash + "; }");
                         L("if (row < 0 || row >= " + r.Max + ") return;");
                         string val = b.Type == AuiBindingType.String ? "Escape(value)" : "value";
                         if (stored)
@@ -392,6 +397,18 @@ namespace Armagan.AUI.Core
                         Close();
                     }
                     L();
+                }
+            }
+
+            /// <summary>Which AuiView stash slot / EnsureStartedX overload a binding type uses.</summary>
+            private static string StashSuffix(AuiBindingType t)
+            {
+                switch (t)
+                {
+                    case AuiBindingType.Bool: return "B";
+                    case AuiBindingType.Float: return "F";
+                    case AuiBindingType.Int: return "I";
+                    default: return "S";
                 }
             }
 
@@ -559,6 +576,11 @@ namespace Armagan.AUI.Core
             private void EmitAfterStart()
             {
                 var lines = new List<string>();
+                // A child on a hidden page is inactive and has not had its Start. Start every child
+                // now, before this view's OnStart can write to it, so an author never meets a child
+                // whose OnStart defaults land after their own writes.
+                foreach (AuiNestedView nv in _info.NestedViews)
+                    lines.Add("if (" + nv.FieldName + " != null) " + nv.FieldName + ".EnsureStarted();");
                 foreach (AuiNode n in _renderTexts) if (n.Get("text") != null && Stride(n) == 0) lines.Add(RenderName(n) + "();");
                 foreach (AuiNode n in _sliders)
                 {

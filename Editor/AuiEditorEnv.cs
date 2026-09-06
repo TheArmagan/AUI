@@ -53,8 +53,28 @@ namespace Armagan.AUI.Editor
             return s;
         }
 
+        // THE WORKSPACE SCAN IS CACHED. Walking a world's Assets tree costs seconds, and every
+        // .aui import and every queue drain used to do it again, plus re-read every language
+        // file and re-parse the theme. The postprocessor invalidates this whenever a file that
+        // could change the answer (.aui, .auis, lang json, svg, the settings) is imported,
+        // deleted or moved.
+        private static AuiWorkspace _ws;
+        private static AuiSettings _wsSettings;
+        private static AuiLanguageTable _lang;
+        private static AuiStyleSheet _theme;
+        private static AuiDiagnosticBag _langDiag;
+
+        public static void InvalidateWorkspace()
+        {
+            _ws = null;
+            _lang = null;
+            _theme = null;
+            _langDiag = null;
+        }
+
         public static AuiWorkspace Scan(AuiSettings settings)
         {
+            if (_ws != null && _wsSettings == settings) return _ws;
             string lang = settings != null && !string.IsNullOrEmpty(settings.langFolder) ? Path.GetFullPath(settings.langFolder) : null;
             AuiWorkspace w = AuiWorkspace.Scan(Path.GetFullPath("Assets"), PackageRoot, lang);
             if (settings != null)
@@ -66,7 +86,35 @@ namespace Armagan.AUI.Editor
                     if (!string.IsNullOrEmpty(f) && Directory.Exists(f))
                         foreach (string p in Directory.GetFiles(f, "*.svg")) w.IconPaths.Insert(0, Path.GetFullPath(p));
             }
+            _ws = w;
+            _wsSettings = settings;
+            _lang = null;
+            _theme = null;
             return w;
+        }
+
+        /// <summary>The merged language table for the cached workspace; built once per invalidation.</summary>
+        public static AuiLanguageTable LanguageTable(AuiSettings settings, AuiWorkspace ws, System.Func<string, string> read)
+        {
+            if (_lang == null || ws != _ws)
+            {
+                _langDiag = new AuiDiagnosticBag("lang");
+                _lang = ws.LoadLanguageTable(settings != null ? settings.defaultLanguage : "en", _langDiag, read);
+            }
+            else if (read != null)
+            {
+                // The importer records dependencies through `read`; touch the files so they are declared.
+                foreach (string p in ws.PackageLangPaths) read(p);
+                foreach (string p in ws.LangPaths) read(p);
+            }
+            return _lang;
+        }
+
+        public static AuiStyleSheet Theme(AuiWorkspace ws, System.Func<string, string> read)
+        {
+            if (_theme == null || ws != _ws) _theme = ws.LoadTheme(read);
+            else if (read != null && ws.ThemePath != null) read(ws.ThemePath);
+            return _theme;
         }
 
         /// <summary>Unity asset path ("Assets/..." or "Packages/...") from an absolute path, or null when outside the project.</summary>
@@ -92,11 +140,11 @@ namespace Armagan.AUI.Editor
                 if (onRead != null) onRead(p);
                 return File.ReadAllText(p);
             };
-            var langDiag = new AuiDiagnosticBag(absolutePath);
-            AuiLanguageTable lang = ws.LoadLanguageTable(settings != null ? settings.defaultLanguage : "en", langDiag, read);
+            AuiLanguageTable lang = LanguageTable(settings, ws, read);
+            AuiDiagnosticBag langDiag = _langDiag ?? new AuiDiagnosticBag(absolutePath);
             var opt = new AuiCompileOptions
             {
-                Theme = ws.LoadTheme(read),
+                Theme = Theme(ws, read),
                 ReadFile = read,
                 Lang = lang,
                 Measurer = new AuiTextMeasurer(settings),

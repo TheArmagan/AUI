@@ -47,6 +47,31 @@ namespace Armagan.AUI.Editor
             AuiLog.Info("language table: " + table.LanguageCount + " language(s) [" + string.Join(", ", table.Codes()) + "], " + table.KeyCount + " key(s).");
         }
 
+        /// <summary>
+        /// Called by the build queue after every drain that built a prefab. Views bake key INDICES,
+        /// so a table the views were compiled against but the scene's service does not carry
+        /// renders every new key as "??". Cheap when nothing changed: one string compare per cell.
+        /// Never creates the service: an unrelated scene may be open.
+        /// </summary>
+        public static void ApplyIfChanged(AuiSettings settings, AuiWorkspace ws)
+        {
+            AuiLanguageService svc = Object.FindObjectOfType<AuiLanguageService>(true);
+            if (svc == null) return;
+            AuiLanguageTable table = AuiEditorEnv.LanguageTable(settings, ws, null);
+            if (Same(svc.langCodes, table.Codes()) && Same(svc.langNames, table.Names()) && svc.defaultLang == table.DefaultLanguage &&
+                svc.keyCount == table.KeyCount && Same(svc.keys, table.Keys.ToArray()) && Same(svc.values, table.Flat()))
+                return;
+            Apply(svc, table);
+            AuiLog.Info("language table rebaked onto '" + svc.name + "': " + table.KeyCount + " key(s).");
+        }
+
+        private static bool Same(string[] a, string[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
+        }
+
         public static void Apply(AuiLanguageService svc, AuiLanguageTable table)
         {
             if (svc == null) return;

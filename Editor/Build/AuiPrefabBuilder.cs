@@ -92,12 +92,13 @@ namespace Armagan.AUI.Editor
                 AuiLog.Warn(r.ViewName + ": class not available yet (" + cs + "); will retry after the next compile.");
                 return false;
             }
-            if (AuiProgramAssets.Ensure(cs) || AuiProgramAssets.Find(cs) == null || AuiProgramAssets.Find(cs).SerializedProgramAsset == null ||
-                AuiProgramAssets.Find(cs).SerializedProgramAsset.RetrieveProgram() == null)
-            {
-                UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(new UdonSharp.Compiler.UdonSharpCompileOptions());
-            }
+            // The queue creates program assets and runs UdonSharp once for every view in a drain;
+            // this is only the safety net for a direct Build call.
+            AuiProgramAssets.Ensure(cs);
             UdonSharpProgramAsset program = AuiProgramAssets.Find(cs);
+            if (program != null && (program.SerializedProgramAsset == null || program.SerializedProgramAsset.RetrieveProgram() == null))
+                UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(new UdonSharp.Compiler.UdonSharpCompileOptions());
+            program = AuiProgramAssets.Find(cs);
             if (program == null || program.SerializedProgramAsset == null || program.SerializedProgramAsset.RetrieveProgram() == null)
             {
                 AuiLog.Error(r.ViewName + ": UdonSharp did not produce a program for " + cs + ". Fix the U# errors above.");

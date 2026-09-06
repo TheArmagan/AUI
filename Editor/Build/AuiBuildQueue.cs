@@ -13,8 +13,16 @@ namespace Armagan.AUI.Editor
     /// </summary>
     internal sealed class AuiPostprocessor : AssetPostprocessor
     {
+        private static bool Affects(string p)
+        {
+            return p.EndsWith(".aui") || p.EndsWith(".auis") || p.EndsWith(".json") || p.EndsWith(".svg") || p.EndsWith("AuiSettings.asset");
+        }
+
         private static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
+            foreach (string[] set in new[] { imported, deleted, moved })
+                foreach (string p in set)
+                    if (Affects(p)) { AuiEditorEnv.InvalidateWorkspace(); break; }
             bool any = false;
             foreach (string p in imported)
             {
@@ -109,8 +117,10 @@ namespace Armagan.AUI.Editor
             List<string> list = Pending();
             if (list.Count == 0) return;
 
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             AuiSettings settings = AuiEditorEnv.FindSettings();
             AuiWorkspace ws = AuiEditorEnv.Scan(settings);
+            long scanMs = clock.ElapsedMilliseconds;
 
             // Compile everything first so parents can be ordered after their children.
             var results = new Dictionary<string, AuiCompileResult>();
@@ -120,8 +130,33 @@ namespace Armagan.AUI.Editor
                 results[p] = AuiEditorEnv.Compile(Path.GetFullPath(p), settings, ws, null);
             }
             list.Sort((a, b) => Depth(a, results, ws).CompareTo(Depth(b, results, ws)));
+            long compileMs = clock.ElapsedMilliseconds - scanMs;
+
+            // ONE UDONSHARP COMPILE PER DRAIN. CompileSync compiles every U# script in the project
+            // and costs seconds; a first build of six views used to pay it six times. Every view
+            // whose class exists gets its program asset now, then U# runs once for all of them.
+            long usharpMs = 0;
+            bool needUsharp = false;
+            foreach (string p in list)
+            {
+                AuiCompileResult r;
+                if (!results.TryGetValue(p, out r) || r.HasErrors || r.ViewName == null) continue;
+                string cs = AuiEditorEnv.AssetPath(Path.Combine(Path.GetDirectoryName(r.FilePath) ?? "", r.ViewName + ".cs"));
+                if (cs == null || !File.Exists(cs)) continue;
+                if (AuiProgramAssets.Ensure(cs)) needUsharp = true;
+                UdonSharp.UdonSharpProgramAsset pa = AuiProgramAssets.Find(cs);
+                if (pa != null && (pa.SerializedProgramAsset == null || pa.SerializedProgramAsset.RetrieveProgram() == null)) needUsharp = true;
+            }
+            if (needUsharp)
+            {
+                long t0 = clock.ElapsedMilliseconds;
+                UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(new UdonSharp.Compiler.UdonSharpCompileOptions());
+                usharpMs = clock.ElapsedMilliseconds - t0;
+            }
 
             bool wroteSource = false;
+            int built = 0;
+            long buildStart = clock.ElapsedMilliseconds;
             var remaining = new List<string>(list);
             foreach (string p in list)
             {
@@ -149,12 +184,19 @@ namespace Armagan.AUI.Editor
                 // Step B
                 if (AuiPrefabBuilder.Build(r, settings, ws))
                 {
+                    built++;
                     remaining.Remove(p);
                     SessionState.EraseInt(AttemptsKey + p);
                 }
             }
             Save(remaining);
             if (remaining.Count == 0) SessionState.SetBool(ForceKey, false);
+            // The views just built carry key indices into the CURRENT language files; the scene's
+            // service must carry the same table or every key added since the last bake shows "??".
+            if (built > 0) AuiLanguageTableBuilder.ApplyIfChanged(settings, ws);
+            long buildMs = clock.ElapsedMilliseconds - buildStart;
+            AuiLog.Info("drain: " + list.Count + " view(s), " + built + " built, " + (wroteSource ? "sources written, " : "") +
+                        clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + ", udonsharp " + usharpMs + ", build " + buildMs + ")");
             if (wroteSource)
             {
                 // Sources changed: let Unity compile; the queue resumes after the reload.

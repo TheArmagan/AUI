@@ -40,7 +40,7 @@ namespace Armagan.AUI.Core
             for (int i = 0; i < _doc.Nodes.Count; i++) _out[i] = new AuiLayoutNode { Node = _doc.Nodes[i] };
             if (_doc.Root == null) return _out;
 
-            Measure(_doc.Root);
+            Measure(_doc.Root, _info != null && _info.Width > 0 ? _info.Width : 0);
             AuiLayoutNode root = _out[_doc.Root.Index];
             float w = _info != null && _info.Width > 0 ? _info.Width : root.IntrinsicW;
             float h = _info != null && _info.Height > 0 ? _info.Height : root.IntrinsicH;
@@ -82,13 +82,16 @@ namespace Armagan.AUI.Core
 
         // ---------------------------------------------------------------- measure
 
-        private void Measure(AuiNode n)
+        /// <param name="availW">Width the element can expect from its ancestors (0 = unknown); lets wrapping containers measure their real height.</param>
+        private void Measure(AuiNode n, float availW)
         {
             AuiLayoutNode ln = _out[n.Index];
             AuiResolvedStyle s = S(n);
             float w = 0, h = 0;
 
-            foreach (AuiNode c in n.Children) Measure(c);
+            float own = s.Width.IsSet && !s.Width.IsAuto ? s.Width.Resolve(availW, availW) : availW;
+            float inner = own > 0 ? System.Math.Max(0, own - s.Padding.Horizontal) : 0;
+            foreach (AuiNode c in n.Children) Measure(c, inner);
 
             switch (n.Tag)
             {
@@ -126,7 +129,7 @@ namespace Armagan.AUI.Core
                     if (n.Tag == "input") ln.ContentSized = false;
                     break;
                 case "repeat":
-                    MeasureRepeat(n, s, ln, out w, out h);
+                    MeasureRepeat(n, s, ln, inner, out w, out h);
                     break;
                 case "pages":
                 {
@@ -148,7 +151,7 @@ namespace Armagan.AUI.Core
                         w = s.Width.Resolve(0, 200);
                         h = s.Height.Resolve(0, 120);
                     }
-                    else MeasureContainer(n, s, out w, out h);
+                    else MeasureContainer(n, s, inner, out w, out h);
                     break;
             }
 
@@ -223,12 +226,34 @@ namespace Armagan.AUI.Core
             return sb.ToString();
         }
 
-        private void MeasureContainer(AuiNode n, AuiResolvedStyle s, out float w, out float h)
+        private void MeasureContainer(AuiNode n, AuiResolvedStyle s, float availW, out float w, out float h)
         {
             bool row = s.IsRow;
             float gap = s.Gap;
             float main = 0, cross = 0;
             int flowCount = 0;
+            if (row && s.Wrap && availW > 0)
+            {
+                // Simulate the line breaks the layout pass will make, so the container's
+                // intrinsic height is the wrapped height and not one line.
+                float x = 0, y = 0, lineH = 0, widest = 0;
+                foreach (AuiNode c in n.Children)
+                {
+                    if (S(c).Anchor != "none") continue;
+                    AuiLayoutNode cl = _out[c.Index];
+                    AuiBox m = S(c).Margin;
+                    float cw = cl.IntrinsicW + m.Horizontal, ch = cl.IntrinsicH + m.Vertical;
+                    if (x > 0 && x + cw > availW + 0.01f) { x = 0; y += lineH + gap; lineH = 0; }
+                    x += cw + gap;
+                    lineH = System.Math.Max(lineH, ch);
+                    widest = System.Math.Max(widest, x - gap);
+                    flowCount++;
+                }
+                AuiBox pp = s.Padding;
+                w = System.Math.Min(availW, widest) + pp.Horizontal;
+                h = y + lineH + pp.Vertical;
+                return;
+            }
             foreach (AuiNode c in n.Children)
             {
                 if (S(c).Anchor != "none") continue;
@@ -295,7 +320,7 @@ namespace Armagan.AUI.Core
             else { w = cross + p.Horizontal; h = main + p.Vertical; }
         }
 
-        private void MeasureRepeat(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, out float w, out float h)
+        private void MeasureRepeat(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, float availW, out float w, out float h)
         {
             AuiRepeatInfo r = RepeatOf(n);
             ln.ContentSized = true;
@@ -314,9 +339,12 @@ namespace Armagan.AUI.Core
             if (s.IsRow && !s.Wrap) { w = iw * count + gap * (count - 1) + p.Horizontal; h = ih + p.Vertical; }
             else if (s.IsRow)
             {
-                // Grid: width comes from the parent in the layout pass; intrinsic is one row.
-                w = iw * count + gap * (count - 1) + p.Horizontal;
-                h = ih + p.Vertical;
+                // Grid: as many per line as the available width allows, then stacked lines.
+                float innerW = availW > 0 ? availW - p.Horizontal : 0;
+                int perLine = innerW > 0 ? System.Math.Max(1, (int)System.Math.Floor((innerW + gap) / (iw + gap))) : count;
+                int lines = (count + perLine - 1) / perLine;
+                w = (innerW > 0 ? innerW : iw * count + gap * (count - 1)) + p.Horizontal;
+                h = ih * lines + gap * (lines - 1) + p.Vertical;
             }
             else { w = iw + p.Horizontal; h = ih * count + gap * (count - 1) + p.Vertical; }
             // <empty> is measured but overlaps the first instance; it does not add size.

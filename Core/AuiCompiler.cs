@@ -123,7 +123,10 @@ namespace Armagan.AUI.Core
             var cg = new AuiCodegenContext { Hash = "", ChildInfo = opt.ChildInfo };
             string unhashed = AuiCodegen.Emit(r.Info, r.Map, cg, r.Diagnostics);
             r.Hash = ComputeHash(r, unhashed);
-            cg.Hash = r.Hash;
+            // The source header carries a hash of the SOURCE ONLY. The prefab stamp (r.Hash) also
+            // covers layout and styles; putting that in the header would rewrite Foo.g.cs, and so
+            // force a script reload, for a change that only moves a rectangle.
+            cg.Hash = Sha1(unhashed);
             r.GeneratedSource = AuiCodegen.Emit(r.Info, r.Map, cg, new AuiDiagnosticBag(filePath));
             return r;
         }

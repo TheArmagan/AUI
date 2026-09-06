@@ -127,7 +127,9 @@ namespace Armagan.AUI
         private VRCTweenHandle[] _chan;
         private VRCTweenHandle _fadeH, _scaleH, _slideH;
         private int _seq, _snapSeq;
-        private bool _visible, _started;
+        private bool _visible;
+        /// <summary>Set at the top of _AuiStart; generated setters read it to park a pre-start write.</summary>
+        protected bool _started;
         private int _signalCount;
         private int[] _pageCur, _pagePending, _pageSeq;
         private int[] _repeatCount;
@@ -223,6 +225,33 @@ namespace Armagan.AUI
             OnStart();
         }
 
+        /// <summary>
+        /// A view on a non-default page (or any inactive object) has not had its Start yet when a
+        /// parent writes to it, and its runtime arrays are still null. Every public entry and every
+        /// generated setter starts the view first; _AuiStart is idempotent, so the later Start is a no-op.
+        ///
+        /// UDON HAS NO CALL STACK FOR PARAMETERS. A method's arguments live in heap slots, so when
+        /// _AuiStart runs OnStart and OnStart writes the same property, the outer call's `value`
+        /// is overwritten by the inner one. The EnsureStartedX helpers park the outer value in a
+        /// field before starting and hand it back after; the field is only written while the view
+        /// is not yet started, which is exactly once, so the inner calls cannot touch it. The
+        /// outcome is the intuitive one: a write made before Start survives OnStart's defaults.
+        /// </summary>
+        public void EnsureStarted()
+        {
+            if (!_started) _AuiStart();
+        }
+
+        protected int _auiStashI, _auiStashI2;
+        protected bool _auiStashB;
+        protected float _auiStashF;
+        protected string _auiStashS;
+
+        protected string EnsureStartedS(string v) { if (_started) return v; _auiStashS = v; _AuiStart(); return _auiStashS; }
+        protected int EnsureStartedI(int v) { if (_started) return v; _auiStashI = v; _AuiStart(); return _auiStashI; }
+        protected float EnsureStartedF(float v) { if (_started) return v; _auiStashF = v; _AuiStart(); return _auiStashF; }
+        protected bool EnsureStartedB(bool v) { if (_started) return v; _auiStashB = v; _AuiStart(); return _auiStashB; }
+
         /// <summary>Generated code applies initial binding values here.</summary>
         protected virtual void _AfterStart()
         {
@@ -256,6 +285,7 @@ namespace Armagan.AUI
 
         public void Show()
         {
+            EnsureStarted();
             _seq++;
             if (content == null) return;
             content.SetActive(true);
@@ -268,6 +298,7 @@ namespace Armagan.AUI
 
         public void Hide()
         {
+            EnsureStarted();
             _seq++;
             if (content == null || !_visible) return;
             if (contentGroup != null) { contentGroup.blocksRaycasts = false; contentGroup.interactable = false; }
@@ -473,11 +504,13 @@ namespace Armagan.AUI
 
         public bool GetToggle(int elem)
         {
+            elem = EnsureStartedI(elem);
             return elem >= 0 && elem < _toggleOn.Length && _toggleOn[elem];
         }
 
         public void SetToggle(int elem, bool on)
         {
+            if (!_started) { _auiStashI = elem; _auiStashB = on; _AuiStart(); elem = _auiStashI; on = _auiStashB; }
             if (elem < 0 || elem >= _toggleOn.Length) return;
             _toggleOn[elem] = on;
             int id = elemSignal[elem];
@@ -486,6 +519,7 @@ namespace Armagan.AUI
 
         public void SetSelected(int id, bool on)
         {
+            if (!_started) { _auiStashI = id; _auiStashB = on; _AuiStart(); id = _auiStashI; on = _auiStashB; }
             if (id < 0 || id >= _signalCount) return;
             _selected[id] = on;
             ApplyState(id);
@@ -493,11 +527,13 @@ namespace Armagan.AUI
 
         public bool IsSelected(int id)
         {
+            id = EnsureStartedI(id);
             return id >= 0 && id < _signalCount && _selected[id];
         }
 
         public void SetEnabled(int id, bool on)
         {
+            if (!_started) { _auiStashI = id; _auiStashB = on; _AuiStart(); id = _auiStashI; on = _auiStashB; }
             if (id < 0 || id >= _signalCount) return;
             _disabled[id] = !on;
             int e = sigElem[id];
@@ -626,12 +662,14 @@ namespace Armagan.AUI
 
         public int GetPage(int group)
         {
+            group = EnsureStartedI(group);
             return group >= 0 && group < _pageCur.Length ? _pageCur[group] : -1;
         }
 
         /// <summary>Show one page of a group. <paramref name="notify"/> = call the generated hook (false when set from code).</summary>
         public void SelectPage(int group, int page, bool notify)
         {
+            if (!_started) { _auiStashI = group; _auiStashI2 = page; _auiStashB = notify; _AuiStart(); group = _auiStashI; page = _auiStashI2; notify = _auiStashB; }
             if (pageGroupStart == null || group < 0 || group >= pageGroupStart.Length) return;
             if (page < 0 || page >= pageGroupCount[group]) return;
             if (page == _pageCur[group]) return;
@@ -715,11 +753,13 @@ namespace Armagan.AUI
 
         public int GetRepeatCount(int repeat)
         {
+            repeat = EnsureStartedI(repeat);
             return repeat >= 0 && repeat < _repeatCount.Length ? _repeatCount[repeat] : 0;
         }
 
         public void SetRepeatCount(int repeat, int count)
         {
+            if (!_started) { _auiStashI = repeat; _auiStashI2 = count; _AuiStart(); repeat = _auiStashI; count = _auiStashI2; }
             if (repeatFirst == null || repeat < 0 || repeat >= repeatFirst.Length) return;
             int max = repeatMax[repeat];
             if (count < 0) count = 0;
@@ -743,12 +783,14 @@ namespace Armagan.AUI
 
         public int GetSelect(int select)
         {
+            select = EnsureStartedI(select);
             return select >= 0 && select < _selectValue.Length ? _selectValue[select] : -1;
         }
 
         /// <summary>Set the chosen option without firing the handler.</summary>
         public void SetSelect(int select, int index)
         {
+            if (!_started) { _auiStashI = select; _auiStashI2 = index; _AuiStart(); select = _auiStashI; index = _auiStashI2; }
             if (selectElem == null || select < 0 || select >= selectElem.Length) return;
             if (index < 0) index = 0;
             if (index >= selectOptionCount[select]) index = selectOptionCount[select] - 1;
@@ -773,6 +815,7 @@ namespace Armagan.AUI
 
         public void SetSelectOptionLabel(int select, int index, string label)
         {
+            if (!_started) { _auiStashI = select; _auiStashI2 = index; _auiStashS = label; _AuiStart(); select = _auiStashI; index = _auiStashI2; label = _auiStashS; }
             if (selectElem == null || select < 0 || select >= selectElem.Length) return;
             if (index < 0 || index >= selectOptionCount[select]) return;
             int oe = selectOptionFirst[select] + index;
@@ -782,6 +825,7 @@ namespace Armagan.AUI
 
         public void SetSelectOptionCount(int select, int count)
         {
+            if (!_started) { _auiStashI = select; _auiStashI2 = count; _AuiStart(); select = _auiStashI; count = _auiStashI2; }
             if (selectElem == null || select < 0 || select >= selectElem.Length) return;
             int first = selectOptionFirst[select];
             for (int i = 0; i < selectOptionCount[select]; i++)
