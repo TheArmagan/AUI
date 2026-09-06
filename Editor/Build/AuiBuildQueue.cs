@@ -91,6 +91,13 @@ namespace Armagan.AUI.Editor
             EditorApplication.delayCall += Drain;
         }
 
+        /// <summary>Drain synchronously (menu items, tests, tools driving the editor): delayCall waits for an editor tick that an unfocused editor may not deliver.</summary>
+        public static void DrainNow()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) { Kick(); return; }
+            Drain();
+        }
+
         private static void Drain()
         {
             _scheduled = false;
@@ -196,6 +203,15 @@ namespace Armagan.AUI.Editor
                 }
             }
             return true;
+        }
+
+        /// <summary>Force-rebuild one view even when its bake hash matches.</summary>
+        public static void RebuildOne(string assetPath)
+        {
+            SessionState.SetBool(ForceKey, true);
+            SessionState.EraseInt(AttemptsKey + assetPath);
+            Enqueue(assetPath);
+            Kick();
         }
 
         /// <summary>Queue every .aui under Assets (and the package's own views).</summary>

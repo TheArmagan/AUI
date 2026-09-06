@@ -13,7 +13,7 @@ namespace Armagan.AUI.Editor
         {
             AuiProgramAssets.EnsurePackageRuntime();
             AuiBuildQueue.EnqueueAll();
-            AuiLog.Info("queued every view; watch the console.");
+            AuiBuildQueue.DrainNow();
         }
 
         [MenuItem("AUI/Rebuild Language Table", false, 2)]

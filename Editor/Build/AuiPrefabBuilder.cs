@@ -123,8 +123,7 @@ namespace Armagan.AUI.Editor
                 Finish(c, root);
                 AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
-                GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
-                if (saved == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
+                if (!SavePrefab(root, prefabPath, existing != null)) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
                 AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
                 return true;
             }
@@ -137,6 +136,29 @@ namespace Armagan.AUI.Editor
             {
                 if (root != null) Object.DestroyImmediate(root);
             }
+        }
+
+        /// <summary>
+        /// SAVING OVER AN EXISTING PREFAB THAT HOLDS UDONSHARP COMPONENTS THROWS. Unity serializes the
+        /// old asset's objects while tearing them down, and UdonSharpBehaviour.OnBeforeSerialize hands a
+        /// destroyed `this` to Odin (measured: a fresh save logs 0 errors, an overwrite 18). So the tree
+        /// is always saved to a fresh temporary asset and the FILE is copied over the old one: the old
+        /// .meta (GUID) stays, scene instances stay linked, and the reimport is silent.
+        /// </summary>
+        private static bool SavePrefab(GameObject root, string prefabPath, bool overwrite)
+        {
+            if (!overwrite)
+                return PrefabUtility.SaveAsPrefabAsset(root, prefabPath) != null;
+            string tempDir = "Assets/AUI/Temp";
+            Directory.CreateDirectory(tempDir);
+            string temp = tempDir + "/" + Path.GetFileName(prefabPath);
+            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, temp);
+            if (saved == null) return false;
+            File.Copy(Path.GetFullPath(temp), Path.GetFullPath(prefabPath), true);
+            AssetDatabase.DeleteAsset(temp);
+            if (Directory.GetFileSystemEntries(tempDir).Length == 0) AssetDatabase.DeleteAsset(tempDir);
+            AssetDatabase.ImportAsset(prefabPath, ImportAssetOptions.ForceUpdate);
+            return true;
         }
 
         private static void Alloc(Ctx c)
