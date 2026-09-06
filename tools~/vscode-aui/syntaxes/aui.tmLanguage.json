@@ -1,0 +1,94 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "AUI view",
+  "scopeName": "text.xml.aui",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#style" },
+    { "include": "#tag" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.aui",
+      "begin": "<!--",
+      "end": "-->"
+    },
+    "style": {
+      "name": "meta.embedded.block.auis",
+      "begin": "(<)(style)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.aui" },
+        "2": { "name": "entity.name.tag.aui" },
+        "3": { "name": "punctuation.definition.tag.end.aui" }
+      },
+      "end": "(</)(style)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.aui" },
+        "2": { "name": "entity.name.tag.aui" },
+        "3": { "name": "punctuation.definition.tag.end.aui" }
+      },
+      "patterns": [{ "include": "source.css.auis" }]
+    },
+    "tag": {
+      "name": "meta.tag.aui",
+      "begin": "(</?)([A-Z][A-Za-z0-9_]*|[a-z][a-z0-9-]*)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.aui" },
+        "2": {
+          "patterns": [
+            { "match": "[A-Z][A-Za-z0-9_]*", "name": "entity.name.type.component.aui" },
+            { "match": "view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|link", "name": "entity.name.tag.aui" },
+            { "match": "[a-z][a-z0-9-]*", "name": "invalid.illegal.unknown-tag.aui" }
+          ]
+        }
+      },
+      "end": "(/?>)",
+      "endCaptures": { "1": { "name": "punctuation.definition.tag.end.aui" } },
+      "patterns": [
+        {
+          "match": "\\b(on[a-z-]+)\\s*(=)",
+          "captures": { "1": { "name": "entity.other.attribute-name.event.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
+        },
+        {
+          "match": "\\b(key|placeholder-key|format-key)\\s*(=)",
+          "captures": { "1": { "name": "entity.other.attribute-name.key.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
+        },
+        {
+          "match": "\\b([a-z][a-z0-9-]*)\\s*(=)",
+          "captures": { "1": { "name": "entity.other.attribute-name.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
+        },
+        { "match": "\\b(hidden|wrap|ellipsis|runtime)\\b", "name": "entity.other.attribute-name.flag.aui" },
+        { "include": "#string" }
+      ]
+    },
+    "string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.aui",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "include": "#binding" }, { "include": "#entity" }]
+        },
+        {
+          "name": "string.quoted.single.aui",
+          "begin": "'",
+          "end": "'",
+          "patterns": [{ "include": "#binding" }, { "include": "#entity" }]
+        }
+      ]
+    },
+    "binding": {
+      "match": "(\\{)(item\\.)?([A-Za-z_][A-Za-z0-9_]*)(\\})",
+      "captures": {
+        "1": { "name": "punctuation.definition.binding.aui" },
+        "2": { "name": "keyword.other.item.aui" },
+        "3": { "name": "variable.other.binding.aui" },
+        "4": { "name": "punctuation.definition.binding.aui" }
+      }
+    },
+    "entity": {
+      "match": "&(lt|gt|amp|quot|apos|nbsp|#x?[0-9A-Fa-f]+);",
+      "name": "constant.character.entity.aui"
+    }
+  }
+}

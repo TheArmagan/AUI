@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "AUI stylesheet",
+  "scopeName": "source.css.auis",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#rule" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        { "name": "comment.block.auis", "begin": "/\\*", "end": "\\*/" },
+        { "name": "comment.line.double-slash.auis", "match": "//.*$" }
+      ]
+    },
+    "rule": {
+      "begin": "(?=[A-Za-z.:*])",
+      "end": "(?<=\\})",
+      "patterns": [
+        { "include": "#selector" },
+        { "include": "#block" }
+      ]
+    },
+    "selector": {
+      "patterns": [
+        { "match": ":root\\b", "name": "keyword.other.root.auis" },
+        { "match": ":(hover|pressed|selected|disabled)\\b", "name": "entity.other.attribute-name.pseudo-class.auis" },
+        { "match": "\\.[A-Za-z_][A-Za-z0-9_-]*", "name": "entity.other.attribute-name.class.auis" },
+        { "match": "\\b(view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty)\\b", "name": "entity.name.tag.auis" },
+        { "match": "\\*", "name": "entity.name.tag.wildcard.auis" },
+        { "match": ",", "name": "punctuation.separator.list.auis" }
+      ]
+    },
+    "block": {
+      "name": "meta.property-list.auis",
+      "begin": "\\{",
+      "beginCaptures": { "0": { "name": "punctuation.section.property-list.begin.auis" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.property-list.end.auis" } },
+      "patterns": [
+        { "include": "#comment" },
+        {
+          "match": "(--[A-Za-z_][A-Za-z0-9_-]*)\\s*(:)",
+          "captures": { "1": { "name": "variable.other.custom-property.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
+        },
+        {
+          "match": "\\b(width|height|min-width|min-height|max-width|max-height|anchor|padding|margin|gap|flex-direction|justify|align|grow|wrap|color|background|border|radius|opacity|scale|offset|icon-color|font|font-weight|font-size|text-align|line-height|transition|page-transition|show)\\s*(:)",
+          "captures": { "1": { "name": "support.type.property-name.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
+        },
+        {
+          "match": "\\b([a-z-]+)\\s*(:)",
+          "captures": { "1": { "name": "invalid.illegal.unknown-property.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
+        },
+        { "match": "#[0-9A-Fa-f]{3,8}\\b", "name": "constant.other.color.auis" },
+        { "match": "\\b(var|sprite|rgba?)(?=\\()", "name": "support.function.auis" },
+        { "match": "--[A-Za-z_][A-Za-z0-9_-]*", "name": "variable.other.custom-property.auis" },
+        { "match": "-?\\d+(\\.\\d+)?(mm|%|s|ms)?", "name": "constant.numeric.auis" },
+        { "match": "\\b(auto|none|row|column|start|center|end|space-between|stretch|true|false|fill|top|bottom|left|right|regular|medium|semibold|bold|transparent|white|black|fade|fade-scale|fade-slide|slide-left|slide-right|slide-up|slide-down|linear|in-quad|out-quad|in-out-quad|in-cubic|out-cubic|in-out-cubic|in-back|out-back|in-out-back|out-bounce|out-elastic)\\b", "name": "support.constant.property-value.auis" },
+        { "match": ";", "name": "punctuation.terminator.rule.auis" }
+      ]
+    }
+  }
+}

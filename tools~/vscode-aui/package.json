@@ -1,0 +1,58 @@
+{
+  "name": "aui",
+  "displayName": "AUI",
+  "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition.",
+  "version": "0.1.0",
+  "publisher": "armagan",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages"],
+  "activationEvents": ["onLanguage:aui", "onLanguage:auis"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      { "id": "aui", "aliases": ["AUI view"], "extensions": [".aui"], "configuration": "./language-configuration-aui.json" },
+      { "id": "auis", "aliases": ["AUI stylesheet"], "extensions": [".auis"], "configuration": "./language-configuration-auis.json" }
+    ],
+    "grammars": [
+      { "language": "aui", "scopeName": "text.xml.aui", "path": "./syntaxes/aui.tmLanguage.json", "embeddedLanguages": { "source.css.auis": "auis" } },
+      { "language": "auis", "scopeName": "source.css.auis", "path": "./syntaxes/auis.tmLanguage.json" }
+    ],
+    "configuration": {
+      "title": "AUI",
+      "properties": {
+        "aui.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to aui-lsp.dll or aui-lsp.exe. Empty uses the server bundled with the extension."
+        },
+        "aui.dotnetPath": {
+          "type": "string",
+          "default": "dotnet",
+          "description": "The dotnet host used to run aui-lsp.dll (needs the .NET 8 runtime or newer)."
+        },
+        "aui.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace the communication with the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "server": "dotnet publish ../aui-lsp/AuiLsp.csproj -c Release -o ./server",
+    "package": "npm run server && npm run compile && vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.4.0"
+  }
+}
