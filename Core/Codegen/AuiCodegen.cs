@@ -246,11 +246,15 @@ namespace Armagan.AUI.Core
                 L();
             }
 
-            private string DefaultOf(AuiBindingType t)
+            private string DefaultOf(AuiBinding b)
             {
+                AuiBindingType t = b.Type;
                 switch (t)
                 {
-                    case AuiBindingType.Bool: return "false";
+                    case AuiBindingType.Bool:
+                        // An if= element is baked active, so its binding starts true to match.
+                        foreach (AuiBindingUse u in b.Uses) if (u.Attribute == "if") return "true";
+                        return "false";
                     case AuiBindingType.Float: return "0f";
                     case AuiBindingType.Int: return "0";
                     default: return "\"\"";
@@ -265,7 +269,7 @@ namespace Armagan.AUI.Core
                 {
                     string f = AuiNaming.Field(b.Name);
                     string t = b.CsType;
-                    L("private " + t + " " + f + " = " + DefaultOf(b.Type) + ";");
+                    L("private " + t + " " + f + " = " + DefaultOf(b) + ";");
                     Open("public " + t + " " + b.PropertyName);
                     L("get { return " + f + "; }");
                     Open("set");

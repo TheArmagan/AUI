@@ -1,0 +1,6 @@
+<view name="AuiLanguagePicker" width="380" height="200" show="none">
+  <text key="aui.lang.choose" class="title"/>
+  <repeat id="langs" max="8" onselect="Pick" class="grid">
+    <button class="chip" selected="{item.current}"><text text="{item.name}"/></button>
+  </repeat>
+</view>

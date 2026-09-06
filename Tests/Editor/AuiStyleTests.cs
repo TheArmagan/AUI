@@ -337,7 +337,7 @@ namespace Armagan.AUI.Tests
                 string file = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileName();
                 if (!string.IsNullOrEmpty(file))
                     return System.IO.Path.GetFullPath(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(file), "../.."));
-                return System.IO.Path.GetFullPath("Packages/restr.armagan.aui");
+                return System.IO.Path.GetFullPath("Packages/rest.armagan.aui");
             }
         }
     }

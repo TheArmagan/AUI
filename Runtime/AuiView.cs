@@ -195,6 +195,18 @@ namespace Armagan.AUI
                 if (elemObjects[selectPopupElem[s]] != null) elemObjects[selectPopupElem[s]].SetActive(false);
             }
 
+            // A PREFAB CANNOT REFERENCE SCENE OBJECTS, so a view placed from its prefab arrives with
+            // lang and inputPanel null. Both live on well-known, always-active objects; Find once.
+            if (lang == null)
+            {
+                GameObject svc = GameObject.Find("AUI Language Service");
+                if (svc != null) lang = svc.GetComponent<AuiLanguageService>();
+            }
+            if (inputPanel == null)
+            {
+                GameObject ip = GameObject.Find("AUI Input Panel");
+                if (ip != null) inputPanel = ip.GetComponent<AuiInputPanel>();
+            }
             if (lang != null) lang.Register(this);
             _Retranslate();
 
@@ -208,10 +220,21 @@ namespace Armagan.AUI
 
             if (startHidden) HideInstant(); else ShowInstant();
             _AfterStart();
+            OnStart();
         }
 
         /// <summary>Generated code applies initial binding values here.</summary>
         protected virtual void _AfterStart()
+        {
+        }
+
+        /// <summary>Author hook: runs once after the view is wired and its initial values applied.</summary>
+        protected virtual void OnStart()
+        {
+        }
+
+        /// <summary>Author hook: runs whenever the language changes (after the keyed texts repaint).</summary>
+        protected virtual void OnRetranslate()
         {
         }
 
@@ -861,6 +884,7 @@ namespace Armagan.AUI
             }
             if (selectElem != null && _selectValue != null)
                 for (int s = 0; s < selectElem.Length; s++) RenderSelect(s);
+            if (_started) OnRetranslate();
         }
 
         /// <summary>Insert a zero-width space after every '&lt;' so untrusted text can never open a rich-text tag.

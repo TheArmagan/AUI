@@ -105,7 +105,7 @@ public partial class Demo : AuiView
             RenderInput(28, _nick);
         }
     }
-    private bool _isVip = false;
+    private bool _isVip = true;
     public bool IsVip
     {
         get { return _isVip; }
