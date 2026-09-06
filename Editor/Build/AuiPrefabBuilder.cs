@@ -39,8 +39,8 @@ namespace Armagan.AUI.Editor
         // 4: Middle vertical alignment (TMP's Midline moves with descenders: "Language" sat 2 mm above "Audio").
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
-        // 7: dropdown popup stays inside the view, on its own sorted canvas.
-        public const int BuilderVersion = 7;
+        // 8: rebuilds inside the existing prefab contents so scene overrides survive.
+        public const int BuilderVersion = 8;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -116,15 +116,26 @@ namespace Armagan.AUI.Editor
             c.N = r.Map.ElementCount;
             Alloc(c);
 
+            // REBUILD INSIDE THE EXISTING PREFAB, NEVER AS A FRESH FILE. A fresh save gives every object
+            // a new internal id, and a scene instance's overrides (its position, the references you set
+            // on the view) point at the old ids: they silently fall back to the prefab. Loading the
+            // prefab's contents, stripping everything under the root and rebuilding there keeps the ids
+            // of the root, its RectTransform and the view component, which is where overrides live.
+            bool reuse = existing != null;
             GameObject root = null;
             try
             {
-                root = BuildTree(c, type);
+                if (reuse)
+                {
+                    root = PrefabUtility.LoadPrefabContents(prefabPath);
+                    StripRoot(root, type);
+                }
+                root = BuildTree(c, type, root);
                 FillTables(c);
                 Finish(c, root);
                 AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
-                if (!SavePrefab(root, prefabPath, existing != null)) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
+                if (PrefabUtility.SaveAsPrefabAsset(root, prefabPath) == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
                 AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
                 return true;
             }
@@ -135,31 +146,26 @@ namespace Armagan.AUI.Editor
             }
             finally
             {
-                if (root != null) Object.DestroyImmediate(root);
+                if (root != null)
+                {
+                    if (reuse) PrefabUtility.UnloadPrefabContents(root);
+                    else Object.DestroyImmediate(root);
+                }
             }
         }
 
-        /// <summary>
-        /// SAVING OVER AN EXISTING PREFAB THAT HOLDS UDONSHARP COMPONENTS THROWS. Unity serializes the
-        /// old asset's objects while tearing them down, and UdonSharpBehaviour.OnBeforeSerialize hands a
-        /// destroyed `this` to Odin (measured: a fresh save logs 0 errors, an overwrite 18). So the tree
-        /// is always saved to a fresh temporary asset and the FILE is copied over the old one: the old
-        /// .meta (GUID) stays, scene instances stay linked, and the reimport is silent.
-        /// </summary>
-        private static bool SavePrefab(GameObject root, string prefabPath, bool overwrite)
+        /// <summary>Remove every child and every component the builder does not own on the root, keeping what carries scene overrides.</summary>
+        private static void StripRoot(GameObject root, System.Type viewType)
         {
-            if (!overwrite)
-                return PrefabUtility.SaveAsPrefabAsset(root, prefabPath) != null;
-            string tempDir = "Assets/AUI/Temp";
-            Directory.CreateDirectory(tempDir);
-            string temp = tempDir + "/" + Path.GetFileName(prefabPath);
-            GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, temp);
-            if (saved == null) return false;
-            File.Copy(Path.GetFullPath(temp), Path.GetFullPath(prefabPath), true);
-            AssetDatabase.DeleteAsset(temp);
-            if (Directory.GetFileSystemEntries(tempDir).Length == 0) AssetDatabase.DeleteAsset(tempDir);
-            AssetDatabase.ImportAsset(prefabPath, ImportAssetOptions.ForceUpdate);
-            return true;
+            for (int i = root.transform.childCount - 1; i >= 0; i--) Object.DestroyImmediate(root.transform.GetChild(i).gameObject);
+            foreach (Component comp in root.GetComponents<Component>())
+            {
+                if (comp == null) continue;
+                System.Type t = comp.GetType();
+                if (t == typeof(RectTransform) || t == typeof(Transform) || t == typeof(Canvas) || t == typeof(GraphicRaycaster) ||
+                    t == typeof(VRCUiShape) || t == typeof(BoxCollider) || t == viewType || t == typeof(VRC.Udon.UdonBehaviour)) continue;
+                Object.DestroyImmediate(comp);
+            }
         }
 
         private static void Alloc(Ctx c)
@@ -186,28 +192,41 @@ namespace Armagan.AUI.Editor
 
         // ================================================================ tree
 
-        private static GameObject BuildTree(Ctx c, System.Type type)
+        private static T Ensure<T>(GameObject go) where T : Component
+        {
+            var comp = go.GetComponent<T>();
+            return comp != null ? comp : go.AddComponent<T>();
+        }
+
+        private static GameObject BuildTree(Ctx c, System.Type type, GameObject reuse)
         {
             AuiCompileResult r = c.R;
             float W = r.Info.Width, H = r.Info.Height;
-            var root = new GameObject(r.ViewName, typeof(RectTransform));
-            Undo.RegisterCreatedObjectUndo(root, "Build AUI view " + r.ViewName);
+            GameObject root = reuse;
+            if (root == null)
+            {
+                root = new GameObject(r.ViewName, typeof(RectTransform));
+                Undo.RegisterCreatedObjectUndo(root, "Build AUI view " + r.ViewName);
+            }
+            root.name = r.ViewName;
             var rrt = (RectTransform)root.transform;
             rrt.sizeDelta = new Vector2(W, H);
-            rrt.localScale = Vector3.one * CanvasScale;
-            var canvas = root.AddComponent<Canvas>();
+            if (reuse == null) rrt.localScale = Vector3.one * CanvasScale;
+            var canvas = Ensure<Canvas>(root);
             canvas.renderMode = RenderMode.WorldSpace;
             // 1 unit = 1 mm everywhere. uGUI divides a sprite's PPU by the canvas reference (100)
             // when slicing, so the package sprites are imported at 100 PPU; setting the reference to
             // 1 here was measured NOT to survive into the saved prefab.
-            root.AddComponent<GraphicRaycaster>();
+            Ensure<GraphicRaycaster>(root);
             // Without VRCUiShape the laser passes straight through and nothing can be pressed, with no symptom in the editor.
-            root.AddComponent<VRCUiShape>();
-            var bc = root.AddComponent<BoxCollider>();
+            Ensure<VRCUiShape>(root);
+            var bc = Ensure<BoxCollider>(root);
             bc.isTrigger = true;
+            bc.center = Vector3.zero;
             bc.size = new Vector3(W, H, 10f);
 
-            c.View = (AuiView)UdonSharpUndo.AddComponent(root, type);
+            c.View = root.GetComponent(type) as AuiView;
+            if (c.View == null) c.View = (AuiView)UdonSharpUndo.AddComponent(root, type);
 
             // Content: what Show/Hide fades and deactivates. Element 0 (the <view>) lives on it.
             var content = new GameObject("Content", typeof(RectTransform));
