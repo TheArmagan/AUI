@@ -35,6 +35,15 @@ namespace Armagan.AUI.Editor
         private const float CanvasScale = 0.001f;
         private const float IconSize = 18f;
 
+        /// <summary>Bumped whenever the builder's output changes for the same input, so existing prefabs rebuild.</summary>
+        // 4: Middle vertical alignment (TMP's Midline moves with descenders: "Language" sat 2 mm above "Audio").
+        public const int BuilderVersion = 4;
+
+        public static string BakeStamp(AuiCompileResult r)
+        {
+            return r.Hash + ":" + BuilderVersion;
+        }
+
         private sealed class Ctx
         {
             public AuiCompileResult R;
@@ -96,7 +105,7 @@ namespace Armagan.AUI.Editor
             if (existing != null)
             {
                 var ev = existing.GetComponent<AuiView>();
-                if (ev != null && ev.auiBakeHash == r.Hash) return true;
+                if (ev != null && ev.auiBakeHash == BakeStamp(r) && !AuiBuildQueue.Forced) return true;
             }
 
             var c = new Ctx { R = r, Settings = settings, Ws = ws, Fonts = settings != null ? settings.fontSet : null };
@@ -162,6 +171,9 @@ namespace Armagan.AUI.Editor
             rrt.localScale = Vector3.one * CanvasScale;
             var canvas = root.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
+            // 1 unit = 1 mm everywhere. uGUI divides a sprite's PPU by the canvas reference (100)
+            // when slicing, so the package sprites are imported at 100 PPU; setting the reference to
+            // 1 here was measured NOT to survive into the saved prefab.
             root.AddComponent<GraphicRaycaster>();
             // Without VRCUiShape the laser passes straight through and nothing can be pressed, with no symptom in the editor.
             root.AddComponent<VRCUiShape>();
@@ -241,9 +253,21 @@ namespace Armagan.AUI.Editor
                 case "input": BuildInput(c, n, e, go, s, local); break;
                 case "select": BuildSelect(c, n, e, go, s, local, row); return; // options handled inside
                 case "page":
+                {
                     ApplyBackground(c, n, e, go.transform, false);
                     c.Groups[e] = go.AddComponent<CanvasGroup>();
+                    // Bake the default page's visibility so the prefab previews the way it starts.
+                    AuiPageGroup grp = null;
+                    foreach (AuiPageGroup pg in c.R.Info.PageGroups) if (pg.Pages.Contains(n)) grp = pg;
+                    if (grp != null && grp.IndexOfPage(n.Id) != grp.DefaultIndex)
+                    {
+                        c.Groups[e].alpha = 0f;
+                        c.Groups[e].blocksRaycasts = false;
+                        c.Groups[e].interactable = false;
+                        go.SetActive(false);
+                    }
                     break;
+                }
                 default:
                     // panel/div, button, toggle, tab, tabs, pages, option, empty
                     ApplyBackground(c, n, e, go.transform, interactive);
@@ -402,8 +426,8 @@ namespace Armagan.AUI.Editor
         private static TextAlignmentOptions Align(string h)
         {
             if (h == "center") return TextAlignmentOptions.Center;
-            if (h == "right") return TextAlignmentOptions.MidlineRight;
-            return TextAlignmentOptions.MidlineLeft;
+            if (h == "right") return TextAlignmentOptions.Right;
+            return TextAlignmentOptions.Left;
         }
 
         private static string Preview(Ctx c, string key, string fallback)
@@ -529,7 +553,7 @@ namespace Armagan.AUI.Editor
             if (hasLabel)
             {
                 TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, key != null ? Preview(c, key, key) : n.Text,
-                    icon != null || s.Justify != "center" ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.Center, false, true);
+                    icon != null || s.Justify != "center" ? TextAlignmentOptions.Left : TextAlignmentOptions.Center, false, true);
                 Stretch((RectTransform)t.transform, x, p.Top, p.Right, p.Bottom);
                 c.Text[e] = t;
                 c.Key[e] = KeyIndex(c, key);
@@ -597,7 +621,7 @@ namespace Armagan.AUI.Editor
                 t.fontSize = s.FontSize;
                 AuiColor col;
                 t.color = s.Color("color", out col) ? ToColor(col) : Color.white;
-                t.alignment = TextAlignmentOptions.MidlineRight;
+                t.alignment = TextAlignmentOptions.Right;
                 t.richText = false;
                 t.raycastTarget = false;
                 t.text = Preview(c, fmt, fmt).Replace("{value}", "0");
@@ -611,7 +635,7 @@ namespace Armagan.AUI.Editor
             ApplyBackground(c, n, e, go.transform, true);
             AuiBox p = s.Padding;
             string ph = n.Get("placeholder-key");
-            TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, Preview(c, ph, ""), TextAlignmentOptions.MidlineLeft, false, true);
+            TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, Preview(c, ph, ""), TextAlignmentOptions.Left, false, true);
             Stretch((RectTransform)t.transform, p.Left, p.Top, p.Right, p.Bottom);
             c.Text[e] = t;
             c.Key[e] = KeyIndex(c, ph);
@@ -626,7 +650,8 @@ namespace Armagan.AUI.Editor
             ((RectTransform)chevron.transform).pivot = new Vector2(1f, 0.5f);
             ((RectTransform)chevron.transform).anchoredPosition = new Vector2(-p.Right, 0f);
             c.Icon[e] = chevron;
-            TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, "", TextAlignmentOptions.MidlineLeft, false, true);
+            string firstLabel = n.Children.Count > 0 ? Preview(c, n.Children[0].Get("key"), n.Children[0].Text ?? "") : "";
+            TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, firstLabel, TextAlignmentOptions.Left, false, true);
             Stretch((RectTransform)t.transform, p.Left, p.Top, p.Right + IconSize + s.Gap, p.Bottom);
             c.Text[e] = t;
             if (c.Signal[e] >= 0) AddSignal(c, n, e, go, s, true);
@@ -843,7 +868,7 @@ namespace Armagan.AUI.Editor
             v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemBasePos = c.BasePos;
             v.elemSignal = c.Signal; v.elemKey = c.Key; v.elemKind = c.Kind;
             v.sigElem = c.SigElem; v.signals = c.Signals;
-            v.auiBakeHash = r.Hash;
+            v.auiBakeHash = BakeStamp(r);
 
             // ---- view transition
             AuiResolvedStyle rs = r.Styles[r.Doc.Root.Index];

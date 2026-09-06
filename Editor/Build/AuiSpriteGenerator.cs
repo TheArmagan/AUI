@@ -69,7 +69,10 @@ namespace Armagan.AUI.Editor
             if (imp == null) return;
             imp.textureType = TextureImporterType.Sprite;
             imp.spriteImportMode = SpriteImportMode.Single;
-            imp.spritePixelsPerUnit = 1;
+            // 100 to match Canvas.referencePixelsPerUnit (which does not reliably take a new value on a
+            // freshly added Canvas): Image.pixelsPerUnit = sprite PPU / canvas reference = 1, so a
+            // 14 px slice border is 14 units, and 1 unit is 1 mm.
+            imp.spritePixelsPerUnit = 100;
             imp.spriteBorder = new Vector4(border, border, border, border);
             imp.mipmapEnabled = false;
             imp.alphaIsTransparency = true;

@@ -49,7 +49,14 @@ namespace Armagan.AUI.Editor
         private const string QueueKey = "AUI.BuildQueue";
         private const string AttemptsKey = "AUI.BuildAttempts.";
         private const int MaxAttempts = 4;
+        private const string ForceKey = "AUI.BuildForce";
         private static bool _scheduled;
+
+        /// <summary>True while a user-driven Rebuild All is draining: prefabs rebuild even when their bake hash matches.</summary>
+        public static bool Forced
+        {
+            get { return SessionState.GetBool(ForceKey, false); }
+        }
 
         [InitializeOnLoadMethod]
         private static void OnLoad()
@@ -140,6 +147,7 @@ namespace Armagan.AUI.Editor
                 }
             }
             Save(remaining);
+            if (remaining.Count == 0) SessionState.SetBool(ForceKey, false);
             if (wroteSource)
             {
                 // Sources changed: let Unity compile; the queue resumes after the reload.
@@ -193,6 +201,7 @@ namespace Armagan.AUI.Editor
         /// <summary>Queue every .aui under Assets (and the package's own views).</summary>
         public static void EnqueueAll()
         {
+            SessionState.SetBool(ForceKey, true);
             AuiWorkspace ws = AuiEditorEnv.Scan(AuiEditorEnv.FindSettings());
             foreach (string p in ws.Views.Values)
             {

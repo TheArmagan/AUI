@@ -12,6 +12,31 @@ namespace Armagan.AUI.Editor
     /// </summary>
     internal sealed class AuiIconImportSettings : AssetPostprocessor
     {
+        /// <summary>One-shot pass for icons imported before this class existed (or copied in while it was compiling).</summary>
+        [MenuItem("AUI/Reimport Icons", false, 71)]
+        public static void ReimportAll()
+        {
+            int n = 0;
+            foreach (string guid in AssetDatabase.FindAssets("t:Sprite", new[] { AuiEditorEnv.PackageAssetRoot + "/Icons" }))
+            {
+                var imp = AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(guid)) as SVGImporter;
+                if (imp == null || imp.SvgType == SVGType.TexturedSprite) continue;
+                Apply(imp);
+                imp.SaveAndReimport();
+                n++;
+            }
+            AuiLog.Info("icons reimported as textured sprites: " + n);
+        }
+
+        private static void Apply(SVGImporter svg)
+        {
+            svg.SvgType = SVGType.TexturedSprite;
+            svg.TextureSize = 128;
+            svg.KeepTextureAspectRatio = true;
+            svg.SvgPixelsPerUnit = 100f;
+            svg.TexturedSpriteMeshType = UnityEngine.SpriteMeshType.FullRect;
+        }
+
         private void OnPreprocessAsset()
         {
             var svg = assetImporter as SVGImporter;
@@ -27,11 +52,7 @@ namespace Armagan.AUI.Editor
             }
             if (!ours) return;
             if (svg.SvgType == SVGType.TexturedSprite && svg.TextureSize == 128) return;
-            svg.SvgType = SVGType.TexturedSprite;
-            svg.TextureSize = 128;
-            svg.KeepTextureAspectRatio = true;
-            svg.SvgPixelsPerUnit = 100f;
-            svg.TexturedSpriteMeshType = UnityEngine.SpriteMeshType.FullRect;
+            Apply(svg);
         }
     }
 }
