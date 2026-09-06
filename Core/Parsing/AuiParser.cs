@@ -389,7 +389,7 @@ namespace Armagan.AUI.Core
                 SkipWhitespace();
                 if (Cur != '=')
                 {
-                    _d.Error(AuiCodes.AttributeNotQuoted, "Attribute '" + a.Name + "' needs a quoted value.", a.Line, a.Column, a.Name.Length);
+                    // A bare attribute (hidden, wrap) is a flag with an empty value, as in HTML.
                     a.Value = "";
                     a.ValueLine = _line;
                     a.ValueColumn = _col;
