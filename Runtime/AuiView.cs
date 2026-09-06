@@ -421,7 +421,7 @@ namespace Armagan.AUI
         /// <summary>Called by AuiSignal. Pointer kinds update state styles; click/value go to generated dispatch.</summary>
         public void _OnSignal(int id, int kind)
         {
-            if (id < 0 || id >= _signalCount) return;
+            if (_broken || id < 0 || id >= _signalCount) return;
             if (kind == SIG_ENTER) _hover[id] = true;
             else if (kind == SIG_EXIT) { _hover[id] = false; _press[id] = false; }
             else if (kind == SIG_DOWN) _press[id] = true;
