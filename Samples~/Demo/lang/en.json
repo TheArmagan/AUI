@@ -1,0 +1,21 @@
+{
+  "_name": "English",
+  "demo": {
+    "title": "Settings",
+    "general": "General",
+    "audio": "Audio",
+    "language": "Language",
+    "brightness": "Brightness",
+    "solid": "Solid furniture",
+    "volume": "Volume",
+    "volfmt": "{value}%",
+    "mute": "Mute",
+    "nick": "Nickname",
+    "nickph": "Type a nickname",
+    "quality": "Quality",
+    "q": { "low": "Low", "medium": "Medium", "high": "High" },
+    "signedIn": "Signed in as {playerName}",
+    "greet": "Say hello",
+    "close": "Close"
+  }
+}

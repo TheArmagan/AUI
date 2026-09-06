@@ -1,0 +1,21 @@
+{
+  "_name": "Türkçe",
+  "demo": {
+    "title": "Ayarlar",
+    "general": "Genel",
+    "audio": "Ses",
+    "language": "Dil",
+    "brightness": "Parlaklık",
+    "solid": "Katı mobilya",
+    "volume": "Ses seviyesi",
+    "volfmt": "%{value}",
+    "mute": "Sessiz",
+    "nick": "Takma ad",
+    "nickph": "Bir takma ad yaz",
+    "quality": "Kalite",
+    "q": { "low": "Düşük", "medium": "Orta", "high": "Yüksek" },
+    "signedIn": "{playerName} olarak giriş yapıldı",
+    "greet": "Selam ver",
+    "close": "Kapat"
+  }
+}

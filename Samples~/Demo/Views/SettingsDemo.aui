@@ -1,0 +1,39 @@
+<view name="SettingsDemo" width="440" height="330">
+  <panel class="row">
+    <icon name="sliders-horizontal" size="22"/>
+    <text key="demo.title" class="title"/>
+    <spacer/>
+    <button id="close" icon="x" class="ghost" onclick="Close"/>
+  </panel>
+  <tabs bind="{page}" onchange="PageChanged">
+    <tab page="general" key="demo.general"/>
+    <tab page="audio" key="demo.audio"/>
+    <tab page="lang" key="demo.language"/>
+  </tabs>
+  <pages id="main">
+    <page id="general">
+      <panel class="row"><text key="demo.brightness"/><spacer/><slider bind="{brightness}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="BrightnessChanged"/></panel>
+      <panel class="row"><text key="demo.solid"/><spacer/><toggle bind="{solid}" icon="check" onchange="SolidChanged"/></panel>
+      <panel class="row"><text key="demo.quality"/><spacer/>
+        <select id="quality" bind="{quality}" onchange="QualityChanged">
+          <option value="low" key="demo.q.low"/>
+          <option value="medium" key="demo.q.medium"/>
+          <option value="high" key="demo.q.high"/>
+        </select>
+      </panel>
+    </page>
+    <page id="audio">
+      <panel class="row"><text key="demo.volume"/><spacer/><slider bind="{volume}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="VolumeChanged"/></panel>
+      <panel class="row"><text key="demo.mute"/><spacer/><toggle bind="{muted}" icon="check" onchange="MuteChanged"/></panel>
+      <panel class="row"><text key="demo.nick"/><spacer/><input bind="{nick}" placeholder-key="demo.nickph" onsubmit="NickSubmitted"/></panel>
+    </page>
+    <page id="lang">
+      <AuiLanguagePicker/>
+    </page>
+  </pages>
+  <panel class="row">
+    <text key="demo.signedIn" args="{playerName}" class="muted"/>
+    <spacer/>
+    <button onclick="Greet" key="demo.greet" icon="sparkles"/>
+  </panel>
+</view>

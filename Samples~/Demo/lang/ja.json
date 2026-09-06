@@ -1,0 +1,21 @@
+{
+  "_name": "日本語",
+  "demo": {
+    "title": "設定",
+    "general": "一般",
+    "audio": "オーディオ",
+    "language": "言語",
+    "brightness": "明るさ",
+    "solid": "家具の当たり判定",
+    "volume": "音量",
+    "volfmt": "{value}%",
+    "mute": "ミュート",
+    "nick": "ニックネーム",
+    "nickph": "ニックネームを入力",
+    "quality": "画質",
+    "q": { "low": "低", "medium": "中", "high": "高" },
+    "signedIn": "{playerName} としてログイン中",
+    "greet": "挨拶する",
+    "close": "閉じる"
+  }
+}
