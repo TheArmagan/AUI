@@ -88,7 +88,9 @@ namespace Armagan.AUI.Core
         /// <summary>Natural size of an image src in mm; false when unknown.</summary>
         public AuiImageSizeLookup ImageSize;
         /// <summary>Sample text used to size a bound text with no max-width.</summary>
-        public string BoundTextSample = "Mmmmmmmmmmmm";
+        public string BoundTextSample = "Mmmmmmmmmmm日";
+        /// <summary>Analyzed model of a nested view by name, for its declared width and height; null = unknown.</summary>
+        public System.Func<string, AuiViewInfo> ChildInfo;
     }
 
     public delegate bool AuiImageSizeLookup(string src, out float w, out float h);

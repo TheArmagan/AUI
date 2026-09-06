@@ -258,7 +258,9 @@ Eases: linear, in/out/in-out quad, cubic, quart, sine, expo, back, bounce, elast
 
 Measure (bottom-up): text is measured with the host's `IAuiTextMeasurer` over every translation of
 its key (widest wins) plus 2 mm; a bound text is measured with the settings' sample
-(`boundTextSample`, default twelve `M`-ish characters) unless it has `max-width`; icons take
+(`boundTextSample`, default eleven `M` plus one CJK character, so the box is as tall as the Noto
+fallback's line; a box shorter than a line renders nothing under Ellipsis) unless it has
+`max-width`; icons take
 `size`; images take their sprite size or 64; containers sum children on the main axis (plus gaps
 and padding) and take the max on the cross axis; a button/tab/option with `key` measures its widest
 translation plus icon and padding; a select measures its widest option plus the chevron; a repeat
@@ -566,6 +568,10 @@ after touching any of them.
   at 48 pt overflowed a 1024 atlas onto three pages, and the ellipsis (page 2) rendered as a
   fragment of another glyph. Static bakes are one 2048 page with multi-atlas off; a bake that
   still overflows warns and lets the glyphs fall through the fallback chain.
+- Noto Sans JP/KR lines are 1.448 em against Inter's 1.21 em. A bound text measured with a Latin
+  sample got a box too short for "日本語" and the picker's Japanese chip rendered nothing; the
+  sample carries a CJK character for that reason. Overflow shrinking runs on the x axis only: a
+  column that shrank its texts' heights made the gallery's title vanish the same way.
 - A rebake copies the new font over the existing asset to keep its GUID and destroys the
   temporary; the baker must keep using the existing object, or the fallback wiring throws
   `ArgumentNullException: target` after the atlases are already written.

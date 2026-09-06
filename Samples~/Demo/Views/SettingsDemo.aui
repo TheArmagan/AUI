@@ -1,4 +1,4 @@
-<view name="SettingsDemo" width="440" height="360">
+<view name="SettingsDemo" width="440" height="380">
   <!-- Styles come from SettingsDemo.auis (same name, same folder); see the note at its top. -->
   <panel class="row">
     <icon name="sliders-horizontal" size="22"/>

@@ -137,6 +137,7 @@ namespace Armagan.AUI.Editor
                 AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
                 if (PrefabUtility.SaveAsPrefabAsset(root, prefabPath) == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
+                RevertInstanceSizeOverrides(prefabPath, type);
                 AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
                 return true;
             }
@@ -151,6 +152,41 @@ namespace Armagan.AUI.Editor
                 {
                     if (reuse) PrefabUtility.UnloadPrefabContents(root);
                     else Object.DestroyImmediate(root);
+                }
+            }
+        }
+
+        /// <summary>
+        /// THE VIEW'S SIZE IS THE MARKUP'S, NEVER AN INSTANCE'S. Because the root keeps its ids across
+        /// rebuilds, a scene instance can carry an override of the root RectTransform's size (Unity
+        /// records one the moment the rect is touched in the scene) and the collider's, and then a
+        /// view that grew in markup keeps its old card while its content runs past the bottom.
+        /// Position, rotation, scale and author references stay as the instance set them.
+        /// </summary>
+        private static void RevertInstanceSizeOverrides(string prefabPath, System.Type viewType)
+        {
+            GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (asset == null) return;
+            foreach (Component v in Object.FindObjectsOfType(viewType, true))
+            {
+                GameObject inst = v.gameObject;
+                // Only instances placed in a scene: a view nested inside another view's prefab is
+                // sized by its parent's build, and that size lives as an override on purpose.
+                if (!PrefabUtility.IsOutermostPrefabInstanceRoot(inst) || PrefabUtility.GetCorrespondingObjectFromSource(inst) != asset) continue;
+                var rt = inst.GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    var so = new SerializedObject(rt);
+                    // ONLY THE SIZE. A root RectTransform's anchored position IS its scene position;
+                    // reverting it moved every placed view back to the origin.
+                    PrefabUtility.RevertPropertyOverride(so.FindProperty("m_SizeDelta"), InteractionMode.AutomatedAction);
+                }
+                var bc = inst.GetComponent<BoxCollider>();
+                if (bc != null)
+                {
+                    var so = new SerializedObject(bc);
+                    PrefabUtility.RevertPropertyOverride(so.FindProperty("m_Size"), InteractionMode.AutomatedAction);
+                    PrefabUtility.RevertPropertyOverride(so.FindProperty("m_Center"), InteractionMode.AutomatedAction);
                 }
             }
         }

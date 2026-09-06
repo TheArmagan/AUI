@@ -1,4 +1,4 @@
-<view name="TextsDemo" width="488" height="300" show="none">
+<view name="TextsDemo" width="488" height="330" show="none">
   <text key="texts.keyed" class="title"/>
   <panel class="row"><text key="texts.boundLabel" class="muted"/><text id="bound" text="{status}"/></panel>
   <panel class="row"><text key="texts.argsLabel" class="muted"/><text id="args" key="texts.args" args="{who} {count}"/></panel>

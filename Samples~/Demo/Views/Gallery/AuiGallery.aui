@@ -1,4 +1,4 @@
-<view name="AuiGallery" width="560" height="480">
+<view name="AuiGallery" width="560" height="520">
   <panel class="row">
     <icon name="wand-sparkles" size="22"/>
     <text key="gallery.title" class="title"/>

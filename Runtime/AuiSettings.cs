@@ -30,7 +30,7 @@ namespace Armagan.AUI
         [Tooltip("The baked font set; created by AUI/Bake Fonts.")]
         public AuiFontSet fontSet;
 
-        [Tooltip("Sample text used to size a bound text that has no max-width.")]
-        public string boundTextSample = "Mmmmmmmmmmmm";
+        [Tooltip("Sample text used to size a bound text that has no max-width. Keep a CJK character in it: the box must be as tall as the CJK fallback font's line, or a Japanese runtime string renders nothing.")]
+        public string boundTextSample = "Mmmmmmmmmmm日";
     }
 }

@@ -146,10 +146,13 @@ namespace Armagan.AUI.Core
                 default:
                     if (n.IsComponentTag)
                     {
-                        // A nested view's size comes from its own compiled info when the host
-                        // provides it; otherwise a placeholder the author will see immediately.
-                        w = s.Width.Resolve(0, 200);
-                        h = s.Height.Resolve(0, 120);
+                        // A nested view's size is its own <view width height> when the host can
+                        // provide it; otherwise a placeholder the author will see immediately.
+                        AuiViewInfo child = _ctx.ChildInfo != null ? _ctx.ChildInfo(n.Tag) : null;
+                        float cw = child != null && child.Width > 0 ? child.Width : 200;
+                        float ch = child != null && child.Height > 0 ? child.Height : 120;
+                        w = s.Width.Resolve(0, cw);
+                        h = s.Height.Resolve(0, ch);
                     }
                     else MeasureContainer(n, s, inner, out w, out h);
                     break;
@@ -463,12 +466,15 @@ namespace Armagan.AUI.Core
             float leftover = mainAvail - used;
             if (leftover < -0.5f)
             {
-                // Overflow: shrink the children that can lose width gracefully (text ellipsises,
+                // Overflow: shrink the children that can lose WIDTH gracefully (text ellipsises,
                 // content-sized boxes were only a guess anyway) before giving up, like flex-shrink.
+                // Never on the y axis: a text box shorter than its line renders nothing under
+                // Ellipsis, so a column that overflows warns and clips instead.
                 const float MinShrunk = 24f;
                 float shrinkable = 0f;
-                for (int i = 0; i < flow.Count; i++)
-                    if (CanShrink(flow[i]) && main[i] > MinShrunk) shrinkable += main[i] - MinShrunk;
+                if (row)
+                    for (int i = 0; i < flow.Count; i++)
+                        if (CanShrink(flow[i]) && main[i] > MinShrunk) shrinkable += main[i] - MinShrunk;
                 float need = -leftover;
                 if (shrinkable > 0f)
                 {

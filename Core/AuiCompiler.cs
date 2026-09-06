@@ -17,7 +17,7 @@ namespace Armagan.AUI.Core
         public AuiImageSizeLookup ImageSize;
         /// <summary>Analyzed model of a nested view by name (for typed child properties).</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
-        public string BoundTextSample = "Mmmmmmmmmmmm";
+        public string BoundTextSample = "Mmmmmmmmmmm日";
     }
 
     public sealed class AuiCompileResult
@@ -117,6 +117,7 @@ namespace Armagan.AUI.Core
                 Translations = opt.Lang != null ? (System.Func<string, IEnumerable<string>>)(k => opt.Lang.AllTranslations(k)) : null,
                 ImageSize = opt.ImageSize,
                 BoundTextSample = opt.BoundTextSample,
+                ChildInfo = opt.ChildInfo,
             };
             r.Layout = new AuiLayoutSolver(r.Doc, r.Styles, r.Info, lctx, r.Diagnostics).Solve();
 

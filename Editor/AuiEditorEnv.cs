@@ -152,7 +152,7 @@ namespace Armagan.AUI.Editor
                 IconExists = ws.IconExists,
                 ImageSize = (string src, out float w, out float h) => ImageSize(absolutePath, src, out w, out h),
                 ChildInfo = name => ChildInfo(name, ws, settings, read),
-                BoundTextSample = settings != null && !string.IsNullOrEmpty(settings.boundTextSample) ? settings.boundTextSample : "Mmmmmmmmmmmm",
+                BoundTextSample = settings != null && !string.IsNullOrEmpty(settings.boundTextSample) ? settings.boundTextSample : "Mmmmmmmmmmm日",
             };
             AuiCompileResult r = AuiCompiler.Compile(text, absolutePath, opt);
             // Language-file syntax problems belong to those files but are worth seeing here once.
