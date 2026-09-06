@@ -896,24 +896,30 @@ namespace Armagan.AUI
             return s.Replace("<", "<​");
         }
 
+        // A null template (a halted language service answers null across the behaviour boundary)
+        // must render as nothing, not halt this view as well.
         public string Fill1(string t, string n0, string v0)
         {
-            return t.Replace(n0, v0);
+            if (t == null) return "";
+            return t.Replace(n0, v0 == null ? "" : v0);
         }
 
         public string Fill2(string t, string n0, string v0, string n1, string v1)
         {
-            return t.Replace(n0, v0).Replace(n1, v1);
+            if (t == null) return "";
+            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1);
         }
 
         public string Fill3(string t, string n0, string v0, string n1, string v1, string n2, string v2)
         {
-            return t.Replace(n0, v0).Replace(n1, v1).Replace(n2, v2);
+            if (t == null) return "";
+            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1).Replace(n2, v2 == null ? "" : v2);
         }
 
         public string Fill4(string t, string n0, string v0, string n1, string v1, string n2, string v2, string n3, string v3)
         {
-            return t.Replace(n0, v0).Replace(n1, v1).Replace(n2, v2).Replace(n3, v3);
+            if (t == null) return "";
+            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1).Replace(n2, v2 == null ? "" : v2).Replace(n3, v3 == null ? "" : v3);
         }
 
         public string FormatNumber(float v, int decimals)

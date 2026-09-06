@@ -435,8 +435,27 @@ namespace Armagan.AUI.Core
             float leftover = mainAvail - used;
             if (leftover < -0.5f)
             {
-                _d.Warning(AuiCodes.LayoutOverflow, "<" + n.Tag + "> children need " + AuiNum.Fmt(used) + " mm but it has " + AuiNum.Fmt(mainAvail) + " mm on the " + (row ? "x" : "y") + " axis.", n.Line, n.Column, n.Tag.Length + 1);
-                leftover = 0;
+                // Overflow: shrink the children that can lose width gracefully (text ellipsises,
+                // content-sized boxes were only a guess anyway) before giving up, like flex-shrink.
+                const float MinShrunk = 24f;
+                float shrinkable = 0f;
+                for (int i = 0; i < flow.Count; i++)
+                    if (CanShrink(flow[i]) && main[i] > MinShrunk) shrinkable += main[i] - MinShrunk;
+                float need = -leftover;
+                if (shrinkable > 0f)
+                {
+                    float take = System.Math.Min(need, shrinkable);
+                    for (int i = 0; i < flow.Count; i++)
+                    {
+                        if (!CanShrink(flow[i]) || main[i] <= MinShrunk) continue;
+                        float share = (main[i] - MinShrunk) / shrinkable;
+                        main[i] -= take * share;
+                    }
+                    leftover += take;
+                }
+                if (leftover < -0.5f)
+                    _d.Warning(AuiCodes.LayoutOverflow, "<" + n.Tag + "> children need " + AuiNum.Fmt(used) + " mm but it has " + AuiNum.Fmt(mainAvail) + " mm on the " + (row ? "x" : "y") + " axis.", n.Line, n.Column, n.Tag.Length + 1);
+                if (leftover < 0) leftover = 0;
             }
             if (growSum > 0 && leftover > 0)
             {
@@ -478,6 +497,13 @@ namespace Armagan.AUI.Core
                 Layout(c, r, new AuiRect(parentAbs.X + r.X, parentAbs.Y + r.Y, r.W, r.H));
                 cursor += main[i] + between;
             }
+        }
+
+        /// <summary>Text and content-sized elements may lose main-axis width when a row overflows; controls keep theirs.</summary>
+        private bool CanShrink(AuiNode c)
+        {
+            if (S(c).Width.IsSet && !S(c).Width.IsAuto) return false;
+            return c.Tag == "text" || _out[c.Index].ContentSized;
         }
 
         private void LayoutWrap(AuiNode n, AuiResolvedStyle s, List<AuiNode> flow, AuiRect content, AuiRect parentAbs)

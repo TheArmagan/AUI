@@ -34,6 +34,6 @@ namespace Armagan.AUI
         public AuiFontSet fontSet;
 
         [Tooltip("Sample text used to size a bound text that has no max-width.")]
-        public string boundTextSample = "WWWWWWWWWWWW";
+        public string boundTextSample = "Mmmmmmmmmmmm";
     }
 }

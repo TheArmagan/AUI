@@ -37,7 +37,9 @@ namespace Armagan.AUI.Editor
 
         /// <summary>Bumped whenever the builder's output changes for the same input, so existing prefabs rebuild.</summary>
         // 4: Middle vertical alignment (TMP's Midline moves with descenders: "Language" sat 2 mm above "Audio").
-        public const int BuilderVersion = 4;
+        // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
+        // 6: circular slider thumb.
+        public const int BuilderVersion = 6;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -119,6 +121,7 @@ namespace Armagan.AUI.Editor
                 root = BuildTree(c, type);
                 FillTables(c);
                 Finish(c, root);
+                AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
                 GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
                 if (saved == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
@@ -554,7 +557,9 @@ namespace Armagan.AUI.Editor
             {
                 TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, key != null ? Preview(c, key, key) : n.Text,
                     icon != null || s.Justify != "center" ? TextAlignmentOptions.Left : TextAlignmentOptions.Center, false, true);
-                Stretch((RectTransform)t.transform, x, p.Top, p.Right, p.Bottom);
+                // No vertical inset: a TMP rect shorter than one line renders NOTHING under Ellipsis
+                // overflow, and padding 8 on a 36 mm control leaves 20 mm for an 18 pt line.
+                Stretch((RectTransform)t.transform, x, 0f, p.Right, 0f);
                 c.Text[e] = t;
                 c.Key[e] = KeyIndex(c, key);
             }
@@ -568,7 +573,7 @@ namespace Armagan.AUI.Editor
             Color fill = s.Color("color", out fillCol) ? ToColor(fillCol) : Color.white;
             string fmt = n.Get("format-key");
             float labelW = fmt != null ? Mathf.Min(72f, local.W * 0.35f) : 0f;
-            float trackH = 6f, handle = Mathf.Min(local.H, 22f);
+            float trackH = 6f, handle = Mathf.Min(local.H, 20f);
 
             var slider = go.AddComponent<Slider>();
             RectTransform trackRt = Child(go.transform, "Track");
@@ -590,9 +595,13 @@ namespace Armagan.AUI.Editor
             handleArea.anchorMin = new Vector2(0f, 0f); handleArea.anchorMax = new Vector2(1f, 1f); handleArea.pivot = new Vector2(0.5f, 0.5f);
             handleArea.offsetMin = new Vector2(handle * 0.5f, 0f); handleArea.offsetMax = new Vector2(-(handle * 0.5f + labelW + (labelW > 0 ? s.Gap : 0)), 0f);
             RectTransform handleRt = Child(handleArea, "Handle");
+            handleRt.anchorMin = handleRt.anchorMax = new Vector2(0f, 0.5f);
+            handleRt.pivot = new Vector2(0.5f, 0.5f);
             handleRt.sizeDelta = new Vector2(handle, handle);
             var handleImg = handleRt.gameObject.AddComponent<Image>();
-            handleImg.sprite = RoundedSprite(c, 12, false); handleImg.type = Image.Type.Sliced; handleImg.color = fill; handleImg.raycastTarget = true;
+            // A dot: the unsliced circle sprite drawn square, never the 9-slice (its corners exceed a 20 mm box).
+            handleImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AuiEditorEnv.PackageAssetRoot + "/Sprites/Circle.png");
+            handleImg.type = Image.Type.Simple; handleImg.preserveAspect = true; handleImg.color = fill; handleImg.raycastTarget = true;
             c.Icon[e] = handleImg; // icon-color rows tint the handle
 
             slider.fillRect = fillRt;
@@ -636,7 +645,7 @@ namespace Armagan.AUI.Editor
             AuiBox p = s.Padding;
             string ph = n.Get("placeholder-key");
             TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, Preview(c, ph, ""), TextAlignmentOptions.Left, false, true);
-            Stretch((RectTransform)t.transform, p.Left, p.Top, p.Right, p.Bottom);
+            Stretch((RectTransform)t.transform, p.Left, 0f, p.Right, 0f);
             c.Text[e] = t;
             c.Key[e] = KeyIndex(c, ph);
         }
@@ -652,7 +661,7 @@ namespace Armagan.AUI.Editor
             c.Icon[e] = chevron;
             string firstLabel = n.Children.Count > 0 ? Preview(c, n.Children[0].Get("key"), n.Children[0].Text ?? "") : "";
             TextMeshProUGUI t = MakeLabel(c, go.transform, "Label", s, firstLabel, TextAlignmentOptions.Left, false, true);
-            Stretch((RectTransform)t.transform, p.Left, p.Top, p.Right + IconSize + s.Gap, p.Bottom);
+            Stretch((RectTransform)t.transform, p.Left, 0f, p.Right + IconSize + s.Gap, 0f);
             c.Text[e] = t;
             if (c.Signal[e] >= 0) AddSignal(c, n, e, go, s, true);
             if (NeedsGroup(s)) { c.Groups[e] = go.AddComponent<CanvasGroup>(); c.Groups[e].alpha = s.Opacity; }
@@ -1018,6 +1027,31 @@ namespace Armagan.AUI.Editor
                 }
             }
             return false;
+        }
+
+        /// <summary>A destroyed or script-less component in the tree makes the prefab save throw from inside Odin; name it first.</summary>
+        private static void AuditComponents(GameObject root)
+        {
+            foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+            {
+                foreach (Component comp in t.GetComponents<Component>())
+                {
+                    if (comp == null) AuiLog.Warn("null/missing component on '" + t.name + "' (path " + HierarchyPath(t) + ")");
+                }
+                foreach (UdonSharpBehaviour ub in t.GetComponents<UdonSharpBehaviour>())
+                {
+                    if (ub == null) continue;
+                    if (UdonSharpEditorUtility.GetBackingUdonBehaviour(ub) == null)
+                        AuiLog.Warn("UdonSharp behaviour without a backing UdonBehaviour on '" + HierarchyPath(t) + "': " + ub.GetType().Name);
+                }
+            }
+        }
+
+        private static string HierarchyPath(Transform t)
+        {
+            string p = t.name;
+            for (Transform x = t.parent; x != null; x = x.parent) p = x.name + "/" + p;
+            return p;
         }
 
         // ================================================================ finish

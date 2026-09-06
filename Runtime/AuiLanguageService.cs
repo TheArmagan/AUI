@@ -155,7 +155,18 @@ namespace Armagan.AUI
                 return;
             }
             if (defaultLang < 0 || defaultLang >= langCodes.Length) defaultLang = 0;
-            _lang = ResolveIndex(VRCPlayerApi.GetCurrentLanguage());
+            // NOT VRCPlayerApi.GetCurrentLanguage() here: under ClientSim that static is wired only
+            // once ClientSim has started, which is after every Start(), and a null delegate halts
+            // this behaviour for the whole session. The client language is read when the local
+            // player joins (OnPlayerJoined), which is after the hook exists on both platforms.
+            _lang = defaultLang;
+        }
+
+        public override void OnPlayerJoined(VRCPlayerApi player)
+        {
+            if (player == null || !player.isLocal || _userChosen) return;
+            EnsureInit();
+            Apply(ResolveIndex(VRCPlayerApi.GetCurrentLanguage()));
         }
 
         private int ResolveIndex(string code)

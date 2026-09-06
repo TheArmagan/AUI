@@ -18,7 +18,7 @@ namespace Armagan.AUI.Core
         /// <summary>Analyzed model of a nested view by name (for typed child properties).</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
         public string Namespace;
-        public string BoundTextSample = "WWWWWWWWWWWW";
+        public string BoundTextSample = "Mmmmmmmmmmmm";
     }
 
     public sealed class AuiCompileResult

@@ -25,7 +25,9 @@ namespace Armagan.AUI.Editor
                 Write(dir + "/Border" + r + ".png", r, true);
             }
             Write(dir + "/Square.png", 0, false);
+            Write(dir + "/Circle.png", 32, false);   // 64 px filled circle, used unsliced (slider thumb)
             AssetDatabase.Refresh();
+            Import(dir + "/Circle.png", 0);
             foreach (int r in Radii)
             {
                 Import(dir + "/Rounded" + r + ".png", r + 2);
@@ -37,7 +39,7 @@ namespace Armagan.AUI.Editor
 
         private static void Write(string path, int radius, bool outline)
         {
-            int size = Mathf.Max(16, radius * 4 + 8);
+            int size = path.EndsWith("Circle.png") ? 64 : Mathf.Max(16, radius * 4 + 8);
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             float stroke = 1.5f;
             for (int y = 0; y < size; y++)

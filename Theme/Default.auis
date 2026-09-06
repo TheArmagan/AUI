@@ -55,15 +55,20 @@ button:disabled { opacity: 0.4; }
 .ghost { background: none; }
 .ghost:hover { background: var(--chip); color: var(--text); icon-color: var(--text); }
 
+/* A toggle is a 36 mm square when it only carries an icon (the icon is the "on" mark and is
+   hidden while off); with a key it grows into a labelled switch. */
 toggle {
   background: sprite(Rounded8) var(--chip);
-  padding: 8 14;
+  padding: 9;
   min-height: 36;
+  min-width: 36;
   flex-direction: row;
   align: center;
+  justify: center;
   gap: 8;
   font: 500 18;
-  transition: background 0.12s out-quad, color 0.12s out-quad, scale 0.1s out-back;
+  icon-color: transparent;
+  transition: background 0.12s out-quad, color 0.12s out-quad, icon-color 0.12s out-quad, scale 0.1s out-back;
 }
 toggle:hover    { scale: 1.03; }
 toggle:pressed  { scale: 0.96; }
@@ -77,6 +82,7 @@ tab {
   min-height: 36;
   flex-direction: row;
   align: center;
+  justify: center;
   gap: 8;
   font: 500 18;
   color: var(--muted);
