@@ -17,5 +17,65 @@
     "signedIn": "{playerName} としてログイン中",
     "greet": "挨拶する",
     "close": "閉じる"
+  },
+  "gallery": {
+    "title": "AUI ギャラリー",
+    "summary": "成功 {pass}、失敗 {fail}",
+    "texts": "テキスト",
+    "controls": "操作",
+    "lists": "リスト",
+    "states": "状態",
+    "language": "言語",
+    "log": "ログ",
+    "logEmpty": "まだログはありません。他のタブを使うかテストを実行してください。",
+    "run": "テストを実行",
+    "clear": "消去"
+  },
+  "texts": {
+    "keyed": "キー付き、バインド、折り返しテキスト",
+    "boundLabel": "バインド:",
+    "argsLabel": "プレースホルダー:",
+    "args": "{who} は {count} 個のアイテムを持っています",
+    "wrap": "この段落は wrap=\"true\" と max-width があるため折り返されます。すべての言語で計測され、最も長い翻訳が収まります。",
+    "setHello": "hello を設定",
+    "setLong": "長い文を設定",
+    "inject": "タグを注入",
+    "bump": "カウント増加"
+  },
+  "controls": {
+    "volume": "音量",
+    "pct": "{value}%",
+    "mute": "ミュート",
+    "quality": "画質",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "nick": "ニックネーム",
+    "nickHint": "何か入力",
+    "ping": "ハブに通知",
+    "lock": "ロック"
+  },
+  "lists": {
+    "add": "追加",
+    "remove": "削除",
+    "clear": "消去",
+    "count": "{count} 行",
+    "empty": "リストは空です。行を追加してください。"
+  },
+  "states": {
+    "hint": "各ボタンにホバー、押下、長押ししてください。スタイルはテーマ、ビューのシート、インラインブロックから来ます。",
+    "normal": "通常",
+    "primary": "主要",
+    "ghost": "ゴースト",
+    "selected": "選択中",
+    "disabled": "無効",
+    "lift": "浮上",
+    "fade": "フェード",
+    "flipSelected": "選択を切替",
+    "flipDisabled": "無効を切替"
+  },
+  "langdemo": {
+    "current": "現在の言語: {code}",
+    "reset": "選択を忘れる"
   }
 }

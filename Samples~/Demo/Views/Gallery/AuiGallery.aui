@@ -1,0 +1,35 @@
+<view name="AuiGallery" width="560" height="480">
+  <panel class="row">
+    <icon name="wand-sparkles" size="22"/>
+    <text key="gallery.title" class="title"/>
+    <spacer/>
+    <text key="gallery.summary" args="{pass} {fail}" class="muted"/>
+  </panel>
+  <tabs bind="{page}">
+    <tab page="texts" key="gallery.texts"/>
+    <tab page="controls" key="gallery.controls"/>
+    <tab page="lists" key="gallery.lists"/>
+    <tab page="states" key="gallery.states"/>
+    <tab page="lang" key="gallery.language"/>
+    <tab page="log" key="gallery.log"/>
+  </tabs>
+  <pages id="main">
+    <page id="texts"><TextsDemo on-changed="TextsChanged"/></page>
+    <page id="controls"><ControlsDemo on-changed="ControlsChanged" on-ping="ControlsPinged"/></page>
+    <page id="lists"><ListDemo on-changed="ListChanged" on-picked="ListPicked"/></page>
+    <page id="states"><StatesDemo on-hit="StatesHit" on-changed="StatesChanged"/></page>
+    <page id="lang"><LangDemo on-changed="LangChanged"/></page>
+    <page id="log">
+      <repeat id="lines" max="9">
+        <text text="{item.line}" style="font-size: 15"/>
+        <empty><text key="gallery.logEmpty" class="muted"/></empty>
+      </repeat>
+    </page>
+  </pages>
+  <panel class="row">
+    <button onclick="RunTests" key="gallery.run" icon="zap" class="primary"/>
+    <button onclick="ClearLog" key="gallery.clear" icon="trash-2" class="ghost"/>
+    <spacer/>
+    <text text="{status}" class="muted" style="max-width: 160"/>
+  </panel>
+</view>

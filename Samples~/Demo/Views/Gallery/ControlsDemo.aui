@@ -1,0 +1,18 @@
+<view name="ControlsDemo" width="488" height="300" show="none">
+  <panel class="setting"><text key="controls.volume"/><spacer/><slider id="volume" bind="{volume}" min="0" max="100" step="1" format-key="controls.pct" onchange="VolumeChanged"/></panel>
+  <panel class="setting"><text key="controls.mute"/><spacer/><toggle id="mute" bind="{mute}" icon="check" onchange="MuteChanged"/></panel>
+  <panel class="setting"><text key="controls.quality"/><spacer/>
+    <select id="quality" bind="{quality}" onchange="QualityChanged">
+      <option value="low" key="controls.low"/>
+      <option value="medium" key="controls.medium"/>
+      <option value="high" key="controls.high"/>
+    </select>
+  </panel>
+  <panel class="setting"><text key="controls.nick"/><spacer/><input id="nick" bind="{nick}" placeholder-key="controls.nickHint" onsubmit="NickSubmitted"/></panel>
+  <panel class="row">
+    <button id="locked" onclick="Ping" key="controls.ping" icon="zap" disabled="{locked}" class="primary"/>
+    <button onclick="ToggleLock" key="controls.lock" icon="lock" class="ghost"/>
+    <spacer/>
+    <text id="last" text="{last}" class="muted" style="max-width: 150"/>
+  </panel>
+</view>

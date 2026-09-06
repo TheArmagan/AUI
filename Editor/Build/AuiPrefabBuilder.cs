@@ -40,7 +40,7 @@ namespace Armagan.AUI.Editor
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
-        public const int BuilderVersion = 8;
+        public const int BuilderVersion = 9;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -292,7 +292,7 @@ namespace Armagan.AUI.Editor
             bool interactive = AuiIndexMap.KindOfTag(n.Tag) != AuiIndexMap.KIND_NONE || c.Signal[e] >= 0;
             switch (n.Tag)
             {
-                case "text": BuildText(c, n, e, go, s, ln); break;
+                case "text": BuildText(c, n, e, go, s, local); break;
                 case "icon": BuildIcon(c, n, e, go, s); break;
                 case "image": BuildImage(c, n, e, go, s); break;
                 case "spacer": break;
@@ -489,7 +489,8 @@ namespace Armagan.AUI.Editor
             return key == null || c.Lang == null ? -1 : c.Lang.IndexOfKey(key);
         }
 
-        private static void BuildText(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiLayoutNode ln)
+        /// <param name="local">The element's rect for THIS row (a repeat row is offset from the template's).</param>
+        private static void BuildText(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
         {
             bool wrap = Flag(n, "wrap");
             bool ellipsis = Flag(n, "ellipsis") || (!wrap && n.Get("text") == null);
@@ -515,7 +516,8 @@ namespace Armagan.AUI.Editor
                 var fit = go.AddComponent<ContentSizeFitter>();
                 fit.horizontalFit = s.MaxWidth.IsSet ? ContentSizeFitter.FitMode.Unconstrained : ContentSizeFitter.FitMode.PreferredSize;
                 ((RectTransform)go.transform).pivot = new Vector2(0f, 0.5f);
-                ((RectTransform)go.transform).anchoredPosition = new Vector2(ln.Local.X, -(ln.Local.Y + ln.Local.H * 0.5f));
+                // The row's rect, not the template's: every row of a repeat used to stack on row 0.
+                ((RectTransform)go.transform).anchoredPosition = new Vector2(local.X, -(local.Y + local.H * 0.5f));
                 c.BasePos[e] = ((RectTransform)go.transform).anchoredPosition;
             }
         }

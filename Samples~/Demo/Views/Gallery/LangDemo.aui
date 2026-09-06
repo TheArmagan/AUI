@@ -1,0 +1,8 @@
+<view name="LangDemo" width="488" height="300" show="none">
+  <panel class="row">
+    <text key="langdemo.current" args="{code}"/>
+    <spacer/>
+    <button onclick="Reset" key="langdemo.reset" icon="refresh-cw" class="ghost"/>
+  </panel>
+  <AuiLanguagePicker/>
+</view>

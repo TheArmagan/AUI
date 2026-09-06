@@ -1,0 +1,25 @@
+<view name="StatesDemo" width="488" height="300" show="none">
+  <text key="states.hint" class="muted" wrap="true" style="max-width: 456; font-size: 15"/>
+  <panel class="grid">
+    <button onclick="Hit" key="states.normal"/>
+    <button onclick="Hit" key="states.primary" class="primary"/>
+    <button onclick="Hit" key="states.ghost" class="ghost"/>
+    <button onclick="Hit" key="states.selected" selected="{sel}"/>
+    <button onclick="Hit" key="states.disabled" disabled="{off}"/>
+    <button onclick="Hit" key="states.lift" class="lift"/>
+    <button onclick="Hit" key="states.fade" class="fade"/>
+  </panel>
+  <panel class="grid">
+    <button onclick="FlipSelected" key="states.flipSelected" class="ghost"/>
+    <button onclick="FlipDisabled" key="states.flipDisabled" class="ghost"/>
+    <text text="{hits}" class="muted" style="max-width: 60"/>
+  </panel>
+  <style>
+    .lift { transition: offset 0.1s out-quad, background 0.12s out-quad; }
+    .lift:hover { offset: 0 -3; }
+    .lift:pressed { offset: 0 1; }
+    .fade { transition: opacity 0.15s out-quad; }
+    .fade:hover { opacity: 0.6; }
+    .fade:pressed { opacity: 0.3; }
+  </style>
+</view>

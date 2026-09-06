@@ -122,11 +122,20 @@ AuiViewAsset (hash, source text, diagnostics)  console shows [AUI] path:line:col
 AuiBuildQueue.Drain (delayCall / InitializeOnLoad / DrainNow)
    |  step A  AuiSourceWriter: write Name.g.cs if its text changed; scaffold Name.cs once
    |          -> if anything was written: AssetDatabase.Refresh, STOP; the queue resumes after the reload
-   |  step B  AuiProgramAssets.Ensure(Name.cs); UdonSharp CompileSync if needed
+   |  step B  AuiProgramAssets.Ensure(Name.cs) for EVERY queued view, then ONE UdonSharp CompileSync
+   |          if any program asset is new or empty
    |          AuiPrefabBuilder.Build: skip when prefab's auiBakeHash == hash:BuilderVersion (unless forced)
+   |  after   AuiLanguageTableBuilder.ApplyIfChanged: rebake the scene's service when a prefab was built
    v
 Name.prefab (root: Canvas + GraphicRaycaster + VRCUiShape + BoxCollider + the view; Content child; elements)
 ```
+
+Cost: the drain logs `[AUI] drain: N view(s), M built, T ms (scan, compile, udonsharp, build)`.
+`AuiEditorEnv` caches the workspace scan, the language table and the theme; the postprocessor
+invalidates them when a `.aui`, `.auis`, `.json`, `.svg` or `AuiSettings.asset` changes. The
+first build of a view pays one UdonSharp compile (seconds) for the whole drain, not one per
+view. The source header hash covers the generated source only, so a layout-only change does not
+rewrite `Foo.g.cs` and does not force a reload; the prefab stamp covers layout and styles too.
 
 Why two phases: an importer cannot write a source file, and adding the view component needs the
 class to exist and UdonSharp to have compiled it. Children (nested views) are built before parents;
@@ -135,8 +144,9 @@ an error. `AuiBuildQueue.Forced` is set by `AUI/Rebuild All Views` and rebuilds 
 matches. Bump `AuiPrefabBuilder.BuilderVersion` whenever the builder's output changes without the
 markup changing; it is part of the stamp.
 
-The hash (`AuiCompiler.ComputeHash`) covers the generated source, every layout rect (and repeat
-instance rects), every resolved style value and state, the key list, and the raw node tree.
+The prefab hash (`AuiCompiler.ComputeHash`) covers the generated source, every layout rect (and
+repeat instance rects), every resolved style value and state, the key list, and the raw node
+tree. The `.g.cs` header hash is `Sha1` of the generated text alone.
 
 ## 4. Markup reference (.aui)
 
@@ -377,8 +387,12 @@ For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
 - Constants: `E_<ID>` element index and `S_<ID>` signal id for every element with an id (row 0
   inside repeats), `<REPEAT>_MAX`, `<PAGES>_COUNT`, `<PAGES>_<PAGE>` indices.
 - `[HideInInspector] public <Child> child<Child>[<Id>]` per nested view, assigned by the builder.
-- One property per view-level binding: `T Name { get; set; }` with a private backing field.
-  The setter escapes strings (zero-width space after every `<`), stores, and pushes to every use:
+- One property per view-level binding: `T Name { get; set; }` with a private backing field
+  `_name` (an author field of that name is a duplicate-definition error). The setter runs
+  `EnsureStartedS/I/F/B(value)` first, which starts a not-yet-started view and returns the
+  caller's value even when the view's `OnStart` wrote the same property meanwhile (see §15 on
+  Udon argument slots), escapes strings (zero-width space after every `<`), stores, and pushes
+  to every use:
   re-renders texts, `SetActiveElem` for `if`, `SetEnabledElem` for `disabled`, `SetSelected` for
   `selected`, `SetToggle`, slider `SetValueWithoutNotify` + label render, `SetSelect`,
   `SelectPage(..., false)`, `RenderInput`, child property. Setting from code never fires a handler.
@@ -389,8 +403,12 @@ For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
   binding and calling the `onchange` handler.
 - Per select: `Set<Id>OptionLabel(i, s)`, `Set<Id>OptionCount(n)`; `_OnSelectChanged` override.
 - `Render_<elem>()` for each text with a view-level binding or a key with args, and for each slider's
-  format label; `_Retranslate` override calling base then the renders; `_AfterStart` applying
-  initial renders, reading slider defaults, and pushing literal/bound attributes into children.
+  format label; `_Retranslate` override calling base then the renders; `_AfterStart` starting
+  every nested child (`child.EnsureStarted()`), applying initial renders, reading slider
+  defaults, and pushing literal/bound attributes into children. Children therefore start before
+  the parent's `OnStart`, whatever page they sit on.
+- Per repeat item binding, `Set<Id><Field>(int row, T value)` parks `row` and `value` in the
+  `_auiStash*` slots before starting the view for the same reason.
 - `_OnInputResult` override: matches `inputResultId`, sets the bound property, calls `onsubmit`.
 - `_Dispatch(id, kind)`: `if (id == S) { Handler(); return; }` per handler; repeat rows use
   `if (id >= base && id < base + stride * max && (id - base) % stride == offset) { int row = ...;
@@ -509,6 +527,12 @@ methods, determinism, golden file `Golden/Demo.g.cs.txt`; delete the golden to r
 an intentional codegen change). Run them from the Test Runner or UnityMCP `run_tests`. Eighty
 tests at v0.1.0.
 
+The runtime is covered by the gallery (`Samples~/Demo/Views/Gallery`): a hub view nesting five
+feature views, with a `RunTests` method (custom event `_TestRun`) that writes through the typed
+API and reads back what rendered, 17 checks, logged in-world and as `[AUI gallery] PASS/FAIL`.
+It is the regression suite for `AuiView`, codegen and the builder together; run it in play mode
+after touching any of them.
+
 ## 15. Measured platform facts that shaped decisions
 
 - A ScriptedImporter cannot emit a `.cs` file, and `UdonSharpEditorUtility.RunBehaviourSetup`
@@ -522,6 +546,19 @@ tests at v0.1.0.
   an unexported symbol is a silent no-op. Hence `inputResult`, `inputResultId`, `view`, `id`, and
   every table are public with `[HideInInspector]`, never `[NonSerialized]`.
 - Arrays coming back from the Udon heap are empty, not null. Every table length is validated.
+- **Udon has no call stack for arguments.** A method's parameters and locals are heap slots, so
+  a method that re-enters itself (a setter that starts the view, whose `OnStart` writes the same
+  property) sees its argument overwritten by the inner call. Measured on the gallery: the first
+  write to every not-yet-started child came back as the child's own default. `AuiView` parks the
+  outer arguments in `_auiStash*` fields that are written only while `_started` is false, which
+  is exactly once, and restores them after `_AuiStart`. Any author method that can re-enter
+  itself needs the same care.
+- A view on an inactive object (a hidden page) has no `Start` until it is shown, but calls from
+  other behaviours reach it; its runtime arrays are null until `_AuiStart`. Hence
+  `EnsureStarted` on every public entry and child auto-start in `_AfterStart`.
+- A bound text with no fixed width is positioned by `BuildText` itself (pivot on the left for the
+  content fitter); it must use the row's rect, not the template's, or every row of a repeat lands
+  on row 0 (BuilderVersion 9).
 - `TextMeshProUGUI.richText` and `.rectTransform` are not exposed to Udon; `string[i]` is not
   either. Untrusted text is escaped with a zero-width space after `<`; rect transforms are baked.
 - `VRCPlayerApi.GetCurrentLanguage()` throws a null delegate under ClientSim until ClientSim has

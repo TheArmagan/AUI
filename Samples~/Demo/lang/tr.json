@@ -17,5 +17,65 @@
     "signedIn": "{playerName} olarak giriş yapıldı",
     "greet": "Selam ver",
     "close": "Kapat"
+  },
+  "gallery": {
+    "title": "AUI galerisi",
+    "summary": "{pass} geçti, {fail} kaldı",
+    "texts": "Metinler",
+    "controls": "Kontroller",
+    "lists": "Listeler",
+    "states": "Durumlar",
+    "language": "Dil",
+    "log": "Kayıt",
+    "logEmpty": "Henüz kayıt yok. Diğer sekmeleri kullan ya da testleri çalıştır.",
+    "run": "Testleri çalıştır",
+    "clear": "Temizle"
+  },
+  "texts": {
+    "keyed": "Anahtarlı, bağlı ve sarılan metin",
+    "boundLabel": "Bağlı:",
+    "argsLabel": "Yer tutucular:",
+    "args": "{who} kişisinin {count} öğesi var",
+    "wrap": "Bu paragraf wrap=\"true\" ve bir max-width taşıdığı için sarılır. Her dil için ölçüldü, en uzun çeviri sığar.",
+    "setHello": "Merhaba yaz",
+    "setLong": "Uzun yaz",
+    "inject": "Etiket sok",
+    "bump": "Sayacı artır"
+  },
+  "controls": {
+    "volume": "Ses seviyesi",
+    "pct": "%{value}",
+    "mute": "Sessiz",
+    "quality": "Kalite",
+    "low": "Düşük",
+    "medium": "Orta",
+    "high": "Yüksek",
+    "nick": "Takma ad",
+    "nickHint": "Bir şey yaz",
+    "ping": "Merkeze ping",
+    "lock": "Kilitle"
+  },
+  "lists": {
+    "add": "Ekle",
+    "remove": "Çıkar",
+    "clear": "Temizle",
+    "count": "{count} satır",
+    "empty": "Liste boş. Bir satır ekle."
+  },
+  "states": {
+    "hint": "Her düğmenin üzerine gel, bas ve basılı tut. Stiller temadan, görünüm dosyasından ve satır içi bloktan gelir.",
+    "normal": "Normal",
+    "primary": "Birincil",
+    "ghost": "Hayalet",
+    "selected": "Seçili",
+    "disabled": "Devre dışı",
+    "lift": "Kaldır",
+    "fade": "Soldur",
+    "flipSelected": "Seçiliyi çevir",
+    "flipDisabled": "Devre dışını çevir"
+  },
+  "langdemo": {
+    "current": "Geçerli dil: {code}",
+    "reset": "Seçimi unut"
   }
 }

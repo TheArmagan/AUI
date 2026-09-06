@@ -17,5 +17,65 @@
     "signedIn": "Signed in as {playerName}",
     "greet": "Say hello",
     "close": "Close"
+  },
+  "gallery": {
+    "title": "AUI gallery",
+    "summary": "{pass} passed, {fail} failed",
+    "texts": "Texts",
+    "controls": "Controls",
+    "lists": "Lists",
+    "states": "States",
+    "language": "Language",
+    "log": "Log",
+    "logEmpty": "Nothing logged yet. Use the other tabs or run the tests.",
+    "run": "Run tests",
+    "clear": "Clear"
+  },
+  "texts": {
+    "keyed": "Keyed, bound and wrapped text",
+    "boundLabel": "Bound:",
+    "argsLabel": "Placeholders:",
+    "args": "{who} has {count} items",
+    "wrap": "This paragraph wraps because it has wrap=\"true\" and a max-width. It was measured over every language so the tallest translation fits.",
+    "setHello": "Set hello",
+    "setLong": "Set long",
+    "inject": "Inject tags",
+    "bump": "Bump count"
+  },
+  "controls": {
+    "volume": "Volume",
+    "pct": "{value}%",
+    "mute": "Mute",
+    "quality": "Quality",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "nick": "Nickname",
+    "nickHint": "Type something",
+    "ping": "Ping the hub",
+    "lock": "Lock"
+  },
+  "lists": {
+    "add": "Add",
+    "remove": "Remove",
+    "clear": "Clear",
+    "count": "{count} rows",
+    "empty": "The list is empty. Add a row."
+  },
+  "states": {
+    "hint": "Hover, press and hold each button. Styles come from the theme, the view sheet and an inline style block.",
+    "normal": "Normal",
+    "primary": "Primary",
+    "ghost": "Ghost",
+    "selected": "Selected",
+    "disabled": "Disabled",
+    "lift": "Lift",
+    "fade": "Fade",
+    "flipSelected": "Flip selected",
+    "flipDisabled": "Flip disabled"
+  },
+  "langdemo": {
+    "current": "Current language: {code}",
+    "reset": "Forget choice"
   }
 }

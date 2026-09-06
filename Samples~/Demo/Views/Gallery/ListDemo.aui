@@ -1,0 +1,13 @@
+<view name="ListDemo" width="488" height="300" show="none">
+  <panel class="row">
+    <button onclick="Add" key="lists.add" icon="plus"/>
+    <button onclick="Remove" key="lists.remove" icon="x" class="ghost"/>
+    <button onclick="Clear" key="lists.clear" icon="trash-2" class="ghost"/>
+    <spacer/>
+    <text key="lists.count" args="{count}" class="muted"/>
+  </panel>
+  <repeat id="items" max="6" onselect="Pick" class="grid">
+    <button class="chip" selected="{item.picked}"><icon name="tag"/><text text="{item.label}" style="max-width: 90"/></button>
+    <empty><text key="lists.empty" class="muted"/></empty>
+  </repeat>
+</view>

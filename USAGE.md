@@ -355,6 +355,19 @@ public class DemoBrightness : UdonSharpBehaviour
 Both sides survive `AUI/Rebuild All Views`: the builder keeps the prefab's ids, so instance
 overrides stay attached. The demo in `Samples~/Demo` is this exact pairing.
 
+Writing to a view before it has started is safe. A view on a hidden page, or any inactive
+object, has not had its `Start` when another script reaches it; every property setter and every
+public method starts the view first, and the value you wrote survives the view's own `OnStart`
+defaults. A parent view starts all of its nested children before its own `OnStart` runs, so a
+child's read-back methods answer correctly from the parent's `OnStart` onward. If you need the
+same guarantee for a getter (a `Size()` you wrote yourself, say), call `EnsureStarted()` on the
+view first.
+
+Two naming rules for the author half: do not declare a private field named `_<binding>` (the
+generated backing field has that name and the compile fails with a duplicate), and do not use a
+binding name that matches an `AuiView` member (`Name`, `Lang`, `Show`, ...; the analyzer refuses
+those).
+
 ## 13. Showing, hiding and placing views
 
 A view is a world-space canvas, 1 unit = 1 mm at the prefab's 0.001 scale. Place the instance
@@ -383,6 +396,15 @@ A clickable can be driven the same way through its signal: `signals[S_CLOSE]` an
 The edit-mode tests (`Tests/Editor`) cover the compiler; run them from the Test Runner after
 changing the package.
 
+The runtime has its own suite: the gallery in `Samples~/Demo/Views/Gallery` (in this world under
+`Assets/AUI/Demo/Gallery`, placed in `Demo.unity`). It nests five feature views on tabbed pages,
+logs every child event, and its `RunTests` method writes to each child through the typed API and
+checks what rendered: bound text, escaping, placeholders, slider value and label, toggle, select,
+disabled and enabled buttons, child `Emit` bubbling, repeat count and visibility, state flags,
+page selection and a language round trip. Press *Run tests* in play mode, or send `_TestRun` to
+the gallery's UdonBehaviour; each result also reaches the console as `[AUI gallery] PASS name`.
+Extend it when you add a runtime feature.
+
 ## 15. Troubleshooting
 
 - Nothing appears after saving a `.aui`: read the console for `[AUI] path:line:col`. Errors stop
@@ -392,8 +414,15 @@ changing the package.
   Views`.
 - The prefab did not change: its bake stamp matched. `AUI/Rebuild All Views` forces it.
 - Boxes instead of letters: `AUI/Bake Fonts`.
-- A key shows as its own name in-world: it is missing from the default language, or the scene's
-  table is stale (`AUI/Rebuild Language Table`).
+- A key shows as its own name in-world: it is missing from the default language.
+- Every text shows `??`: the scene's language table is older than the views. The build rebakes it
+  after every prefab build when the scene has an `AUI Language Service`; if the scene has none,
+  `AUI/Rebuild Language Table` creates it.
+- `Foo.cs` fails with a duplicate field: you declared `_<binding>`; the generated backing field
+  owns that name. Rename yours.
+- A build takes seconds: the console line `[AUI] drain: ... (scan, compile, udonsharp, build)`
+  says where. `udonsharp` is paid once per drain and only when a view is new; `build` is the
+  prefab work per view.
 - Text of a bound string does not fit: give the element `max-width` or `wrap="true"`, or a
   shorter `boundTextSample` in the settings.
 - Nothing is clickable in the real client but works in the editor: the root canvas lost its
