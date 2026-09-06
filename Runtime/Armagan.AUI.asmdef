@@ -3,6 +3,7 @@
   "rootNamespace": "Armagan.AUI",
   "references": [
     "VRC.Udon",
+    "VRC.Udon.Serialization.OdinSerializer",
     "UdonSharp.Runtime",
     "Unity.TextMeshPro"
   ],
