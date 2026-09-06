@@ -59,7 +59,10 @@ namespace Armagan.AUI.Editor
                 Font src = Source("Inter-" + Weights[w] + ".ttf");
                 if (src == null) { AuiLog.Error("font source missing: Fonts/src/Inter-" + Weights[w] + ".ttf"); return; }
                 uint[] missing;
-                latin[w] = BakeStatic(src, "AUI Inter " + Weights[w], codepoints, 1024, out missing);
+                // 2048, ONE ATLAS. A 1024 atlas held ~340 of Inter's glyphs and the rest went to
+                // extra atlas pages, which TMP's UI text draws with the first page's texture: the
+                // ellipsis (U+2026, page 2) rendered as a fragment of some other glyph.
+                latin[w] = BakeStatic(src, "AUI Inter " + Weights[w], codepoints, 2048, out missing);
                 if (w == 0 || w == 3)
                 {
                     // CJK: Regular feeds Regular/Medium, Bold feeds SemiBold/Bold.
@@ -130,13 +133,17 @@ namespace Armagan.AUI.Editor
         /// <summary>Create a dynamic atlas, add the characters, freeze it as Static and save it in place of any previous bake.</summary>
         private static TMP_FontAsset BakeStatic(Font src, string name, uint[] codepoints, int atlasSize, out uint[] missing)
         {
-            TMP_FontAsset fa = TMP_FontAsset.CreateFontAsset(src, SamplingPointSize, Padding, GlyphRenderMode.SDFAA, atlasSize, atlasSize, AtlasPopulationMode.Dynamic, true);
+            // Single atlas page: a glyph on a second page is not drawn correctly by TextMeshProUGUI.
+            // What does not fit is reported as missing and falls through the chain, with a warning.
+            TMP_FontAsset fa = TMP_FontAsset.CreateFontAsset(src, SamplingPointSize, Padding, GlyphRenderMode.SDFAA, atlasSize, atlasSize, AtlasPopulationMode.Dynamic, false);
             fa.name = name;
+            fa.isMultiAtlasTexturesEnabled = false;
             if (!fa.TryAddCharacters(codepoints, out missing, false)) missing = missing ?? new uint[0];
             if (missing == null) missing = new uint[0];
+            if (fa.atlasTextures != null && fa.atlasTextures.Length > 1)
+                AuiLog.Warn(name + ": " + fa.atlasTextures.Length + " atlas pages; glyphs past the first page draw wrong. Raise the atlas size.");
             fa.atlasPopulationMode = AtlasPopulationMode.Static;
-            Save(fa, PathFor(name));
-            return fa;
+            return Save(fa, PathFor(name));
         }
 
         private static TMP_FontAsset BakeDynamic(Font src, string name)
@@ -150,12 +157,12 @@ namespace Armagan.AUI.Editor
             for (int i = 0; i < 95; i++) ascii[i] = (uint)(32 + i);
             uint[] miss;
             fa.TryAddCharacters(ascii, out miss, false);
-            Save(fa, PathFor(name));
-            return fa;
+            return Save(fa, PathFor(name));
         }
 
         /// <summary>Write the font asset with its material and atlas textures as sub-assets, replacing an earlier bake at the same path.</summary>
-        private static void Save(TMP_FontAsset fa, string path)
+        /// <returns>The asset that lives on disk; on a rebake that is the EXISTING object, and the temporary is destroyed.</returns>
+        private static TMP_FontAsset Save(TMP_FontAsset fa, string path)
         {
             TMP_FontAsset existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
             if (existing != null)
@@ -168,12 +175,13 @@ namespace Armagan.AUI.Editor
                 existing.ReadFontAssetDefinition();
                 EditorUtility.SetDirty(existing);
                 Object.DestroyImmediate(fa);
-                return;
+                return existing;
             }
             AssetDatabase.CreateAsset(fa, path);
             AddSubAssets(fa, fa);
             fa.ReadFontAssetDefinition();
             EditorUtility.SetDirty(fa);
+            return fa;
         }
 
         private static void AddSubAssets(TMP_FontAsset host, TMP_FontAsset source)

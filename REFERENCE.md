@@ -556,9 +556,19 @@ after touching any of them.
 - A view on an inactive object (a hidden page) has no `Start` until it is shown, but calls from
   other behaviours reach it; its runtime arrays are null until `_AuiStart`. Hence
   `EnsureStarted` on every public entry and child auto-start in `_AfterStart`.
-- A bound text with no fixed width is positioned by `BuildText` itself (pivot on the left for the
-  content fitter); it must use the row's rect, not the template's, or every row of a repeat lands
-  on row 0 (BuilderVersion 9).
+- A bound text with no fixed width is positioned by `BuildText` itself (pivot on the left); it
+  must use the row's rect, not the template's, or every row of a repeat lands on row 0
+  (BuilderVersion 9). It is a fixed box, not a content-grown one: the solver's reserved width,
+  widened to the parent's remaining content width when nothing follows it in the row, with
+  `Ellipsis` overflow. A preferred-size fitter let a long runtime string run off the canvas
+  (BuilderVersion 11). Every single-line text ellipsises, keyed or bound.
+- **TextMeshProUGUI draws every glyph with the first atlas page's texture.** Inter's 1012 glyphs
+  at 48 pt overflowed a 1024 atlas onto three pages, and the ellipsis (page 2) rendered as a
+  fragment of another glyph. Static bakes are one 2048 page with multi-atlas off; a bake that
+  still overflows warns and lets the glyphs fall through the fallback chain.
+- A rebake copies the new font over the existing asset to keep its GUID and destroys the
+  temporary; the baker must keep using the existing object, or the fallback wiring throws
+  `ArgumentNullException: target` after the atlases are already written.
 - `TextMeshProUGUI.richText` and `.rectTransform` are not exposed to Udon; `string[i]` is not
   either. Untrusted text is escaped with a zero-width space after `<`; rect transforms are baked.
 - `VRCPlayerApi.GetCurrentLanguage()` throws a null delegate under ClientSim until ClientSim has

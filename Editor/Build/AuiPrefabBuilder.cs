@@ -40,7 +40,7 @@ namespace Armagan.AUI.Editor
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
-        public const int BuilderVersion = 10;
+        public const int BuilderVersion = 11;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -292,7 +292,7 @@ namespace Armagan.AUI.Editor
             bool interactive = AuiIndexMap.KindOfTag(n.Tag) != AuiIndexMap.KIND_NONE || c.Signal[e] >= 0;
             switch (n.Tag)
             {
-                case "text": BuildText(c, n, e, go, s, local); break;
+                case "text": BuildText(c, n, e, go, s, local, parentNode); break;
                 case "icon": BuildIcon(c, n, e, go, s); break;
                 case "image": BuildImage(c, n, e, go, s); break;
                 case "spacer": break;
@@ -498,10 +498,11 @@ namespace Armagan.AUI.Editor
         }
 
         /// <param name="local">The element's rect for THIS row (a repeat row is offset from the template's).</param>
-        private static void BuildText(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
+        private static void BuildText(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local, AuiNode parentNode)
         {
             bool wrap = Flag(n, "wrap");
-            bool ellipsis = Flag(n, "ellipsis") || (!wrap && n.Get("text") == null);
+            // A single-line text never overflows its box: keyed or bound, it ellipsises.
+            bool ellipsis = Flag(n, "ellipsis") || !wrap;
             string key = n.Get("key");
             string initial = key != null ? Preview(c, key, key) : (n.Get("text") != null ? "" : n.Text);
             var t = go.AddComponent<TextMeshProUGUI>();
@@ -520,14 +521,47 @@ namespace Armagan.AUI.Editor
             c.Key[e] = KeyIndex(c, key);
             if (n.Get("text") != null && !s.Width.IsSet)
             {
-                // Runtime text grows to its content, up to the box the solver reserved for max-width.
-                var fit = go.AddComponent<ContentSizeFitter>();
-                fit.horizontalFit = s.MaxWidth.IsSet ? ContentSizeFitter.FitMode.Unconstrained : ContentSizeFitter.FitMode.PreferredSize;
-                ((RectTransform)go.transform).pivot = new Vector2(0f, 0.5f);
+                // RUNTIME TEXT IS BOXED, NOT GROWN. The solver reserved a sample width; a preferred-size
+                // fitter let a long string run past the row and off the canvas. The box is the
+                // reserved width, widened to the parent's remaining content width when nothing
+                // follows the text in its row, and the text ellipsises inside it. max-width stays a cap.
+                var rt = (RectTransform)go.transform;
+                float w = local.W;
+                if (!s.MaxWidth.IsSet && parentNode != null && IsLastFlowChild(c, n, parentNode))
+                {
+                    AuiLayoutNode pl = c.R.Layout[parentNode.Index];
+                    float innerRight = pl.Local.W - c.R.Styles[parentNode.Index].Padding.Right;
+                    w = Mathf.Max(w, innerRight - local.X);
+                }
+                rt.pivot = new Vector2(0f, 0.5f);
+                rt.sizeDelta = new Vector2(w, local.H);
                 // The row's rect, not the template's: every row of a repeat used to stack on row 0.
-                ((RectTransform)go.transform).anchoredPosition = new Vector2(local.X, -(local.Y + local.H * 0.5f));
-                c.BasePos[e] = ((RectTransform)go.transform).anchoredPosition;
+                rt.anchoredPosition = new Vector2(local.X, -(local.Y + local.H * 0.5f));
+                c.BasePos[e] = rt.anchoredPosition;
+                if (wrap)
+                {
+                    // Wrapped runtime text keeps its width and grows downward within what the solver reserved.
+                    var fit = go.AddComponent<ContentSizeFitter>();
+                    fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+                    fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                    rt.pivot = new Vector2(0f, 1f);
+                    rt.anchoredPosition = new Vector2(local.X, -local.Y);
+                    c.BasePos[e] = rt.anchoredPosition;
+                }
             }
+        }
+
+        /// <summary>True when no in-flow sibling (anything but anchored elements and the repeat's &lt;empty&gt;) follows n in its parent.</summary>
+        private static bool IsLastFlowChild(Ctx c, AuiNode n, AuiNode parentNode)
+        {
+            bool after = false;
+            foreach (AuiNode sib in parentNode.Children)
+            {
+                if (sib == n) { after = true; continue; }
+                if (!after || sib.Tag == "empty") continue;
+                if (c.R.Styles[sib.Index].Anchor == "none") return false;
+            }
+            return true;
         }
 
         private static bool Flag(AuiNode n, string attr)
