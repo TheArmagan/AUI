@@ -52,7 +52,8 @@ button:hover    { background: var(--accent); color: var(--base); icon-color: var
 button:pressed  { scale: 0.96; }
 button:selected { background: var(--accent); color: var(--base); icon-color: var(--base); }
 button:disabled { opacity: 0.4; }
-.ghost { background: none; }
+/* Invisible at rest but keeps the rounded sprite, so the hover chip has the same corners as every other button. */
+.ghost { background: sprite(Rounded8) transparent; }
 .ghost:hover { background: var(--chip); color: var(--text); icon-color: var(--text); }
 
 /* A toggle is a 36 mm square when it only carries an icon (the icon is the "on" mark and is

@@ -40,7 +40,7 @@ namespace Armagan.AUI.Editor
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
-        public const int BuilderVersion = 9;
+        public const int BuilderVersion = 10;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -426,7 +426,15 @@ namespace Armagan.AUI.Editor
             if (!bg.IsNone || needsRaycast)
             {
                 var img = t.gameObject.AddComponent<Image>();
-                if (bg.IsNone) { img.color = new Color(0, 0, 0, 0); img.sprite = null; }
+                if (bg.IsNone)
+                {
+                    // Transparent, but shaped by the element's radius: a state that later paints a
+                    // colour (.ghost:hover) must get the same corners as a button that had one at rest.
+                    img.color = new Color(0, 0, 0, 0);
+                    img.sprite = RoundedSprite(c, s.Radius, false);
+                    img.type = Image.Type.Sliced;
+                    img.pixelsPerUnitMultiplier = 1f;
+                }
                 else
                 {
                     img.sprite = bg.Sprite != null ? NamedSprite(c, bg.Sprite) : RoundedSprite(c, s.Radius, false);
