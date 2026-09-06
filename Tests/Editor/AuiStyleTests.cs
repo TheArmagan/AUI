@@ -320,7 +320,7 @@ namespace Armagan.AUI.Tests
             AuiMarkupDocument doc; AuiDiagnosticBag bag;
             var rs = Resolve("<view name=\"V\"><button class=\"ghost\"><icon name=\"x\"/><text key=\"k\"/></button><slider/></view>", new[] { theme }, out doc, out bag);
             Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items));
-            Assert.AreEqual("none", rs[1].Get("background"));
+            Assert.AreEqual("sprite(Rounded8) transparent", rs[1].Get("background"));   // invisible at rest, rounded on hover
             Assert.IsTrue(rs[1].HasState("hover"));
             Assert.AreEqual("#EEE1D2", rs[3].Get("color"));
             Assert.AreEqual(500, rs[3].FontWeight);
