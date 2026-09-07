@@ -15,7 +15,7 @@
     <panel id="b2" class="box" style="width: 90; height: 40"><text class="*text-sm">2</text></panel>
     <panel id="b3" class="box" style="width: 60; height: 24"><text class="*text-sm">3</text></panel>
     <panel id="b4" class="box" style="width: 25%; height: 34"><text class="*text-sm">25%</text></panel>
-    <text id="badge" class="badge" style="position: absolute; top: 6; right: 6">absolute</text>
+    <panel id="badge" class="badge" style="position: absolute; top: 6; right: 6"><text>absolute</text></panel>
   </panel>
 
   <panel class="grid">

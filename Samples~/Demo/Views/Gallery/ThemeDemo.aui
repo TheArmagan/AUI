@@ -30,7 +30,7 @@
     <text key="theme.preview" class="hint"/>
     <button onclick="Sample" key="theme.sample" class="primary chip"/>
     <button onclick="Sample" key="theme.sample" class="ghost chip"/>
-    <text text="{accentNow}" class="badge"/>
+    <panel class="badge"><text text="{accentNow}"/></panel>
     <spacer/>
     <button onclick="Reset" key="theme.reset" icon="refresh-cw" class="ghost"/>
   </panel>

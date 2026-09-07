@@ -6,7 +6,7 @@
   <panel class="row">
     <text key="langdemo.title" class="section"/>
     <spacer/>
-    <text text="{code}" class="badge"/>
+    <panel class="badge"><text text="{code}"/></panel>
   </panel>
   <text key="langdemo.hint" class="hint" wrap="true" style="max-width: 540"/>
 

@@ -22,7 +22,7 @@
 
   <repeat id="board" max="5" onselect="Pick" class="card" style="gap: 4">
     <button class="line" selected="{item.picked}">
-      <text text="{item.rank}" class="badge"/>
+      <panel class="badge"><text text="{item.rank}"/></panel>
       <icon name="user" class="hint"/>
       <text text="{item.name}" style="min-width: 130; max-width: 130; text-align: left"/>
       <spacer/>

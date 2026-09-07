@@ -125,6 +125,28 @@ namespace Armagan.AUI
             if (_autoRelayout && _started) SendCustomEventDelayedFrames(nameof(_AuiSolveLayout), 1);
         }
 
+        /// <summary>
+        /// A nested view that started while its page was hidden could not measure its bound texts
+        /// (TMP measures nothing on an inactive object), so it solved with the baked sample sizes and
+        /// kept the dirty bits. The host calls this when the page enters or the view shows: one solve
+        /// on the next frame, whatever the flag says, so those texts are measured now that they are active.
+        /// </summary>
+        public void _AuiWake()
+        {
+            if (!_started || !_layoutReady) return;
+            _layoutDirty = true;
+            if (_autoRelayout) SendCustomEventDelayedFrames(nameof(_AuiSolveLayout), 1);
+        }
+
+        /// <summary>Wake every nested view under root (root itself included when it hosts one).</summary>
+        private void WakeChildViews(int root)
+        {
+            if (elemChildView == null || elemSubtreeEnd == null || root < 0 || root >= elemSubtreeEnd.Length) return;
+            int end = elemSubtreeEnd[root];
+            for (int e = root; e < end && e < elemChildView.Length; e++)
+                if (elemChildView[e] != null) elemChildView[e]._AuiWake();
+        }
+
         /// <summary>Force a solve now if anything is dirty (also used after a batch under SetAutoRelayout(false)).</summary>
         public void Relayout()
         {

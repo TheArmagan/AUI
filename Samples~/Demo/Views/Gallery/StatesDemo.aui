@@ -8,7 +8,7 @@
   <panel class="row">
     <text key="states.title" class="section"/>
     <spacer/>
-    <text key="states.hits" args="{hits}" class="badge"/>
+    <panel class="badge"><text key="states.hits" args="{hits}"/></panel>
   </panel>
   <text key="states.hint" class="hint" wrap="true" style="max-width: 540"/>
 

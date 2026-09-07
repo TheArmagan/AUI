@@ -301,6 +301,8 @@ namespace Armagan.AUI
             _visible = true;
             Enter(contentGroup, contentRect, showKind, showDur, slideFrom, scaleFrom, contentRect != null ? BasePos(contentRect) : Vector2.zero, ref _fadeH, ref _scaleH, ref _slideH);
             ScheduleSnap(showDur);
+            MarkLayoutDirty();
+            WakeChildViews(0);
             OnShown();
         }
 
@@ -326,6 +328,8 @@ namespace Armagan.AUI
             content.SetActive(true);
             SnapShown(contentGroup, contentRect, contentRect != null ? BasePos(contentRect) : Vector2.zero);
             _visible = true;
+            MarkLayoutDirty();
+            WakeChildViews(0);
             OnShown();
         }
 
@@ -659,6 +663,7 @@ namespace Armagan.AUI
             VRCTweenHandle a = new VRCTweenHandle(), b = new VRCTweenHandle(), c = new VRCTweenHandle();
             Enter(elemGroups[e], elemRects[e], pageKind[pageIndex], pageDur, new Vector2(0f, -24f), 0.96f, elemBasePos[e], ref a, ref b, ref c);
             MarkLayoutDirty();   // texts on the page that changed while it was inactive get measured now
+            WakeChildViews(e);   // and nested views on the page measure theirs
         }
 
         private void PageExit(int pageIndex)

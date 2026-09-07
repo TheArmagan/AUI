@@ -25,7 +25,8 @@ view { background: sprite(Rounded12) var(--surface); padding: var(--pad); gap: 1
    in its markup would warn (AUI212) that it cannot be applied at runtime. */
 .section { font-size: 20; color: var(--accent); icon-color: var(--accent); }
 .hint    { font-size: 15; color: var(--muted); icon-color: var(--muted); }
-.badge   { background: sprite(Rounded24) var(--accent); color: var(--base); padding: 2 9; min-height: 22; font-size: 13; }
+/* A badge is a panel around a text: a text element draws no background of its own. */
+.badge   { background: sprite(Rounded24) var(--accent); color: var(--base); padding: 1 9; min-height: 20; align: center; justify: center; font-size: 13; }
 
 /* Semantic tints for icons and labels. */
 .accent { color: var(--accent); icon-color: var(--accent); }

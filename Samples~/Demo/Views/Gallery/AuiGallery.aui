@@ -6,7 +6,7 @@
   <panel class="row">
     <icon name="wand-sparkles" size="24" class="accent"/>
     <text key="gallery.title" class="title"/>
-    <text text="{version}" class="badge"/>
+    <panel class="badge"><text text="{version}"/></panel>
     <spacer/>
     <text key="gallery.summary" args="{pass} {fail}" class="hint"/>
   </panel>
