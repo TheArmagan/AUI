@@ -1,8 +1,24 @@
-<view name="LangDemo" width="488" height="300" show="none">
+<view name="LangDemo" width="566" height="514">
+  <!-- The shipped picker, the service's read-backs, and a sentence with three placeholders. -->
+  <link href="Showcase.auis"/>
+  <event name="changed"/>
+
   <panel class="row">
-    <text key="langdemo.current" args="{code}"/>
+    <text key="langdemo.title" class="section"/>
     <spacer/>
+    <text text="{code}" class="badge"/>
+  </panel>
+  <text key="langdemo.hint" class="hint" wrap="true" style="max-width: 540"/>
+
+  <panel class="card" style="gap: 6">
+    <text key="langdemo.greeting" args="{player}" class="*text-lg"/>
+    <text key="langdemo.sample" args="{native} {code} {total}" wrap="true" style="max-width: 510"/>
+  </panel>
+
+  <AuiLanguagePicker/>
+
+  <panel class="row">
+    <button onclick="Next"  key="langdemo.next"  icon="chevron-right"/>
     <button onclick="Reset" key="langdemo.reset" icon="refresh-cw" class="ghost"/>
   </panel>
-  <AuiLanguagePicker/>
 </view>

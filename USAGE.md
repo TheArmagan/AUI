@@ -668,13 +668,15 @@ The edit-mode tests (`Tests/Editor`) cover the compiler; run them from the Test 
 changing the package.
 
 The runtime has its own suite: the gallery in `Samples~/Demo/Views/Gallery` (in this world under
-`Assets/AUI/Demo/Gallery`, placed in `Demo.unity`). It nests five feature views on tabbed pages,
-logs every child event, and its `RunTests` method writes to each child through the typed API and
-checks what rendered: bound text, escaping, placeholders, slider value and label, toggle, select,
-disabled and enabled buttons, child `Emit` bubbling, repeat count and visibility, state flags,
-page selection and a language round trip. Press *Run tests* in play mode, or send `_TestRun` to
-the gallery's UdonBehaviour; each result also reaches the console as `[AUI gallery] PASS name`.
-Extend it when you add a runtime feature.
+`Assets/AUI/Demo/Gallery`, placed in `Demo.unity`). It nests nine feature views behind a sidebar
+of tabs, logs every child event, and its `RunTests` method writes to each child through the typed
+API and checks what rendered: bound text, escaping, placeholders, slider value and label, toggle,
+an `if` binding, select, runtime-filled options, disabled and enabled buttons, child `Emit`
+bubbling, repeat count and visibility, a layout re-solve from a bound style value, state flags, a
+class binding, a `:root` variable round trip, template and nested-view creation, page selection
+and a language round trip. Press *Run tests* in play mode, or send `_TestRun` to the gallery's
+UdonBehaviour; each result also reaches the console as `[AUI gallery] PASS name`. Extend it when
+you add a runtime feature.
 
 ## 15. Troubleshooting
 

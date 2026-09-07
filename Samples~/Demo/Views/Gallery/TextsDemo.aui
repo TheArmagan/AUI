@@ -1,12 +1,48 @@
-<view name="TextsDemo" width="488" height="330" show="none">
-  <text key="texts.keyed" class="title"/>
-  <panel class="row"><text key="texts.boundLabel" class="muted"/><text id="bound" text="{status}"/></panel>
-  <panel class="row"><text key="texts.argsLabel" class="muted"/><text id="args" key="texts.args" args="{who} {count}"/></panel>
-  <text id="wrapped" key="texts.wrap" wrap="true" style="max-width: 456; font-size: 15" class="muted"/>
-  <panel class="grid">
-    <button onclick="SetHello" key="texts.setHello"/>
-    <button onclick="SetLong" key="texts.setLong"/>
-    <button onclick="Inject" key="texts.inject" class="ghost"/>
-    <button onclick="Bump" key="texts.bump" class="ghost"/>
+<view name="TextsDemo" width="566" height="514">
+  <!-- Keyed, placeholder, literal, wrapped and runtime text, plus escaping and the size utilities. -->
+  <link href="Showcase.auis"/>
+  <event name="changed"/>
+
+  <panel class="row">
+    <text key="texts.title" class="section"/>
+    <spacer/>
+    <text id="bound" text="{status}" class="hint" style="max-width: 260"/>
   </panel>
+
+  <panel class="row" style="align: start">
+    <panel class="card *grow" style="gap: 6">
+      <text key="texts.keyedLabel" class="hint cell"/>
+      <text key="texts.keyed" class="cell"/>
+      <text key="texts.argsLabel" class="hint cell"/>
+      <text id="args" key="texts.args" args="{who} {count}" class="cell"/>
+      <text key="texts.literalLabel" class="hint cell"/>
+      <text class="cell">Literal content is never translated</text>
+    </panel>
+    <panel class="card *grow" style="gap: 6">
+      <text key="texts.wrapLabel" class="hint cell"/>
+      <text id="wrapped" key="texts.wrap" wrap="true" max-lines="3" ellipsis="true" class="cell" style="font-size: 15"/>
+      <text key="texts.runtimeLabel" class="hint cell" wrap="true" max-lines="2"/>
+      <text id="runtime" text="{who}" runtime="true" class="*text-lg *fg-accent *font-semibold cell"/>
+      <panel class="row" style="gap: 8">
+        <text class="*text-sm hint">sm</text>
+        <text class="*text-base">base</text>
+        <text class="*text-lg">lg</text>
+        <text class="*text-xl *font-semibold">xl</text>
+      </panel>
+    </panel>
+  </panel>
+
+  <panel class="grid">
+    <button onclick="SetHello" key="texts.setHello" icon="pencil"/>
+    <button onclick="SetLong"  key="texts.setLong"/>
+    <button onclick="Inject"   key="texts.inject" icon="triangle-alert" class="ghost"/>
+    <button onclick="Bump"     key="texts.bump" icon="plus"/>
+    <button onclick="Rename"   key="texts.rename" icon="user" class="ghost"/>
+    <button onclick="Align"    key="texts.align" icon="arrow-up-down" class="ghost"/>
+  </panel>
+
+  <style>
+    /* Every text in the two cards is capped, so the cards split the width instead of growing to their longest string. */
+    .cell { max-width: 236; }
+  </style>
 </view>

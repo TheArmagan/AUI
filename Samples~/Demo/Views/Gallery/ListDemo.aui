@@ -1,13 +1,46 @@
-<view name="ListDemo" width="488" height="300" show="none">
+<view name="ListDemo" width="566" height="514">
+  <!-- Two repeats: a leaderboard whose rows are buttons with a toggle inside, and a grid of chips.
+       Rows are baked copies; the code fills them and sets the count. -->
+  <link href="Showcase.auis"/>
+  <event name="changed"/>
+  <event name="picked" type="int"/>
+
   <panel class="row">
-    <button onclick="Add" key="lists.add" icon="plus"/>
-    <button onclick="Remove" key="lists.remove" icon="x" class="ghost"/>
-    <button onclick="Clear" key="lists.clear" icon="trash-2" class="ghost"/>
+    <text key="lists.title" class="section"/>
     <spacer/>
-    <text key="lists.count" args="{count}" class="muted"/>
+    <button onclick="Add"     key="lists.add"  icon="plus"          class="chip"/>
+    <button onclick="Remove"  icon="x"             class="chip ghost" onhover="HintRemove"  onleave="HintClear"/>
+    <button onclick="Shuffle" icon="refresh-cw"    class="chip ghost" onhover="HintShuffle" onleave="HintClear"/>
+    <button onclick="Sort"    icon="arrow-up-down" class="chip ghost" onhover="HintSort"    onleave="HintClear"/>
+    <button onclick="Clear"   icon="trash-2"       class="chip ghost" onhover="HintClearAll" onleave="HintClear"/>
   </panel>
-  <repeat id="items" max="6" onselect="Pick" class="grid">
-    <button class="chip" selected="{item.picked}"><icon name="tag"/><text text="{item.label}" style="max-width: 90"/></button>
-    <empty><text key="lists.empty" class="muted"/></empty>
+  <panel class="row">
+    <text key="lists.count" args="{count} {picked}" class="hint"/>
+    <spacer/>
+    <text text="{hoverHint}" class="hint" style="max-width: 200"/>
+  </panel>
+
+  <repeat id="board" max="5" onselect="Pick" class="card" style="gap: 4">
+    <button class="line" selected="{item.picked}">
+      <text text="{item.rank}" class="badge"/>
+      <icon name="user" class="hint"/>
+      <text text="{item.name}" style="min-width: 130; max-width: 130; text-align: left"/>
+      <spacer/>
+      <text text="{item.score}" class="accent *font-semibold" style="min-width: 70; text-align: right"/>
+      <toggle bind="{item.fav}" icon="heart" onchange="FavChanged" class="fav"/>
+    </button>
+    <empty><panel class="row"><icon name="info" class="info"/><text key="lists.empty" class="hint"/></panel></empty>
   </repeat>
+
+  <repeat id="tags" max="8" onselect="PickTag" class="grid">
+    <button class="chip" selected="{item.on}"><icon name="tag" size="14"/><text text="{item.label}" style="max-width: 80"/></button>
+  </repeat>
+
+  <style>
+    .line { justify: start; padding: 4 10; min-height: 34; background: sprite(Rounded8) transparent; }
+    .line:hover { background: var(--chip); color: var(--text); icon-color: var(--text); }
+    .line:selected { background: var(--panel); color: var(--text); icon-color: var(--text); }
+    .fav { min-width: 28; min-height: 28; padding: 5; background: sprite(Rounded8) transparent; }
+    .fav:selected { background: sprite(Rounded8) transparent; icon-color: var(--bad); }
+  </style>
 </view>

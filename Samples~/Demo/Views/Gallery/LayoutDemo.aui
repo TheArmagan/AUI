@@ -1,0 +1,55 @@
+<view name="LayoutDemo" width="566" height="514">
+  <!-- A flex playground: the stage's layout properties are bound style values, and three toggles
+       hide, grow and pin its children. The runtime solver re-runs after every change. -->
+  <link href="Showcase.auis"/>
+  <event name="changed"/>
+
+  <panel class="row">
+    <text key="layout.title" class="section"/>
+    <spacer/>
+    <text key="layout.readout" args="{x} {y} {w} {h}" class="hint" style="max-width: 320"/>
+  </panel>
+
+  <panel id="stage" class="stage" style="flex-direction: {dir}; justify: {justify}; align: {alignMode}; wrap: {wrapMode}; gap: {gap}; padding: {pad}">
+    <panel id="b1" class="box" style="width: 70; height: 30"><text class="*text-sm">1</text></panel>
+    <panel id="b2" class="box" style="width: 90; height: 40"><text class="*text-sm">2</text></panel>
+    <panel id="b3" class="box" style="width: 60; height: 24"><text class="*text-sm">3</text></panel>
+    <panel id="b4" class="box" style="width: 25%; height: 34"><text class="*text-sm">25%</text></panel>
+    <text id="badge" class="badge" style="position: absolute; top: 6; right: 6">absolute</text>
+  </panel>
+
+  <panel class="grid">
+    <toggle bind="{row}"  key="layout.direction" icon="check" onchange="RowChanged" class="chip"/>
+    <toggle bind="{wrap}" key="layout.wrap"      icon="check" onchange="WrapChanged" class="chip"/>
+    <select bind="{justifySel}" onchange="JustifyChanged">
+      <option value="start"   key="layout.start"/>
+      <option value="center"  key="layout.center"/>
+      <option value="end"     key="layout.end"/>
+      <option value="between" key="layout.between"/>
+    </select>
+    <select bind="{alignSel}" onchange="AlignChanged">
+      <option value="stretch" key="layout.stretch"/>
+      <option value="start"   key="layout.start"/>
+      <option value="center"  key="layout.center"/>
+      <option value="end"     key="layout.end"/>
+    </select>
+  </panel>
+
+  <panel style="gap: 6">
+    <panel class="setting"><text key="layout.gap"/><spacer/><slider bind="{gapV}" min="0" max="24" step="1" format-key="layout.mm" onchange="GapChanged"/></panel>
+    <panel class="setting"><text key="layout.padding"/><spacer/><slider bind="{padV}" min="0" max="32" step="1" format-key="layout.mm" onchange="PadChanged"/></panel>
+  </panel>
+
+  <panel class="grid">
+    <toggle bind="{hideTwo}"   key="layout.hideTwo" icon="eye"   onchange="HideChanged" class="chip"/>
+    <toggle bind="{growThree}" key="layout.grow"    icon="check" onchange="GrowChanged" class="chip"/>
+    <toggle bind="{showBadge}" key="layout.badge"   icon="check" onchange="BadgeChanged" class="chip"/>
+  </panel>
+
+  <style>
+    .stage { height: 160; background: sprite(Rounded8) var(--base); border: var(--border); }
+    .box   { background: sprite(Rounded8) var(--chip); align: center; justify: center; transition: background 0.15s out-quad; }
+    .grow  { grow: 1; }
+    select { min-width: 118; }
+  </style>
+</view>

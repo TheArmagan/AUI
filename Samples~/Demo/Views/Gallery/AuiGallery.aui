@@ -1,35 +1,68 @@
-<view name="AuiGallery" width="560" height="520">
+<view name="AuiGallery" width="760" height="640">
+  <!-- The hub: a sidebar of tabs, one nested view per page, a log page fed by every child's
+       Emit, and a self-test that drives each child through its typed API. -->
+  <link href="Showcase.auis"/>
+
   <panel class="row">
-    <icon name="wand-sparkles" size="22"/>
+    <icon name="wand-sparkles" size="24" class="accent"/>
     <text key="gallery.title" class="title"/>
+    <text text="{version}" class="badge"/>
     <spacer/>
-    <text key="gallery.summary" args="{pass} {fail}" class="muted"/>
+    <text key="gallery.summary" args="{pass} {fail}" class="hint"/>
   </panel>
-  <tabs bind="{page}">
-    <tab page="texts" key="gallery.texts"/>
-    <tab page="controls" key="gallery.controls"/>
-    <tab page="lists" key="gallery.lists"/>
-    <tab page="states" key="gallery.states"/>
-    <tab page="lang" key="gallery.language"/>
-    <tab page="log" key="gallery.log"/>
-  </tabs>
-  <pages id="main">
-    <page id="texts"><TextsDemo on-changed="TextsChanged"/></page>
-    <page id="controls"><ControlsDemo on-changed="ControlsChanged" on-ping="ControlsPinged"/></page>
-    <page id="lists"><ListDemo on-changed="ListChanged" on-picked="ListPicked"/></page>
-    <page id="states"><StatesDemo on-hit="StatesHit" on-changed="StatesChanged"/></page>
-    <page id="lang"><LangDemo on-changed="LangChanged"/></page>
-    <page id="log">
-      <repeat id="lines" max="9">
-        <text text="{item.line}" style="font-size: 15"/>
-        <empty><text key="gallery.logEmpty" class="muted"/></empty>
-      </repeat>
-    </page>
-  </pages>
+
+  <panel class="row body">
+    <tabs bind="{page}" class="side" onchange="PageChanged">
+      <tab page="home"     key="gallery.home"     icon="house"/>
+      <tab page="texts"    key="gallery.texts"    icon="pencil"/>
+      <tab page="controls" key="gallery.controls" icon="sliders-horizontal"/>
+      <tab page="lists"    key="gallery.lists"    icon="layout-grid"/>
+      <tab page="layout"   key="gallery.layout"   icon="arrow-up-down"/>
+      <tab page="styles"   key="gallery.styles"   icon="sparkles"/>
+      <tab page="theme"    key="gallery.theme"    icon="eye"/>
+      <tab page="runtime"  key="gallery.runtime"  icon="zap"/>
+      <tab page="lang"     key="gallery.language" icon="globe"/>
+      <tab page="log"      key="gallery.log"      icon="library-big"/>
+    </tabs>
+    <pages id="main" mode="crossfade">
+      <page id="home"><HomeDemo on-navigate="Navigate"/></page>
+      <page id="texts"><TextsDemo on-changed="TextsChanged"/></page>
+      <page id="controls"><ControlsDemo on-changed="ControlsChanged" on-ping="ControlsPinged"/></page>
+      <page id="lists"><ListDemo on-changed="ListChanged" on-picked="ListPicked"/></page>
+      <page id="layout"><LayoutDemo on-changed="LayoutChanged"/></page>
+      <page id="styles"><StatesDemo on-hit="StatesHit" on-changed="StatesChanged"/></page>
+      <page id="theme"><ThemeDemo on-changed="ThemeChanged"/></page>
+      <page id="runtime"><RuntimeDemo on-changed="RuntimeChanged"/></page>
+      <page id="lang"><LangDemo on-changed="LangChanged"/></page>
+      <page id="log">
+        <panel class="row">
+          <text key="gallery.logTitle" class="hint"/>
+          <spacer/>
+          <button onclick="ClearLog" key="gallery.clear" icon="trash-2" class="ghost chip"/>
+        </panel>
+        <repeat id="lines" max="12" class="card" style="gap: 2">
+          <panel class="row" style="gap: 8">
+            <text text="{item.time}" class="hint" style="min-width: 52"/>
+            <text text="{item.line}" style="font-size: 15; max-width: 440"/>
+          </panel>
+          <empty><text key="gallery.logEmpty" class="hint"/></empty>
+        </repeat>
+      </page>
+    </pages>
+  </panel>
+
   <panel class="row">
     <button onclick="RunTests" key="gallery.run" icon="zap" class="primary"/>
-    <button onclick="ClearLog" key="gallery.clear" icon="trash-2" class="ghost"/>
     <spacer/>
-    <text text="{status}" class="muted" style="max-width: 160"/>
+    <text text="{status}" class="hint" style="max-width: 300"/>
   </panel>
+
+  <style>
+    /* The theme lays tabs out in a row; this view turns them into a sidebar. */
+    view { background: sprite(Rounded12) var(--base); padding: 16; gap: 12; show: fade-scale; }
+    .body { align: stretch; grow: 1; }
+    .side { flex-direction: column; gap: 4; width: 150; align: stretch; }
+    tab   { justify: start; padding: 8 12; font: 500 16; }
+    pages { grow: 1; }
+  </style>
 </view>

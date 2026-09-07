@@ -2,15 +2,34 @@
 
 Two things:
 
-- `Views/SettingsDemo.*`: a settings panel with three tabs (sliders, toggles, a dropdown, a text
-  input and the language picker) in English, Turkish and Japanese, paired with
-  `DemoBrightness.cs` to show a world script talking to a view in both directions.
-- `Views/Gallery/*`: the **gallery**, a hub view that nests five feature views on tabbed pages
-  (texts, controls, lists, states, language), routes every child `Emit` into a log page, and
-  carries a self-test (`RunTests`, also reachable as the `_TestRun` custom event) that drives each
-  child through its typed API and checks what actually rendered. Seventeen checks; every result
-  is logged in-world and to the console as `[AUI gallery] PASS/FAIL name`. Read it as the worked
-  example of connecting views together.
+- `Views/SettingsDemo.*`: a settings panel with three tabs (sliders, a toggle, a dropdown, a text
+  input, the language picker) and a reset dialog, in English, Turkish and Japanese, paired with
+  `DemoBrightness.cs` to show a world script talking to a view in both directions. Its sheet is
+  the sibling `SettingsDemo.auis`.
+- `Views/Gallery/*`: the **gallery**, a hub with a sidebar of tabs and one nested view per page.
+  Every page links the shared `Showcase.auis` and keeps its one-off rules in a `<style>` block.
+
+| Page | View | What it shows |
+|---|---|---|
+| Overview | `HomeDemo` | an inline `<component>`, stat tiles, a progress bar whose width is a bound style value, a once-a-second timer, a typed `navigate` event the hub routes to `SelectMainPage` |
+| Texts | `TextsDemo` | keyed, placeholder, literal, wrapped (`max-lines`, `ellipsis`) and `runtime` text, the escape path, `SetTextAlign`, the size utilities |
+| Controls | `ControlsDemo` | two sliders (one with `decimals`, one disabled by a binding), a dropdown, a dropdown filled at runtime through `max`, a keyboard input, a labelled toggle, a button with `onhover`/`onleave`, an `if` banner |
+| Lists | `ListDemo` | a leaderboard repeat whose rows are buttons with a toggle inside (`FavChanged(int row, bool value)`), a chip grid, shuffle and sort, `<empty>`, one solve per batch |
+| Layout | `LayoutDemo` | a stage whose `flex-direction`, `justify`, `align`, `wrap`, `gap` and `padding` are bound style values; `SetActiveElem`, `AddClass` for `grow`, `position: absolute`, the solved rects read back |
+| Styles | `StatesDemo` | hover, pressed, selected and disabled looks from three tiers of sheet, offset, opacity, bounce and border transitions, then a card restyled by a class binding, bound `background`/`width`/`opacity`, and utilities toggled at runtime |
+| Theme | `ThemeDemo` | five presets that rewrite the `:root` palette with `SetStyleVariable`, a hue slider for the accent, a density slider for `--pad`, a lift slider for `--card`; a switch chooses this page or, through the language service, every view in the world |
+| Runtime | `RuntimeDemo` | a `<template>` of chat lines, a `pool` of texts, a `<template>` holding a nested `PlayerCard` whose typed `kicked` event comes back with the instance element, `MoveElement`, `DestroyElement`, a confirm `<modal>` |
+| Language | `LangDemo` | the shipped picker, the service's read-backs, a sentence with three placeholders |
+| Log | (the hub) | everything the pages emitted, newest first, in a repeat |
+
+The hub (`AuiGallery`) also carries a self-test (`RunTests`, also reachable as the `_TestRun`
+custom event) that drives each child through its typed API and checks what actually rendered:
+bound text, escaping, placeholders, slider value and label, toggle, `if`, select, runtime
+options, disabled and enabled buttons, child `Emit`, repeat count and visibility, a layout
+re-solve, state flags, a class binding, a style variable round trip, template and nested-view
+creation, page selection and a language round trip. Every result is logged in-world and to the
+console as `[AUI gallery] PASS/FAIL name`. Read it as the worked example of connecting views
+together.
 
 Import the sample from the Package Manager, or copy `Views/` to `Assets/AUI/Demo/` and `lang/`
 to `Assets/AUI/Lang/`. Then:

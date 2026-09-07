@@ -1,3 +1,0 @@
-.primary { background: sprite(Rounded8) var(--accent); color: var(--base); icon-color: var(--base); }
-.primary:hover { background: var(--text); scale: 1.03; }
-.primary:pressed { scale: 0.96; }

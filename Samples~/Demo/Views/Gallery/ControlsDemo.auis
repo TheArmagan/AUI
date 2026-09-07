@@ -1,5 +1,0 @@
-.setting { flex-direction: row; align: center; gap: 12; padding: 4 10; background: sprite(Rounded8) #1A130E; }
-.primary { background: sprite(Rounded8) var(--accent); color: var(--base); icon-color: var(--base); }
-.primary:hover { background: var(--text); scale: 1.03; }
-.primary:pressed { scale: 0.96; }
-.primary:disabled { opacity: 0.35; }

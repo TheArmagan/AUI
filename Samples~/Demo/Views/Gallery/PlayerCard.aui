@@ -1,0 +1,22 @@
+<view name="PlayerCard" width="210" height="40">
+  <!-- A small nested view with declared props and a typed event. RuntimeDemo deals copies of it
+       from a template; a host could also place one directly: <PlayerCard nick="{name}" score="{pts}"/>. -->
+  <prop name="nick" default="anon"/>
+  <prop name="score" default="0"/>
+  <event name="kicked" type="int"/>
+
+  <panel class="row" style="gap: 8">
+    <icon name="user" class="accent"/>
+    <text text="{nick}" class="*font-semibold" style="max-width: 80"/>
+    <spacer/>
+    <text key="card.points" args="{score}" class="hint"/>
+    <button onclick="Kick" icon="x" class="ghost kick"/>
+  </panel>
+
+  <style>
+    view    { background: sprite(Rounded8) var(--card); padding: 4 8; show: none; }
+    .accent { icon-color: var(--accent); }
+    .hint   { font-size: 15; color: var(--muted); }
+    .kick   { min-width: 28; min-height: 28; padding: 5; }
+  </style>
+</view>

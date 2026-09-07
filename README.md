@@ -37,31 +37,47 @@ Then, in the editor:
 `Assets/AUI/Demo/SettingsDemo.aui`:
 
 ```xml
-<view name="SettingsDemo" width="440" height="330">
+<view name="SettingsDemo" width="440" height="400">
   <panel class="row">
     <icon name="sliders-horizontal" size="22"/>
     <text key="demo.title" class="title"/>
     <spacer/>
-    <button id="close" icon="x" class="ghost" onclick="Close"/>
+    <button onclick="AskReset" icon="refresh-cw" class="ghost"/>
+    <button id="close" onclick="Close" icon="x" class="ghost"/>
   </panel>
-  <tabs bind="{page}">
-    <tab page="general" key="demo.general"/>
-    <tab page="audio" key="demo.audio"/>
+  <tabs bind="{page}" onchange="PageChanged">
+    <tab page="general" key="demo.general" icon="monitor"/>
+    <tab page="audio" key="demo.audio" icon="headset"/>
+    <tab page="lang" key="demo.language" icon="globe"/>
   </tabs>
-  <pages id="main">
+  <pages id="main" mode="crossfade">
     <page id="general">
-      <panel class="row"><text key="demo.brightness"/><spacer/>
+      <panel class="setting"><text key="demo.brightness"/><spacer/>
         <slider bind="{brightness}" min="0" max="100" step="1" format-key="demo.volfmt" onchange="BrightnessChanged"/></panel>
-      <panel class="row"><text key="demo.solid"/><spacer/><toggle bind="{solid}" icon="check" onchange="SolidChanged"/></panel>
+      <panel class="setting"><text key="demo.solid"/><spacer/><toggle bind="{solid}" icon="check" onchange="SolidChanged"/></panel>
+      <panel class="setting"><text key="demo.quality"/><spacer/>
+        <select bind="{quality}" onchange="QualityChanged">
+          <option value="low" key="demo.q.low"/><option value="medium" key="demo.q.medium"/><option value="high" key="demo.q.high"/>
+        </select></panel>
     </page>
     <page id="audio">
-      <panel class="row"><text key="demo.nick"/><spacer/><input bind="{nick}" placeholder-key="demo.nickph" onsubmit="NickSubmitted"/></panel>
-      <AuiLanguagePicker/>
+      <panel class="setting"><text key="demo.volume"/><spacer/>
+        <slider bind="{volume}" min="0" max="100" step="1" format-key="demo.volfmt" disabled="{muted}" onchange="VolumeChanged"/></panel>
+      <panel class="setting"><text key="demo.mute"/><spacer/><toggle bind="{muted}" icon="check" onchange="MuteChanged"/></panel>
+      <panel class="setting"><text key="demo.nick"/><spacer/><input bind="{nick}" placeholder-key="demo.nickph" onsubmit="NickSubmitted"/></panel>
     </page>
+    <page id="lang"><AuiLanguagePicker/></page>
   </pages>
-  <panel class="row"><text key="demo.signedIn" args="{playerName}" class="muted"/><spacer/><button onclick="Greet" key="demo.greet"/></panel>
+  <panel class="footer"><text key="demo.signedIn" args="{playerName}" class="muted"/><spacer/><button onclick="Greet" key="demo.greet" icon="sparkles" class="primary"/></panel>
+  <modal id="reset" enabled="{asking}" onclose="ResetCancelled">
+    <text key="demo.resetSure"/>
+    <panel class="row"><spacer/><button onclick="CloseReset" key="demo.no" class="ghost"/><button onclick="DoReset" key="demo.yes" class="primary"/></panel>
+  </modal>
 </view>
 ```
+
+`.setting`, `.footer` and `.primary` come from the sibling `SettingsDemo.auis`; `.row`, `.muted` and
+`.ghost` from the package theme.
 
 Saving the file starts the build. Two editor reloads later there is `SettingsDemo.g.cs`
 (generated, do not edit), `SettingsDemo.cs` (yours, scaffolded once with an empty method per
@@ -84,10 +100,17 @@ public partial class SettingsDemo : AuiView
     }
 
     public void Close() { Hide(); }
+    public void PageChanged(int page) { }
     public void BrightnessChanged(float value) { }
     public void SolidChanged(bool value) { }
+    public void QualityChanged(int value) { }
+    public void VolumeChanged(float value) { }
+    public void MuteChanged(bool value) { }
     public void NickSubmitted(string value) { PlayerName = value; }   // escaped before it reaches any label
     public void Greet() { }
+    public void AskReset() { Asking = true; }                          // opens the modal through its binding
+    public void DoReset() { Brightness = 70f; Volume = 50f; CloseReset(); }
+    public void ResetCancelled() { }
 }
 ```
 
@@ -329,8 +352,9 @@ Messages are `[AUI] path:line:col code: text`, clickable in the console. Codes a
 language table and code generator (golden file under `Tests/Editor/Golden`), plus parity suites
 that run the Udon-side layout solver and cascade against the compile-time ones on the same
 fixtures, and tests for modals, components, templates and utilities. Run them from the Test
-Runner. `Assets/AUI/Demo/Gallery/RuntimeDemo.aui` (also under `Samples~`) exercises the runtime
-features together.
+Runner. The gallery under `Samples~/Demo/Views/Gallery` (a hub with nine nested pages: texts,
+controls, lists, layout, styles, theme, runtime creation, languages) exercises the runtime
+features together and carries a self-test; `Samples~/Demo/README.md` lists what each page shows.
 
 ## Known issues
 

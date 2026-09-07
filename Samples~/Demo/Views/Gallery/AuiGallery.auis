@@ -1,6 +1,0 @@
-/* Gallery-specific styles. The nested views keep their own sheets; only the hub is styled here. */
-tabs { gap: 2; }
-tab { padding: 6 8; font: 500 15; }
-.primary { background: sprite(Rounded8) var(--accent); color: var(--base); icon-color: var(--base); }
-.primary:hover { background: var(--text); scale: 1.03; }
-.primary:pressed { scale: 0.96; }

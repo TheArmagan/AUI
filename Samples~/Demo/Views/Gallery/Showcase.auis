@@ -1,0 +1,53 @@
+/* Shared by every gallery view through <link href="Showcase.auis"/>. A link replaces the sibling
+   sheet, so each view keeps its one-off rules in a <style> block instead. Everything here sits
+   above the package theme and below those blocks.
+
+   The :root block adds four semantic colours and one spacing variable. ThemeDemo rewrites them
+   in-world with SetStyleVariable; every rule below that reads one follows, in every view. */
+
+:root {
+  --ok:   #7FC97F;
+  --warn: #E8C468;
+  --bad:  #E86F6F;
+  --info: #7FB8E8;
+  --pad:  12;
+}
+
+/* A gallery page is a rounded surface inside the hub, not a free-standing panel. */
+view { background: sprite(Rounded12) var(--surface); padding: var(--pad); gap: 10; show: none; }
+
+/* Density follows --pad: cards and settings rows breathe with the slider on the Theme page. */
+.card    { padding: var(--pad); }
+.setting { flex-direction: row; align: center; gap: var(--pad); padding: 6 10; background: sprite(Rounded8) var(--card); transition: background 0.12s out-quad; }
+.setting:hover { background: var(--panel); }
+
+/* Text roles. No font weights here: a weight is baked, and a shared class a view never uses
+   in its markup would warn (AUI212) that it cannot be applied at runtime. */
+.section { font-size: 20; color: var(--accent); icon-color: var(--accent); }
+.hint    { font-size: 15; color: var(--muted); icon-color: var(--muted); }
+.badge   { background: sprite(Rounded24) var(--accent); color: var(--base); padding: 2 9; min-height: 22; font-size: 13; }
+
+/* Semantic tints for icons and labels. */
+.accent { color: var(--accent); icon-color: var(--accent); }
+.ok     { color: var(--ok);     icon-color: var(--ok); }
+.warn   { color: var(--warn);   icon-color: var(--warn); }
+.bad    { color: var(--bad);    icon-color: var(--bad); }
+.info   { color: var(--info);   icon-color: var(--info); }
+
+/* Buttons beyond the theme's default, ghost and selected looks. */
+.primary          { background: sprite(Rounded8) var(--accent); color: var(--base); icon-color: var(--base); }
+.primary:hover    { background: var(--text); scale: 1.03; }
+.primary:pressed  { scale: 0.96; }
+.primary:disabled { opacity: 0.35; }
+.danger           { background: sprite(Rounded8) var(--bad); color: var(--base); icon-color: var(--base); }
+.danger:hover     { background: var(--text); }
+.lift         { transition: offset 0.1s out-quad, background 0.12s out-quad, color 0.12s out-quad, icon-color 0.12s out-quad; }
+.lift:hover   { offset: 0 -3; }
+.lift:pressed { offset: 0 1; }
+
+/* A thin progress track and its fill; the fill's width is a bound style value. */
+.bar  { background: sprite(Rounded4) var(--chip); height: 8; }
+.fill { background: sprite(Rounded4) var(--accent); height: 8; transition: background 0.3s out-quad; }
+
+/* A stat tile (HomeDemo's inline component; the value's weight lives in HomeDemo's style block). */
+.kpi { background: sprite(Rounded8) var(--card); padding: 10 12; gap: 2; grow: 1; }

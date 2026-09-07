@@ -1,31 +1,52 @@
-<view name="RuntimeDemo" width="420" height="540" icons="check x" pool="text:4">
+<view name="RuntimeDemo" width="566" height="514" pool="text:6" icons="check x info triangle-alert">
+  <!-- Nothing is instantiated in-world: a template of chat lines, a pool of plain texts, a
+       template holding a nested view (PlayerCard) with a typed event, and a modal over a backdrop. -->
+  <link href="Showcase.auis"/>
+  <event name="changed"/>
+
   <panel class="row">
-    <text id="title" class="title">Runtime</text>
+    <text key="runtime.title" class="section"/>
     <spacer/>
-    <button id="warm" onclick="ToggleWarm" icon="zap">Warm</button>
-    <button id="ask" onclick="Ask">Modal</button>
+    <text text="{status}" class="hint" style="max-width: 300"/>
   </panel>
-  <panel id="card" class="card {tone}">
-    <text id="status" text="{status}"/>
-    <repeat id="rows" max="6">
-      <button onclick="Pick" class="chip"><text text="{item.label}"/></button>
-      <empty><text class="muted">No rows yet</text></empty>
-    </repeat>
+  <panel class="row">
+    <button onclick="Say"      key="runtime.say"   icon="pencil"     class="chip"/>
+    <button onclick="Note"     key="runtime.note"  icon="info"       class="chip ghost"/>
+    <button onclick="Lift"     icon="chevron-up" class="chip ghost"/>
+    <button onclick="Drop"     icon="x"          class="chip ghost"/>
+    <spacer/>
+    <button onclick="AskClear" key="runtime.clear" icon="trash-2"    class="chip danger"/>
   </panel>
-  <panel id="actions" class="row">
-    <button id="add" onclick="Add">Add</button>
-    <button id="clear" onclick="Clear">Clear</button>
-    <icon id="badge" name="check" style="position: absolute; top: -6; right: -6"/>
+
+  <panel class="row" style="align: start">
+    <panel id="log" class="card *grow" style="gap: 4; min-height: 200"/>
+    <panel style="gap: 8; min-width: 210">
+      <panel class="row"><text key="runtime.cards" class="hint"/><spacer/><button onclick="Deal" key="runtime.deal" icon="plus" class="chip"/></panel>
+      <panel id="deck" style="gap: 6"/>
+    </panel>
   </panel>
-  <panel id="log" class="card *flex-col *gap-4" style="opacity: {logAlpha}; padding: {logPad}"/>
-  <template id="line" max="4">
-    <panel class="row"><icon name="check"/><text text="{item.msg}"/></panel>
+
+  <!-- Parked copies, linked under any container by CreateLine(parent). -->
+  <template id="line" max="8">
+    <panel class="row" style="gap: 8">
+      <icon name="check" class="ok" size="16"/>
+      <text text="{item.who}" class="accent *font-semibold" style="min-width: 56"/>
+      <text text="{item.msg}" style="max-width: 220"/>
+    </panel>
   </template>
-  <modal id="confirm" enabled="{asking}" onclose="Cancelled">
-    <text>Clear all rows?</text>
+
+  <!-- A nested view inside a template: its on-kicked handler receives the instance element first. -->
+  <template id="cards" max="3">
+    <PlayerCard on-kicked="CardKicked"/>
+  </template>
+
+  <modal id="confirm" enabled="{asking}" onclose="Cancelled" show="fade-scale">
+    <panel class="row"><icon name="triangle-alert" class="warn" size="22"/><text key="runtime.sure" class="section"/></panel>
+    <text key="runtime.sureHint" class="hint" wrap="true" style="max-width: 260"/>
     <panel class="row">
-      <button id="yes" onclick="ConfirmClear">Yes</button>
-      <button id="no" onclick="CloseConfirm">No</button>
+      <spacer/>
+      <button onclick="CloseConfirm" key="runtime.no" class="ghost"/>
+      <button onclick="ConfirmClear" key="runtime.yes" class="danger"/>
     </panel>
   </modal>
 </view>
