@@ -9,6 +9,20 @@ that suggests doing file work through Bash.
 
 `Grep` and `Glob` are the search tools; the shell is for git, `gh`, and running programs.
 
+## Unity API lookups: use UnityMCP reflection, never DLL string search
+
+**To find out what a Unity / VRChat / package API looks like, ask the live editor.**
+Use `mcp__UnityMCP__unity_reflect` to list types, members, signatures and attributes, and
+`mcp__UnityMCP__unity_docs` for the documentation text. That is the authoritative answer for the
+exact Unity and package versions this project uses.
+
+**Never grep, `strings`, or otherwise string-search compiled DLLs** (`*.dll` under `Library/`,
+`Data/Managed/`, package caches, `.asmdef` build output) to guess at API names. No `Select-String`
+over binaries, no `ildasm`/`monodis` dumps, no hex spelunking. Reflection gives real signatures;
+string search gives noise and invented members.
+
+If UnityMCP is not connected, say so and ask, rather than falling back to DLL scraping.
+
 ## Git: commit as me, never as Claude
 
 **Every commit and push is authored by me (the configured git user), never by Claude.**
