@@ -92,7 +92,9 @@ Editor/                       asmdef Armagan.AUI.Editor
   Build/AuiMenu.cs            the AUI menu
   Build/AuiCreateMenu.cs      Project window Create/AUI items (.aui with name = typed stem, .auis)
   Fonts/AuiFontBaker.cs       charset collection + static atlas baking + fallbacks
-  Resolve/AuiTextMeasurer.cs  TMP-backed IAuiTextMeasurer
+  Preview/AuiPreview.cs       the live preview: file watchers, DontSave scene object, follow-the-edit
+  Preview/AuiPreviewWindow.cs AUI/Preview window: view, language, pages, popups, diagnostics, build
+  Resolve/AuiTextMeasurer.cs  TMP-backed IAuiTextMeasurer with a session-wide measurement cache
   Model/AuiViewAsset.cs, AuiStyleSheetAsset.cs
   Diagnostics/AuiLog.cs       "[AUI] " prefixed console output
 Theme/Default.auis            the package theme (variables + every element's default look)
@@ -131,12 +133,55 @@ AuiBuildQueue.Drain (delayCall / InitializeOnLoad / DrainNow)
 Name.prefab (root: Canvas + GraphicRaycaster + VRCUiShape + BoxCollider + the view; Content child; elements)
 ```
 
-Cost: the drain logs `[AUI] drain: N view(s), M built, T ms (scan, compile, udonsharp, build)`.
-`AuiEditorEnv` caches the workspace scan, the language table and the theme; the postprocessor
-invalidates them when a `.aui`, `.auis`, `.json`, `.svg` or `AuiSettings.asset` changes. The
-first build of a view pays one UdonSharp compile (seconds) for the whole drain, not one per
-view. The source header hash covers the generated source only, so a layout-only change does not
-rewrite `Foo.g.cs` and does not force a reload; the prefab stamp covers layout and styles too.
+Cost: the importer logs `[AUI] import path: T ms` (with "cached compile" when the result was
+reused) and the drain logs `[AUI] drain: N view(s), M built, T ms (scan, compile with K cached,
+udonsharp, build)`. The first build of a view pays one UdonSharp compile (seconds) for the whole
+drain, not one per view. The source header hash covers the generated source only, so a
+layout-only change does not rewrite `Foo.g.cs` and does not force a reload; the prefab stamp
+covers layout and styles too.
+
+What is cached, and what drops it (`AuiEditorEnv`, `AuiPostprocessor`):
+
+- The workspace scan (views, icons, language paths, theme path). Dropped only when a `.aui`,
+  `.svg` or lang `.json` is added, deleted or moved, or `AuiSettings.asset` is imported. A
+  re-saved view, any `.auis`, a font: nothing. `ScanFor` rescans when a view's own stem is
+  missing (the importer runs before the postprocessor, so a just-created file is not listed yet).
+- The merged language table: dropped when a listed language file's content changes.
+- The theme: dropped when `Theme/Default.auis` is imported.
+- Compile results, per view: the result plus SHA-1 of every file that compile read (source,
+  sheets, theme, language files, nested views) and the identity of the scan, table and theme it
+  used, plus the font set's `bakedHash`. A lookup re-hashes those files; a hit returns the whole
+  result (the builder compares node references, so results are never mixed). The importer's
+  compile is what the drain uses: one compile per save instead of three. A domain reload empties
+  it, which is a miss, nothing more.
+- Nested-view models (`ChildInfo`): reused while the child's text is unchanged.
+- Text measurements (`AuiTextMeasurer`): one hidden TMP probe for the session and a static
+  table keyed by font, size, wrap width and text. Cleared by `AUI/Bake Fonts` and when anything
+  under `Assets/AUI/Fonts` is imported (a rebake keeps the asset's identity, so the id alone
+  would not invalidate). The probe is destroyed before every assembly reload.
+- Sprite lookups in the builder (package sprites, named sprites, icons): cleared when a `.png`
+  or `.svg` is imported or deleted.
+
+`AUI/Auto-build Views` (also in the preview window) pauses the drains the postprocessor starts;
+saved views stay queued in `SessionState` and build when the toggle turns back on or an explicit
+rebuild runs (menu, inspector button, preview window, font bake).
+
+Live preview (`AuiPreview`, section 16 for the workflow): a `FileSystemWatcher` per folder the
+previewed view reads from (its own, linked sheets, nested views, `Theme/`, the language folders,
+`componentFolders`), events queued to the main thread and applied after 150 ms of quiet;
+`AuiEditorEnv.Compile` from disk (no import); `AuiPrefabBuilder.BuildPreview` under a
+`HideFlags.DontSave` root named `AUI Preview: Name`, placed at the first scene instance of
+`Name.prefab` (hidden with `SceneVisibilityManager` meanwhile; instance ids in `SessionState` so
+a reload or a crash never leaves it hidden) or 1.5 m in front of the scene camera. Preview mode
+in the builder adds no `VRCUiShape`, collider, raycaster, view component, signal or Udon
+component, never touches Undo or `SetDirty`, compiles nested views from source and builds them
+inline (depth cap 8), can force a page per `pages` group and leave a select popup open
+(`AuiPreviewOptions`), and draws the shown page's tab in its `:selected` values. Follow-the-edit
+diffs each saved `.aui`/`.auis` against the last text, finds the deepest node covering the
+changed lines (or the first element a changed rule's selector matches) and walks up: every
+`page` ancestor becomes its group's shown page, an `option` opens its select, and a nested
+view's host pages are selected in the parent. The preview is torn down on play mode entry,
+scene close and quit, and rebuilt after a domain reload when live.
 
 Why two phases: an importer cannot write a source file, and adding the view component needs the
 class to exist and UdonSharp to have compiled it. Children (nested views) are built before parents;
@@ -610,6 +655,12 @@ after touching any of them.
 Add a view: create `Name.aui` (and optionally `Name.auis`) next to where the prefab should live,
 save, wait for `[AUI] wrote Name.g.cs` and the reload, then `[AUI] built Name.prefab`; write logic
 in the scaffolded `Name.cs`; drop the prefab into a scene that has the two service objects.
+
+Prototype a view: `AUI/Preview`, pick the view, Live. Turn "Auto-build prefabs" off if the
+view's structure is still moving (every structural save would otherwise reload the domain).
+Edit the `.aui`/`.auis` in any editor; the scene view follows each save, including pages and
+popups around the edit. When the layout is right, "Build prefab" (or auto-build back on) runs
+the normal pipeline; test clicks and transitions in play mode with the real prefab.
 
 Add a translation key: add it to every `lang/<code>.json` (missing ones warn per language), use it
 with `key=`, `AUI/Bake Fonts` if it introduces new characters, `AUI/Rebuild Language Table` if the

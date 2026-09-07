@@ -72,11 +72,49 @@ namespace Armagan.AUI.Editor
             public Transform Content;
             public RectTransform ContentRect;
             public List<GameObject> Popups = new List<GameObject>();
+
+            // PREVIEW MODE: the same tree with nothing that needs UdonSharp. No view component,
+            // no signals, no tables, no prefab; nested views are compiled from source and built
+            // inline; hidden pages and popups can be forced visible; texts use a chosen language.
+            public bool Preview;
+            public bool PreviewNested;
+            public AuiPreviewOptions Opt;
+            public int Depth;
+        }
+
+        /// <summary>What the live preview wants shown that the prefab hides at rest.</summary>
+        public sealed class AuiPreviewOptions
+        {
+            /// <summary>Language code for every baked text; null = the table's default.</summary>
+            public string LangCode;
+            /// <summary>"ViewName/groupId" -> page id to show instead of the group's default.</summary>
+            public readonly Dictionary<string, string> Pages = new Dictionary<string, string>();
+            /// <summary>"ViewName/nodeIndex" of every select whose popup is left open.</summary>
+            public readonly HashSet<string> OpenSelects = new HashSet<string>();
         }
 
         // ================================================================ entry
 
-        public static bool Build(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws)
+        /// <summary>
+        /// Build the view as plain uGUI under <paramref name="root"/> (a RectTransform object the
+        /// caller owns), from the compile result alone. Nothing here touches Undo, the prefab or
+        /// UdonSharp, so it runs at typing speed and never dirties the scene.
+        /// </summary>
+        public static void BuildPreview(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiPreviewOptions opt, GameObject root)
+        {
+            BuildPreviewTree(r, settings, ws, opt ?? new AuiPreviewOptions(), root, false, 0);
+        }
+
+        private static void BuildPreviewTree(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiPreviewOptions opt, GameObject root, bool nested, int depth)
+        {
+            var c = new Ctx { R = r, Settings = settings, Ws = ws, Fonts = settings != null ? settings.fontSet : null, Preview = true, PreviewNested = nested, Opt = opt, Depth = depth };
+            c.Lang = AuiEditorEnv.LanguageTable(settings, ws, null);
+            c.N = r.Map.ElementCount;
+            Alloc(c);
+            BuildTree(c, null, root);
+        }
+
+        public static bool Build(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiView[] sceneViews = null)
         {
             string dir = Path.GetDirectoryName(r.FilePath) ?? "";
             string csAbs = Path.Combine(dir, r.ViewName + ".cs");
@@ -113,7 +151,8 @@ namespace Armagan.AUI.Editor
             }
 
             var c = new Ctx { R = r, Settings = settings, Ws = ws, Fonts = settings != null ? settings.fontSet : null };
-            c.Lang = ws.LoadLanguageTable(settings != null ? settings.defaultLanguage : "en", null, null);
+            // The cached table, the one the view was compiled against; reading the files again cost a table per view.
+            c.Lang = AuiEditorEnv.LanguageTable(settings, ws, null);
             c.N = r.Map.ElementCount;
             Alloc(c);
 
@@ -137,7 +176,7 @@ namespace Armagan.AUI.Editor
                 AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
                 if (PrefabUtility.SaveAsPrefabAsset(root, prefabPath) == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
-                RevertInstanceSizeOverrides(prefabPath, type);
+                RevertInstanceSizeOverrides(prefabPath, sceneViews ?? Object.FindObjectsOfType<AuiView>(true));
                 AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
                 return true;
             }
@@ -163,12 +202,13 @@ namespace Armagan.AUI.Editor
         /// view that grew in markup keeps its old card while its content runs past the bottom.
         /// Position, rotation, scale and author references stay as the instance set them.
         /// </summary>
-        private static void RevertInstanceSizeOverrides(string prefabPath, System.Type viewType)
+        private static void RevertInstanceSizeOverrides(string prefabPath, AuiView[] sceneViews)
         {
             GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (asset == null) return;
-            foreach (Component v in Object.FindObjectsOfType(viewType, true))
+            foreach (AuiView v in sceneViews)
             {
+                if (v == null) continue;
                 GameObject inst = v.gameObject;
                 // Only instances placed in a scene: a view nested inside another view's prefab is
                 // sized by its parent's build, and that size lives as an override on purpose.
@@ -245,25 +285,31 @@ namespace Armagan.AUI.Editor
                 root = new GameObject(r.ViewName, typeof(RectTransform));
                 Undo.RegisterCreatedObjectUndo(root, "Build AUI view " + r.ViewName);
             }
-            root.name = r.ViewName;
+            if (!c.Preview) root.name = r.ViewName;   // the preview names its own root
             var rrt = (RectTransform)root.transform;
             rrt.sizeDelta = new Vector2(W, H);
             if (reuse == null) rrt.localScale = Vector3.one * CanvasScale;
-            var canvas = Ensure<Canvas>(root);
-            canvas.renderMode = RenderMode.WorldSpace;
+            if (!c.PreviewNested)
+            {
+                var canvas = Ensure<Canvas>(root);
+                canvas.renderMode = RenderMode.WorldSpace;
+            }
             // 1 unit = 1 mm everywhere. uGUI divides a sprite's PPU by the canvas reference (100)
             // when slicing, so the package sprites are imported at 100 PPU; setting the reference to
             // 1 here was measured NOT to survive into the saved prefab.
-            Ensure<GraphicRaycaster>(root);
-            // Without VRCUiShape the laser passes straight through and nothing can be pressed, with no symptom in the editor.
-            Ensure<VRCUiShape>(root);
-            var bc = Ensure<BoxCollider>(root);
-            bc.isTrigger = true;
-            bc.center = Vector3.zero;
-            bc.size = new Vector3(W, H, 10f);
+            if (!c.Preview)
+            {
+                Ensure<GraphicRaycaster>(root);
+                // Without VRCUiShape the laser passes straight through and nothing can be pressed, with no symptom in the editor.
+                Ensure<VRCUiShape>(root);
+                var bc = Ensure<BoxCollider>(root);
+                bc.isTrigger = true;
+                bc.center = Vector3.zero;
+                bc.size = new Vector3(W, H, 10f);
 
-            c.View = root.GetComponent(type) as AuiView;
-            if (c.View == null) c.View = (AuiView)UdonSharpUndo.AddComponent(root, type);
+                c.View = root.GetComponent(type) as AuiView;
+                if (c.View == null) c.View = (AuiView)UdonSharpUndo.AddComponent(root, type);
+            }
 
             // Content: what Show/Hide fades and deactivates. Element 0 (the <view>) lives on it.
             var content = new GameObject("Content", typeof(RectTransform));
@@ -274,9 +320,12 @@ namespace Armagan.AUI.Editor
             var cg = content.AddComponent<CanvasGroup>();
             c.Content = content.transform;
             c.ContentRect = crt;
-            c.View.content = content;
-            c.View.contentGroup = cg;
-            c.View.contentRect = crt;
+            if (c.View != null)
+            {
+                c.View.content = content;
+                c.View.contentGroup = cg;
+                c.View.contentRect = crt;
+            }
 
             AuiNode rootNode = r.Doc.Root;
             int e0 = r.Map.Elem(rootNode, 0);
@@ -342,7 +391,7 @@ namespace Armagan.AUI.Editor
                     // Bake the default page's visibility so the prefab previews the way it starts.
                     AuiPageGroup grp = null;
                     foreach (AuiPageGroup pg in c.R.Info.PageGroups) if (pg.Pages.Contains(n)) grp = pg;
-                    if (grp != null && grp.IndexOfPage(n.Id) != grp.DefaultIndex)
+                    if (grp != null && grp.IndexOfPage(n.Id) != ShownPage(c, grp))
                     {
                         c.Groups[e].alpha = 0f;
                         c.Groups[e].blocksRaycasts = false;
@@ -353,7 +402,8 @@ namespace Armagan.AUI.Editor
                 }
                 default:
                     // panel/div, button, toggle, tab, tabs, pages, option, empty
-                    ApplyBackground(c, n, e, go.transform, interactive);
+                    if (c.Preview && n.Tag == "tab") s = PreviewTabStyle(c, n, s);
+                    ApplyBackground(c, n, e, go.transform, interactive, s);
                     if (n.Tag == "button" || n.Tag == "toggle" || n.Tag == "tab" || n.Tag == "option")
                         BuildClickableContent(c, n, e, go, s, local);
                     break;
@@ -374,6 +424,40 @@ namespace Armagan.AUI.Editor
         private static string Name(AuiNode n)
         {
             return n.Id != null ? n.Tag + "#" + n.Id : n.Tag;
+        }
+
+        /// <summary>The page a group shows at rest: its default, or the preview's pick for it.</summary>
+        private static int ShownPage(Ctx c, AuiPageGroup grp)
+        {
+            if (c.Preview && grp.Id != null)
+            {
+                string ov;
+                if (c.Opt.Pages.TryGetValue(c.R.ViewName + "/" + grp.Id, out ov))
+                {
+                    int i = grp.IndexOfPage(ov);
+                    if (i >= 0) return i;
+                }
+            }
+            return grp.DefaultIndex;
+        }
+
+        private static readonly string[] SelectedProps = { "background", "color", "border", "icon-color", "opacity", "scale" };
+
+        /// <summary>The tab of the shown page drawn in its :selected look, so a preview reads like the panel with that tab pressed.</summary>
+        private static AuiResolvedStyle PreviewTabStyle(Ctx c, AuiNode tab, AuiResolvedStyle s)
+        {
+            AuiPageGroup grp = null;
+            foreach (AuiPageGroup pg in c.R.Info.PageGroups) if (pg.TabNodes.Contains(tab)) grp = pg;
+            if (grp == null) return s;
+            int shown = ShownPage(c, grp);
+            if (shown < 0 || shown >= grp.Pages.Count || grp.Pages[shown].Id != tab.Get("page")) return s;
+            Dictionary<string, string> sel;
+            if (!s.States.TryGetValue("selected", out sel)) return s;
+            var merged = new AuiResolvedStyle();
+            foreach (KeyValuePair<string, string> kv in s.Values) merged.Values[kv.Key] = kv.Value;
+            foreach (string p in SelectedProps) { string v; if (sel.TryGetValue(p, out v)) merged.Values[p] = v; }
+            foreach (KeyValuePair<string, Dictionary<string, string>> st in s.States) merged.States[st.Key] = st.Value;
+            return merged;
         }
 
         private static bool NeedsGroup(AuiResolvedStyle s)
@@ -425,27 +509,56 @@ namespace Armagan.AUI.Editor
 
         // ================================================================ pieces
 
+        // SPRITE LOOKUPS ARE CACHED. A named sprite outside the package cost a project-wide
+        // FindAssets per element per build; at a preview rebuild per save that was the slowest
+        // step. Entries are dropped when a sprite or icon is imported (the postprocessor calls
+        // ClearSpriteCache) and a destroyed object is treated as a miss.
+        private static readonly Dictionary<string, Sprite> SpriteCache = new Dictionary<string, Sprite>();
+
+        public static void ClearSpriteCache()
+        {
+            SpriteCache.Clear();
+        }
+
+        private static Sprite CachedSprite(string key, System.Func<Sprite> load)
+        {
+            Sprite s;
+            if (SpriteCache.TryGetValue(key, out s) && s != null) return s;
+            s = load();
+            SpriteCache[key] = s;
+            return s;
+        }
+
+        private static Sprite PackageSprite(string name)
+        {
+            return CachedSprite("pkg:" + name, () => AssetDatabase.LoadAssetAtPath<Sprite>(AuiEditorEnv.PackageAssetRoot + "/Sprites/" + name + ".png"));
+        }
+
         private static Sprite RoundedSprite(Ctx c, float radius, bool border)
         {
             int best = 0;
             foreach (int r in AuiSpriteGenerator.Radii) if (r <= radius + 0.01f) best = r;
             string name = radius <= 0 ? "Square" : (border ? "Border" : "Rounded") + (best == 0 ? AuiSpriteGenerator.Radii[0] : best);
             if (radius <= 0 && border) name = "Border4";
-            return AssetDatabase.LoadAssetAtPath<Sprite>(AuiEditorEnv.PackageAssetRoot + "/Sprites/" + name + ".png");
+            return PackageSprite(name);
         }
 
         private static Sprite NamedSprite(Ctx c, string name)
         {
             // background: sprite(Name) -> package Sprites first, then any sprite asset with that name in the project
-            var s = AssetDatabase.LoadAssetAtPath<Sprite>(AuiEditorEnv.PackageAssetRoot + "/Sprites/" + name + ".png");
+            var s = PackageSprite(name);
             if (s != null) return s;
-            foreach (string guid in AssetDatabase.FindAssets(name + " t:Sprite"))
+            s = CachedSprite("named:" + name, () =>
             {
-                string p = AssetDatabase.GUIDToAssetPath(guid);
-                if (Path.GetFileNameWithoutExtension(p) == name) return AssetDatabase.LoadAssetAtPath<Sprite>(p);
-            }
-            AuiLog.Warn("sprite '" + name + "' not found");
-            return null;
+                foreach (string guid in AssetDatabase.FindAssets(name + " t:Sprite"))
+                {
+                    string p = AssetDatabase.GUIDToAssetPath(guid);
+                    if (Path.GetFileNameWithoutExtension(p) == name) return AssetDatabase.LoadAssetAtPath<Sprite>(p);
+                }
+                return null;
+            });
+            if (s == null) AuiLog.Warn("sprite '" + name + "' not found");
+            return s;
         }
 
         private static Color ToColor(AuiColor c)
@@ -454,9 +567,9 @@ namespace Armagan.AUI.Editor
         }
 
         /// <summary>Background image on the element itself (elemBg) and an optional Border child (elemBorder).</summary>
-        private static void ApplyBackground(Ctx c, AuiNode n, int e, Transform t, bool raycast)
+        private static void ApplyBackground(Ctx c, AuiNode n, int e, Transform t, bool raycast, AuiResolvedStyle s = null)
         {
-            AuiResolvedStyle s = c.R.Styles[n.Index];
+            if (s == null) s = c.R.Styles[n.Index];
             AuiBackground bg = s.Background;
             bool needsRaycast = raycast || c.Signal[e] >= 0;
             if (!bg.IsNone || needsRaycast)
@@ -524,8 +637,14 @@ namespace Armagan.AUI.Editor
         private static string Preview(Ctx c, string key, string fallback)
         {
             if (key == null) return fallback;
-            string v = c.Lang != null ? c.Lang.GetWithFallback(c.Lang.DefaultLanguage, key) : null;
-            return v ?? key;
+            if (c.Lang == null) return key;
+            int lang = c.Lang.DefaultLanguage;
+            if (c.Preview && c.Opt.LangCode != null)
+            {
+                int i = c.Lang.IndexOfLanguage(c.Opt.LangCode);
+                if (i >= 0) lang = i;
+            }
+            return c.Lang.GetWithFallback(lang, key) ?? key;
         }
 
         private static int KeyIndex(Ctx c, string key)
@@ -609,16 +728,20 @@ namespace Armagan.AUI.Editor
         private static Sprite IconSprite(Ctx c, string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
-            foreach (string p in c.Ws.IconPaths)
+            Sprite s = CachedSprite("icon:" + name, () =>
             {
-                if (Path.GetFileNameWithoutExtension(p) != name) continue;
-                string ap = AuiEditorEnv.AssetPath(p);
-                if (ap == null) continue;
-                var sp = AssetDatabase.LoadAssetAtPath<Sprite>(ap);
-                if (sp != null) return sp;
-            }
-            AuiLog.Warn("icon '" + name + "' has no sprite (is the SVG imported as a Textured Sprite?)");
-            return null;
+                foreach (string p in c.Ws.IconPaths)
+                {
+                    if (Path.GetFileNameWithoutExtension(p) != name) continue;
+                    string ap = AuiEditorEnv.AssetPath(p);
+                    if (ap == null) continue;
+                    var sp = AssetDatabase.LoadAssetAtPath<Sprite>(ap);
+                    if (sp != null) return sp;
+                }
+                return null;
+            });
+            if (s == null) AuiLog.Warn("icon '" + name + "' has no sprite (is the SVG imported as a Textured Sprite?)");
+            return s;
         }
 
         private static Image MakeIcon(Ctx c, Transform parent, string name, string icon, AuiResolvedStyle s, float size)
@@ -724,7 +847,7 @@ namespace Armagan.AUI.Editor
             handleRt.sizeDelta = new Vector2(handle, handle);
             var handleImg = handleRt.gameObject.AddComponent<Image>();
             // A dot: the unsliced circle sprite drawn square, never the 9-slice (its corners exceed a 20 mm box).
-            handleImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(AuiEditorEnv.PackageAssetRoot + "/Sprites/Circle.png");
+            handleImg.sprite = PackageSprite("Circle");
             handleImg.type = Image.Type.Simple; handleImg.preserveAspect = true; handleImg.color = fill; handleImg.raycastTarget = true;
             c.Icon[e] = handleImg; // icon-color rows tint the handle
 
@@ -847,12 +970,15 @@ namespace Armagan.AUI.Editor
             simg.raycastTarget = true;
             Register(c, se, scrim, srt, Vector2.zero);
             c.Kind[se] = AuiIndexMap.KIND_SCRIM;
-            var sbtn = scrim.AddComponent<Button>();
-            sbtn.transition = Selectable.Transition.None;
-            var snav = sbtn.navigation; snav.mode = Navigation.Mode.None; sbtn.navigation = snav;
-            c.Buttons[se] = sbtn;
-            AuiSignal ssig = MakeSignal(c, scrim, c.Signal[se]);
-            Wire(sbtn.onClick, ssig, "_Click");
+            if (!c.Preview)
+            {
+                var sbtn = scrim.AddComponent<Button>();
+                sbtn.transition = Selectable.Transition.None;
+                var snav = sbtn.navigation; snav.mode = Navigation.Mode.None; sbtn.navigation = snav;
+                c.Buttons[se] = sbtn;
+                AuiSignal ssig = MakeSignal(c, scrim, c.Signal[se]);
+                Wire(sbtn.onClick, ssig, "_Click");
+            }
 
             // options
             float y = 4f;
@@ -871,7 +997,7 @@ namespace Armagan.AUI.Editor
                 if (c.Signal[oe] >= 0) AddSignal(c, o, oe, ogo, os, true);
                 y += ol.Local.H;
             }
-            popup.SetActive(false);
+            if (!(c.Preview && c.Opt.OpenSelects.Contains(c.R.ViewName + "/" + n.Index))) popup.SetActive(false);
         }
 
         private static void BuildRepeat(Ctx c, AuiNode n, Transform parent)
@@ -898,6 +1024,7 @@ namespace Armagan.AUI.Editor
             foreach (AuiNestedView x in c.R.Info.NestedViews) if (x.Node == n) nv = x;
             string cp;
             if (nv == null || !c.Ws.Views.TryGetValue(n.Tag, out cp)) return;
+            if (c.Preview) { BuildNestedPreview(c, n, cp, parent, row); return; }
             string prefabPath = AuiEditorEnv.AssetPath(Path.ChangeExtension(cp, ".prefab"));
             var prefab = prefabPath != null ? AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) : null;
             if (prefab == null) { AuiLog.Error("nested view '" + n.Tag + "' has no prefab yet at " + prefabPath); return; }
@@ -922,6 +1049,26 @@ namespace Armagan.AUI.Editor
             if (e >= 0) Register(c, e, inst, rt, rt.anchoredPosition);
         }
 
+        /// <summary>A nested view in the preview: compiled from its source (cached) and built inline, so its edits are live too.</summary>
+        private static void BuildNestedPreview(Ctx c, AuiNode n, string childPath, Transform parent, int row)
+        {
+            var go = new GameObject(Name(n), typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.localScale = Vector3.one;
+            int e = c.R.Map.Elem(n, row);
+            if (c.Depth < 8)
+            {
+                AuiCompileResult cr = AuiEditorEnv.Compile(Path.GetFullPath(childPath), c.Settings, c.Ws, null);
+                if (cr.Doc != null && cr.Doc.Root != null && cr.Map != null && cr.Layout != null)
+                    BuildPreviewTree(cr, c.Settings, c.Ws, c.Opt, go, true, c.Depth + 1);
+            }
+            AuiLayoutNode ln = c.R.Layout[n.Index];
+            AuiLayoutNode pl = c.R.Layout[n.Parent.Index];
+            Place(rt, ln.Local, ln.AnchorFill, pl.Local.W, pl.Local.H);
+            if (e >= 0) Register(c, e, go, rt, rt.anchoredPosition);
+        }
+
         // ================================================================ signals
 
         private static AuiSignal MakeSignal(Ctx c, GameObject go, int id)
@@ -941,6 +1088,7 @@ namespace Armagan.AUI.Editor
 
         private static void AddSignal(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, bool clickable)
         {
+            if (c.Preview) return;   // nothing to wire: no view, no Udon
             int id = c.Signal[e];
             if (id < 0 || c.Signals[id] != null) return;
             AuiSignal sig = MakeSignal(c, go, id);

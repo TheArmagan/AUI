@@ -108,6 +108,8 @@ namespace Armagan.AUI.Editor
             settings.fontSet = set;
             EditorUtility.SetDirty(settings);
             AssetDatabase.SaveAssets();
+            // The atlases were copied over the existing assets (same identity): measurements taken against the old glyphs are stale.
+            AuiTextMeasurer.InvalidateCache();
 
             if (missingEverywhere.Count > 0)
             {

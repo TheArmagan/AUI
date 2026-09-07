@@ -13,16 +13,45 @@ namespace Armagan.AUI.Editor
     /// </summary>
     internal sealed class AuiPostprocessor : AssetPostprocessor
     {
-        private static bool Affects(string p)
-        {
-            return p.EndsWith(".aui") || p.EndsWith(".auis") || p.EndsWith(".json") || p.EndsWith(".svg") || p.EndsWith("AuiSettings.asset");
-        }
-
         private static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
-            foreach (string[] set in new[] { imported, deleted, moved })
-                foreach (string p in set)
-                    if (Affects(p)) { AuiEditorEnv.InvalidateWorkspace(); break; }
+            // PRECISE INVALIDATION. Dropping the whole workspace on every import made each save
+            // pay a rescan of Assets/ plus a reload of every language file. Only what a file can
+            // change is dropped: the scan for a new/removed/moved view or icon (or the settings),
+            // the language table for a language file's content, the theme for the theme file.
+            // A re-saved view, a stylesheet or a font touches none of the three.
+            bool lang = false, theme = false, fonts = false, sprites = false;
+            string rescan = null;   // the path that made the scan stale, for the log
+            foreach (string p in deleted)
+            {
+                if (p.EndsWith(".aui") || p.EndsWith(".svg") || p.EndsWith(".json")) rescan = "deleted " + p;
+                if (p.EndsWith(".aui")) AuiEditorEnv.ForgetCompile(Path.GetFullPath(p));
+            }
+            foreach (string p in movedFrom) if (p.EndsWith(".aui")) AuiEditorEnv.ForgetCompile(Path.GetFullPath(p));
+            foreach (string p in moved) if (p.EndsWith(".aui") || p.EndsWith(".svg") || p.EndsWith(".json")) rescan = "moved " + p;
+            foreach (string p in imported)
+            {
+                if (p.EndsWith("AuiSettings.asset")) rescan = "settings";
+                else if (p.EndsWith(".aui") || p.EndsWith(".svg")) { if (!AuiEditorEnv.WorkspaceKnows(Path.GetFullPath(p))) rescan = "new " + p; }
+                else if (p.EndsWith(".json"))
+                {
+                    if (AuiEditorEnv.WorkspaceKnows(Path.GetFullPath(p))) lang = true;
+                    else if (Path.GetFileName(Path.GetDirectoryName(p) ?? "").ToLowerInvariant() == "lang") rescan = "new " + p;
+                }
+                else if (p.EndsWith(".auis") && AuiEditorEnv.IsThemePath(Path.GetFullPath(p))) theme = true;
+                else if (p.EndsWith(".asset") && p.StartsWith(AuiFontBaker.OutDir)) fonts = true;
+                if (p.EndsWith(".png") || p.EndsWith(".svg")) sprites = true;
+            }
+            foreach (string p in deleted) if (p.EndsWith(".png") || p.EndsWith(".svg")) sprites = true;
+            if (rescan != null) AuiEditorEnv.InvalidateWorkspace(rescan);
+            else
+            {
+                if (lang) AuiEditorEnv.InvalidateLanguages();
+                if (theme) AuiEditorEnv.InvalidateTheme();
+            }
+            if (fonts) AuiTextMeasurer.InvalidateCache();
+            if (sprites) AuiPrefabBuilder.ClearSpriteCache();
+
             bool any = false;
             foreach (string p in imported)
             {
@@ -36,7 +65,7 @@ namespace Armagan.AUI.Editor
                 string stem = p.Substring(0, p.Length - 4);
                 AuiLog.Warn(p + " was deleted. Its generated files are left for you to remove: " + stem + ".g.cs, " + stem + ".cs, " + stem + ".asset, " + stem + ".prefab");
             }
-            if (any) AuiBuildQueue.Kick();
+            if (any) AuiBuildQueue.Kick(false);
         }
     }
 
@@ -58,6 +87,7 @@ namespace Armagan.AUI.Editor
         private const string AttemptsKey = "AUI.BuildAttempts.";
         private const int MaxAttempts = 4;
         private const string ForceKey = "AUI.BuildForce";
+        private const string ExplicitKey = "AUI.BuildExplicit";
         private static bool _scheduled;
 
         /// <summary>True while a user-driven Rebuild All is draining: prefabs rebuild even when their bake hash matches.</summary>
@@ -66,10 +96,31 @@ namespace Armagan.AUI.Editor
             get { return SessionState.GetBool(ForceKey, false); }
         }
 
+        // AUTO-BUILD CAN BE PAUSED. While prototyping with the live preview, every save of a
+        // view that changes its generated code still writes Foo.g.cs and reloads the domain.
+        // With auto-build off, the drains the postprocessor starts leave the queue untouched;
+        // an explicit rebuild (menu, inspector, preview window, font bake) always runs, and
+        // turning the toggle back on drains what accumulated. Per project: EditorPrefs is global.
+        private static string AutoBuildKey
+        {
+            get { return "AUI.AutoBuild." + Application.dataPath.GetHashCode().ToString("x"); }
+        }
+
+        public static bool AutoBuild
+        {
+            get { return EditorPrefs.GetBool(AutoBuildKey, true); }
+            set
+            {
+                EditorPrefs.SetBool(AutoBuildKey, value);
+                if (value && Pending().Count > 0) Kick(true);
+            }
+        }
+
         [InitializeOnLoadMethod]
         private static void OnLoad()
         {
-            if (Pending().Count > 0) Kick();
+            // A queue left by an explicit run (sources written, reload) resumes as explicit.
+            if (Pending().Count > 0) Kick(SessionState.GetBool(ExplicitKey, false));
         }
 
         public static List<string> Pending()
@@ -92,8 +143,10 @@ namespace Armagan.AUI.Editor
             Save(list);
         }
 
-        public static void Kick()
+        /// <param name="explicitRun">True for a user-driven drain, which runs even while auto-build is paused.</param>
+        public static void Kick(bool explicitRun = true)
         {
+            if (explicitRun) SessionState.SetBool(ExplicitKey, true);
             if (_scheduled) return;
             _scheduled = true;
             EditorApplication.delayCall += Drain;
@@ -102,7 +155,8 @@ namespace Armagan.AUI.Editor
         /// <summary>Drain synchronously (menu items, tests, tools driving the editor): delayCall waits for an editor tick that an unfocused editor may not deliver.</summary>
         public static void DrainNow()
         {
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating) { Kick(); return; }
+            SessionState.SetBool(ExplicitKey, true);
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating) { Kick(true); return; }
             Drain();
         }
 
@@ -111,23 +165,33 @@ namespace Armagan.AUI.Editor
             _scheduled = false;
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
-                Kick();
+                Kick(SessionState.GetBool(ExplicitKey, false));
                 return;
             }
             List<string> list = Pending();
-            if (list.Count == 0) return;
+            if (list.Count == 0) { SessionState.SetBool(ExplicitKey, false); return; }
+            bool explicitRun = SessionState.GetBool(ExplicitKey, false);
+            if (!explicitRun && !AutoBuild)
+            {
+                // Paused: the queue keeps the paths; AutoBuild = true or an explicit rebuild drains them.
+                return;
+            }
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
             AuiSettings settings = AuiEditorEnv.FindSettings();
             AuiWorkspace ws = AuiEditorEnv.Scan(settings);
             long scanMs = clock.ElapsedMilliseconds;
 
-            // Compile everything first so parents can be ordered after their children.
+            // Compile everything first so parents can be ordered after their children. Most of
+            // these are cache hits: the importer just compiled the same text.
             var results = new Dictionary<string, AuiCompileResult>();
+            int cached = 0;
             foreach (string p in list)
             {
                 if (!File.Exists(p)) continue;
                 results[p] = AuiEditorEnv.Compile(Path.GetFullPath(p), settings, ws, null);
+                if (AuiEditorEnv.LastCompileCached) cached++;
+                else AuiLog.Info(p + ": compiled again in the drain (" + AuiEditorEnv.LastCompileMiss + ")");
             }
             list.Sort((a, b) => Depth(a, results, ws).CompareTo(Depth(b, results, ws)));
             long compileMs = clock.ElapsedMilliseconds - scanMs;
@@ -158,6 +222,8 @@ namespace Armagan.AUI.Editor
             int built = 0;
             long buildStart = clock.ElapsedMilliseconds;
             var remaining = new List<string>(list);
+            // One scene sweep for the whole drain: RevertInstanceSizeOverrides used to do one per built view.
+            AuiView[] sceneViews = Object.FindObjectsOfType<AuiView>(true);
             foreach (string p in list)
             {
                 AuiCompileResult r;
@@ -166,8 +232,9 @@ namespace Armagan.AUI.Editor
                 SessionState.SetInt(AttemptsKey + p, attempts);
                 if (attempts > MaxAttempts)
                 {
-                    AuiLog.Error(p + ": giving up after " + MaxAttempts + " build attempts. Fix the errors above and re-import the file.");
+                    AuiLog.Error(p + ": giving up after " + MaxAttempts + " build attempts. Fix the errors above and save the file again.");
                     remaining.Remove(p);
+                    SessionState.EraseInt(AttemptsKey + p);   // the next save starts a fresh count
                     continue;
                 }
                 if (r.HasErrors)
@@ -182,7 +249,7 @@ namespace Armagan.AUI.Editor
                 // A parent needs its children's prefabs; leave it queued until they exist.
                 if (!ChildrenBuilt(r, ws)) continue;
                 // Step B
-                if (AuiPrefabBuilder.Build(r, settings, ws))
+                if (AuiPrefabBuilder.Build(r, settings, ws, sceneViews))
                 {
                     built++;
                     remaining.Remove(p);
@@ -190,25 +257,25 @@ namespace Armagan.AUI.Editor
                 }
             }
             Save(remaining);
-            if (remaining.Count == 0) SessionState.SetBool(ForceKey, false);
+            if (remaining.Count == 0) { SessionState.SetBool(ForceKey, false); SessionState.SetBool(ExplicitKey, false); }
             // The views just built carry key indices into the CURRENT language files; the scene's
             // service must carry the same table or every key added since the last bake shows "??".
             if (built > 0) AuiLanguageTableBuilder.ApplyIfChanged(settings, ws);
             long buildMs = clock.ElapsedMilliseconds - buildStart;
             AuiLog.Info("drain: " + list.Count + " view(s), " + built + " built, " + (wroteSource ? "sources written, " : "") +
-                        clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + ", udonsharp " + usharpMs + ", build " + buildMs + ")");
+                        clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + " with " + cached + " cached, udonsharp " + usharpMs + ", build " + buildMs + ")");
             if (wroteSource)
             {
                 // Sources changed: let Unity compile; the queue resumes after the reload.
                 AssetDatabase.Refresh();
                 return;
             }
-            if (remaining.Count > 0 && remaining.Count < list.Count) Kick();
+            if (remaining.Count > 0 && remaining.Count < list.Count) Kick(explicitRun);
             else if (remaining.Count > 0)
             {
                 // Nothing progressed this pass (children missing or program assets pending): try once more after a refresh.
                 AssetDatabase.Refresh();
-                Kick();
+                Kick(explicitRun);
             }
         }
 
@@ -253,7 +320,7 @@ namespace Armagan.AUI.Editor
             SessionState.SetBool(ForceKey, true);
             SessionState.EraseInt(AttemptsKey + assetPath);
             Enqueue(assetPath);
-            Kick();
+            Kick(true);
         }
 
         /// <summary>Queue every .aui under Assets (and the package's own views).</summary>
@@ -266,7 +333,7 @@ namespace Armagan.AUI.Editor
                 string ap = AuiEditorEnv.AssetPath(p);
                 if (ap != null) { SessionState.EraseInt(AttemptsKey + ap); Enqueue(ap); }
             }
-            Kick();
+            Kick(true);
         }
     }
 }

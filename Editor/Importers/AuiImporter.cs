@@ -24,8 +24,11 @@ namespace Armagan.AUI.Editor
         {
             var asset = ScriptableObject.CreateInstance<AuiViewAsset>();
             string abs = Path.GetFullPath(ctx.assetPath);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             AuiSettings settings = AuiEditorEnv.FindSettings();
-            AuiWorkspace ws = AuiEditorEnv.Scan(settings);
+            // ScanFor: a view created a moment ago is not in the cached scan (the importer runs
+            // before the postprocessor that would notice it).
+            AuiWorkspace ws = AuiEditorEnv.ScanFor(abs, settings);
             var deps = new HashSet<string>();
 
             AuiCompileResult r = AuiEditorEnv.Compile(abs, settings, ws, p =>
@@ -33,6 +36,7 @@ namespace Armagan.AUI.Editor
                 string ap = AuiEditorEnv.AssetPath(p);
                 if (ap != null && ap != ctx.assetPath) deps.Add(ap);
             });
+            AuiLog.Info("import " + ctx.assetPath + ": " + clock.ElapsedMilliseconds + " ms" + (AuiEditorEnv.LastCompileCached ? " (cached compile)" : "") + "; text cache " + AuiTextMeasurer.CacheStats);
 
             // Nested views: depend on their artifacts so a child change re-imports the parent.
             var children = new List<string>();

@@ -16,6 +16,22 @@ namespace Armagan.AUI.Editor
             AuiBuildQueue.DrainNow();
         }
 
+        private const string AutoBuildItem = "AUI/Auto-build Views";
+
+        [MenuItem(AutoBuildItem, false, 5)]
+        public static void ToggleAutoBuild()
+        {
+            AuiBuildQueue.AutoBuild = !AuiBuildQueue.AutoBuild;
+            AuiLog.Info(AuiBuildQueue.AutoBuild ? "auto-build on: saved views build as before." : "auto-build off: saved views are queued; use Rebuild All Views, the inspector's Rebuild view or the preview window's Build prefab.");
+        }
+
+        [MenuItem(AutoBuildItem, true)]
+        private static bool ToggleAutoBuildValidate()
+        {
+            Menu.SetChecked(AutoBuildItem, AuiBuildQueue.AutoBuild);
+            return true;
+        }
+
         [MenuItem("AUI/Rebuild Language Table", false, 2)]
         public static void RebuildLanguageTable()
         {

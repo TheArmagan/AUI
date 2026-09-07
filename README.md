@@ -205,10 +205,34 @@ A view's inspector shows the UdonSharp header, a summary line, `Rebuild view` / 
 `Open .cs` buttons, and then only the fields you declared in your own `.cs`. Every baked table
 and generated field is hidden; they are outputs of the `.aui` and `.auis` files, not inputs.
 
+## Preview
+
+`AUI/Preview` opens a small window and puts a live copy of one view into the open scene. Pick
+a view (or turn on "Follow selection" and click a view in the scene or a `.aui` in the Project
+window), switch it to Live, and every save of the `.aui`, its stylesheet, the theme, a nested
+view or a language file rebuilds the copy a moment later, straight from the files on disk. No
+import, no generated code, no reload, no UdonSharp; it works while Unity is not the focused
+window. The copy sits where the view's scene instance is (the instance is hidden in the scene
+view meanwhile) or in front of the scene camera, is never saved with the scene, and does not
+mark the scene dirty.
+
+Buttons do nothing in the preview, so what the prefab hides at rest is reachable from the
+window: a dropdown per `pages` group, a checkbox per `select` popup, and a language dropdown.
+With "Follow edits" on (the default), a save inside a page shows that page and draws its tab
+selected; a save inside an `<option>` opens that select. Hover and pressed looks, transitions
+and clicks still need the real prefab in play mode.
+
+"Build prefab" runs the normal pipeline for that view. "Auto-build prefabs" (also
+`AUI/Auto-build Views`) pauses the automatic builds so a save never triggers a script reload
+while you prototype; saved views queue up and build when it is turned back on or a rebuild is
+asked for.
+
 ## Menu
 
 | Item | What it does |
 |---|---|
+| `AUI/Preview` | the live preview window (see *Preview*) |
+| `AUI/Auto-build Views` | toggle; off = saved views queue instead of building |
 | `AUI/Rebuild All Views` | queues every `.aui` and builds them, even when unchanged |
 | `AUI/Rebuild Language Table` | bakes the merged language files onto the scene's service |
 | `AUI/Rebuild Input Panel` | authors the keyboard click target |
@@ -231,6 +255,12 @@ Children build before parents. The queue lives in `SessionState` and resumes aft
 Every element index in the generated code comes from the same `AuiIndexMap` walk the builder
 uses, so the constants and the baked arrays agree by construction. A repeat template's subtree
 is one block of elements per row.
+
+A save costs one compile: the importer's result is kept, validated by the hashes of the files
+it read, and reused by the queue. Text measurements are cached for the session, the workspace
+scan only repeats when a view or icon is added, removed or moved, and the language table is
+only rebuilt when a language file changes. A `.g.cs` is rewritten, and the domain reloaded,
+only when the generated text differs.
 
 ## Diagnostics
 
