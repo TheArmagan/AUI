@@ -46,8 +46,10 @@ namespace Armagan.AUI
 
         /// <summary>
         /// Set a :root variable for this view and its nested views. Every declaration that reads it
-        /// (through var(--name) or var(--name, fallback)) is re-encoded and the whole tree re-resolves,
-        /// through each element's own transition.
+        /// (through var(--name) or var(--name, fallback)) is re-encoded on the next frame and the
+        /// properties that came from those declarations are updated, through each element's own
+        /// transition. Any number of writes in one frame cost one pass; FlushStyleVariables() applies
+        /// them at once.
         /// </summary>
         public void SetStyleVariable(string varName, string value)
         {
@@ -84,19 +86,98 @@ namespace Armagan.AUI
             if (varValues[id] == value) return;
             varValues[id] = value;
             if (!_stylesReady || declTemplate == null || declTemplate.Length != declValue.Length) return;
-            if (ReencodeVariableDecls()) ReResolveAll();
+            // Coalesce: a preset writes ten variables and a slider writes one per frame; both cost one pass.
+            if (_varChanged == null || _varChanged.Length != varNames.Length) _varChanged = new bool[varNames.Length];
+            _varChanged[id] = true;
+            _varsDirty = true;
+            if (_instantResolve) return;   // _AuiStart flushes once after the service's list
+            if (!_varFlushScheduled) { _varFlushScheduled = true; SendCustomEventDelayedFrames(nameof(_AuiFlushStyleVariables), 1); }
+        }
+
+        private bool _varsDirty, _varFlushScheduled;
+        private bool[] _varChanged;         // per variable: written since the last flush
+        private bool[] _declChanged;        // per declaration: rewritten by the last flush
+        private bool[] _propChanged;        // per property: some changed declaration sets it
+        private int[] _declVarStart, _declVarCount, _declVarIds;   // per declaration: the variables its template reads
+        private float _lastFlushTime = -10f;
+        /// <summary>Flushes closer together than this (a dragged slider) apply instantly; a lone write (a preset click) tweens.</summary>
+        private const float FlushTweenGap = 0.25f;
+
+        public void _AuiFlushStyleVariables() { _varFlushScheduled = false; FlushStyleVariables(); }
+
+        /// <summary>Apply the variable writes made since the last flush now instead of on the next frame.</summary>
+        public void FlushStyleVariables()
+        {
+            if (!_varsDirty || !_stylesReady) return;
+            _varsDirty = false;
+            bool changed = ReencodeVariableDecls();
+            for (int i = 0; i < _varChanged.Length; i++) _varChanged[i] = false;
+            if (!changed) return;
+            float now = Time.time;
+            ApplyChangedDecls(now - _lastFlushTime < FlushTweenGap);
+            _lastFlushTime = now;
         }
 
         // ================================================================ re-encoding
 
-        /// <summary>Re-substitute and re-encode every declaration built from a variable. True when any value changed.</summary>
+        /// <summary>Which variables each templated declaration reads, so a flush only re-substitutes the declarations a changed variable touches.</summary>
+        private void IndexDeclVars()
+        {
+            int n = declTemplate.Length;
+            _declVarStart = new int[n]; _declVarCount = new int[n];
+            int total = 0;
+            for (int k = 0; k < n; k++) if (!string.IsNullOrEmpty(declTemplate[k])) total += CountVarRefs(declTemplate[k]);
+            _declVarIds = new int[Mathf.Max(1, total)];
+            int at = 0;
+            for (int k = 0; k < n; k++)
+            {
+                _declVarStart[k] = at;
+                string t = declTemplate[k];
+                if (string.IsNullOrEmpty(t)) continue;
+                int i = 0;
+                while (i < t.Length)
+                {
+                    int open = t.IndexOf("var(", i);
+                    if (open < 0) break;
+                    int close = t.IndexOf(')', open);
+                    if (close < 0) break;
+                    string inner = t.Substring(open + 4, close - open - 4);
+                    int comma = inner.IndexOf(',');
+                    int id = StyleVariableId(comma >= 0 ? inner.Substring(0, comma) : inner);
+                    if (id >= 0) _declVarIds[at++] = id;
+                    i = close + 1;
+                }
+                _declVarCount[k] = at - _declVarStart[k];
+            }
+        }
+
+        private int CountVarRefs(string t)
+        {
+            int c = 0, i = 0;
+            while (i < t.Length) { int open = t.IndexOf("var(", i); if (open < 0) break; c++; i = open + 4; }
+            return c;
+        }
+
+        private bool DeclReadsChangedVar(int k)
+        {
+            int s = _declVarStart[k], c = _declVarCount[k];
+            for (int i = s; i < s + c; i++) if (_varChanged[_declVarIds[i]]) return true;
+            return false;
+        }
+
+        /// <summary>Re-substitute and re-encode every declaration that reads a changed variable, marking the ones whose value changed. True when any did.</summary>
         private bool ReencodeVariableDecls()
         {
+            if (_declChanged == null || _declChanged.Length != declValue.Length) _declChanged = new bool[declValue.Length];
+            if (_propChanged == null) _propChanged = new bool[PROP_COUNT];
+            if (_declVarStart == null || _declVarStart.Length != declTemplate.Length) IndexDeclVars();
+            for (int p = 0; p < PROP_COUNT; p++) _propChanged[p] = false;
             bool changed = false;
             for (int k = 0; k < declTemplate.Length; k++)
             {
+                _declChanged[k] = false;
                 string t = declTemplate[k];
-                if (string.IsNullOrEmpty(t)) continue;
+                if (string.IsNullOrEmpty(t) || !DeclReadsChangedVar(k)) continue;
                 string v = SubstituteVars(t);
                 Vector4 enc = Vector4.zero;
                 if (!EncodeStyleValue(declProp[k], v, ref enc))
@@ -106,9 +187,62 @@ namespace Armagan.AUI
                 }
                 if (declValue[k] == enc) continue;
                 declValue[k] = enc;
+                _declChanged[k] = true;
+                _propChanged[declProp[k]] = true;
                 changed = true;
             }
             return changed;
+        }
+
+        /// <summary>
+        /// Push the rewritten declarations into the elements without re-running the cascade: a
+        /// property is updated when its source declaration changed, or when it inherits and the
+        /// parent's value did (parents come first in element order). State rules read the
+        /// declarations directly, so an element in a state re-applies it when one of them changed.
+        /// </summary>
+        private void ApplyChangedDecls(bool instant)
+        {
+            int n = elemTag.Length;
+            bool anim = !_instantResolve && !instant && Tweens();
+            for (int e = 0; e < n; e++)
+            {
+                int b = e * PROP_COUNT;
+                int par = layParent != null && e < layParent.Length ? layParent[e] : -1;
+                bool layoutChanged = false, touched = false;
+                for (int p = 0; p < PROP_COUNT; p++)
+                {
+                    if (!_propChanged[p]) continue;
+                    int src = _resolvedSrc[b + p];
+                    Vector4 nv;
+                    if (src >= 0) { if (!_declChanged[src]) continue; nv = declValue[src]; }
+                    else if (src == SRC_INHERITED && par >= 0) { nv = _resolved[par * PROP_COUNT + p]; }
+                    else continue;
+                    if (nv == _resolved[b + p]) continue;
+                    _resolved[b + p] = nv;
+                    touched = true;
+                    if (p == PROP_TRANSITION) continue;
+                    float dur = 0f; int ease = 0;
+                    if (anim) TransitionFor(e, p, ref dur, ref ease);
+                    if (ApplyValue(e, p, nv, _resolvedRef[b + p], dur, ease, true)) layoutChanged = true;
+                }
+                if (layoutChanged) MarkLayoutDirty();
+                int id = elemSignal[e];
+                if (id < 0 || _stateRuleCount[e] == 0) continue;
+                if (!touched && !StateDeclsChanged(e)) continue;
+                ApplyState(id);
+            }
+        }
+
+        private bool StateDeclsChanged(int e)
+        {
+            int c = _stateRuleCount[e];
+            for (int i = 0; i < c; i++)
+            {
+                int r = _stateRules[e * MaxStateRules + i];
+                int ds = ruleDeclStart[r], dc = ruleDeclCount[r];
+                for (int k = ds; k < ds + dc; k++) if (_declChanged[k]) return true;
+            }
+            return false;
         }
 
         /// <summary>Replace var(--x) and var(--x, fallback) from varNames/varValues; mirrors AuiRuleTable.Substitute.</summary>

@@ -263,6 +263,8 @@ namespace Armagan.AUI.Core
                 foreach (AuiSelector sel in r.Selectors)
                 {
                     if (sel.IsRoot) continue;
+                    // modal::backdrop styles the scrim, an element without a node; as a plain "modal" rule it would paint the body.
+                    if (sel.Pseudo != null) continue;
                     if (sel.Tag != null && !tagId.ContainsKey(NormTag(sel.Tag)) && !char.IsUpper(sel.Tag[0])) continue;   // no element of that tag: never matches
                     cands.Add(new Cand { Rule = r, Sel = sel, Tier = (int)r.Sheet.Tier });
                 }
@@ -430,7 +432,9 @@ namespace Armagan.AUI.Core
             {
                 AuiNode node = map.NodeOf[e];
                 int row = map.RowOf[e] < 0 ? 0 : map.RowOf[e];
-                parent[e] = node != null && node.Parent != null ? map.Elem(node.Parent, row) : -1;
+                // A node-less element (a select's popup or scrim, a modal's backdrop) hangs off the root, so the
+                // root's subtree stays contiguous and reaches the elements baked after it (the modal body).
+                parent[e] = node != null && node.Parent != null ? map.Elem(node.Parent, row) : (e > 0 ? 0 : -1);
             }
             for (int e = 0; e < count; e++)
             {

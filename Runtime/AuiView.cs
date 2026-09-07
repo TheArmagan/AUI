@@ -207,6 +207,7 @@ namespace Armagan.AUI
                 int vc = lang.StyleVariableCount();
                 _instantResolve = true;
                 for (int k = 0; k < vc; k++) _ApplyStyleVariable(lang.StyleVariableName(k), lang.StyleVariableValue(k));
+                FlushStyleVariables();   // one pass for the whole list, no tween into the start look
                 _instantResolve = false;
             }
             _Retranslate();

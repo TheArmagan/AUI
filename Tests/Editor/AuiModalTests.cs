@@ -51,6 +51,27 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void BackdropRulesStayOutOfTheRuntimeTableAndTheBodyIsInTheRootSubtree()
+        {
+            AuiCompileResult r = Compile(
+                "<view name=\"V\" width=\"300\" height=\"200\"><panel class=\"card\"/><modal id=\"m\"><text>Sure?</text></modal></view>",
+                "modal { background: #112233; padding: 10 } modal::backdrop { background: rgba(0,0,0,0.5) }");
+            Assert.IsFalse(r.HasErrors, string.Join("\n", r.Diagnostics.Items));
+            AuiRuleTable t = r.Rules;
+            int modalTag = System.Array.IndexOf(t.TagNames, "modal");
+            Assert.GreaterOrEqual(modalTag, 0);
+            // Exactly one rule targets the modal tag: the body rule, not the backdrop one.
+            int modalRules = 0;
+            for (int rule = 0; rule < t.RuleCount; rule++) if (t.RuleTag[rule] == modalTag) modalRules++;
+            Assert.AreEqual(1, modalRules, "modal::backdrop must not become a modal rule");
+            int body = r.Map.Base[r.Info.Modals[0].Node.Index];
+            AuiRuleTable.Resolved res = t.Resolve(t.ElemTag[body], t.ElemClass0[body], t.ElemClass1[body], t.ElemNode[body], null);
+            Assert.AreEqual(0x11 / 255f, res.Value[AuiRuleTable.PROP_BG][0], 0.001, "the body keeps its own background");
+            // The scrim (no node) sits before the body; the root's subtree must still reach the body.
+            Assert.AreEqual(t.ElemTag.Length, t.ElemSubtreeEnd[0], "the root subtree covers every element");
+        }
+
+        [Test]
         public void ModalMustBeDirectChildOfView()
         {
             AuiCompileResult r = Compile("<view name=\"V\" width=\"300\" height=\"200\"><panel><modal id=\"m\"/></panel></view>", "");

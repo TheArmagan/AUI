@@ -67,6 +67,11 @@ namespace Armagan.AUI
         private Vector4[] _resolved;        // [e * PROP_COUNT + p]
         private int[] _resolvedRef;
         private bool[] _resolvedSet;
+        // Where each resolved value came from: a declaration index, or one of the SRC_ markers. A
+        // variable change rewrites declarations in place, so a property whose source declaration
+        // changed (or whose parent's inherited value did) is updated without walking the cascade.
+        private int[] _resolvedSrc;
+        private const int SRC_NONE = -1, SRC_INHERITED = -2, SRC_OVERRIDE = -3, SRC_DIRECT = -4;
         private int[] _stateRules;          // [e * MaxStateRules + i]
         private int[] _stateRuleCount;
         private int[] _api0, _api1, _removed0, _removed1, _dyn0, _dyn1, _eff0, _eff1;
@@ -95,6 +100,7 @@ namespace Armagan.AUI
             _resolved = new Vector4[n * PROP_COUNT];
             _resolvedRef = new int[n * PROP_COUNT];
             _resolvedSet = new bool[n * PROP_COUNT];
+            _resolvedSrc = new int[n * PROP_COUNT];
             _stateRules = new int[n * MaxStateRules];
             _stateRuleCount = new int[n];
             int slots = classSlots > 0 ? classSlots : 1;
@@ -413,14 +419,14 @@ namespace Armagan.AUI
         {
             int b = e * PROP_COUNT;
             int p = layParent != null && e < layParent.Length ? layParent[e] : -1;
-            for (int i = 0; i < PROP_COUNT; i++) { _resolvedSet[b + i] = false; _resolvedRef[b + i] = -1; _resolved[b + i] = Vector4.zero; }
+            for (int i = 0; i < PROP_COUNT; i++) { _resolvedSet[b + i] = false; _resolvedRef[b + i] = -1; _resolved[b + i] = Vector4.zero; _resolvedSrc[b + i] = SRC_NONE; }
             if (p >= 0)
                 for (int k = 0; k < inheritedProps.Length; k++)
                 {
                     int prop = inheritedProps[k];
                     int pb = p * PROP_COUNT + prop;
                     if (!_resolvedSet[pb]) continue;
-                    _resolved[b + prop] = _resolved[pb]; _resolvedRef[b + prop] = _resolvedRef[pb]; _resolvedSet[b + prop] = true;
+                    _resolved[b + prop] = _resolved[pb]; _resolvedRef[b + prop] = _resolvedRef[pb]; _resolvedSet[b + prop] = true; _resolvedSrc[b + prop] = SRC_INHERITED;
                 }
             _stateRuleCount[e] = 0;
             int tag = elemTag[e];
@@ -445,13 +451,13 @@ namespace Armagan.AUI
                 for (int k = ds; k < ds + dc; k++)
                 {
                     int prop = declProp[k];
-                    _resolved[b + prop] = declValue[k]; _resolvedRef[b + prop] = declRef[k]; _resolvedSet[b + prop] = true;
+                    _resolved[b + prop] = declValue[k]; _resolvedRef[b + prop] = declRef[k]; _resolvedSet[b + prop] = true; _resolvedSrc[b + prop] = k;
                 }
             }
             // style="prop: {binding}" values sit in the attribute tier: they win over every rule.
             if (_ovSet != null)
                 for (int q = 0; q < PROP_COUNT; q++)
-                    if (_ovSet[b + q]) { _resolved[b + q] = _ov[b + q]; _resolvedSet[b + q] = true; }
+                    if (_ovSet[b + q]) { _resolved[b + q] = _ov[b + q]; _resolvedSet[b + q] = true; _resolvedSrc[b + q] = SRC_OVERRIDE; }
         }
 
         /// <summary>Re-resolve an element and its descendants, applying only what changed. Created template instances linked under it follow.</summary>
@@ -764,7 +770,7 @@ namespace Armagan.AUI
             if (!_started) { _auiStashI = elem; _auiStashI2 = prop; _AuiStart(); elem = _auiStashI; prop = _auiStashI2; }
             if (!_stylesReady || elem < 0 || elem >= elemTag.Length || prop < 0 || prop >= PROP_COUNT) return;
             int b = elem * PROP_COUNT + prop;
-            _resolved[b] = value; _resolvedSet[b] = true;
+            _resolved[b] = value; _resolvedSet[b] = true; _resolvedSrc[b] = SRC_DIRECT;
             float dur = 0f; int ease = 0;
             if (Tweens()) TransitionFor(elem, prop, ref dur, ref ease);
             if (ApplyValue(elem, prop, value, _resolvedRef[b], dur, ease, true)) MarkLayoutDirty();

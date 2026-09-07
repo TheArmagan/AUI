@@ -399,19 +399,31 @@ helpers write one property directly, until the next class change on that element
 Variables at runtime (`Runtime/AuiView.Variables.cs`): the rule table carries the merged `:root`
 variables (`VarNames` sorted, `VarValues`) and, per declaration, `DeclTemplate`: the raw value when
 it contains `var()`, else null (the builder bakes null as `""`). `SetStyleVariable(name, value)`
-(name with or without `--`, value as stylesheet text) rewrites `varValues`, re-substitutes every
-templated declaration (`SubstituteVars`, the same loop as `AuiRuleTable.Substitute`), re-encodes it
-in Udon (`EncodeStyleValue`, the runtime half of `AuiRuleTable.Encode`: colours through `ParseColor`,
-lengths through `ParseLength`, enums through `EnumOrdinal`; the sprite/material halves of a
-background are their own declarations and are skipped) into `declValue`, and re-resolves every
-element (`ReResolveAll`, parked instances and scrims included) so only changed properties are
-applied, through each element's transition; state rules read `declValue` directly so they follow
-too. The call is forwarded to every `elemChildView`. `SetStyleVariableColor` writes `#RRGGBBAA`,
-`SetStyleVariableFloat` a locale-free number; `GetStyleVariable` reads the current text. A value
-that fails to encode leaves that declaration and logs once. `AuiLanguageService.SetStyleVariable`
-remembers the value and calls `_ApplyStyleVariable` (this view only, quiet) on every registered
-view; a view's `_AuiStart` reads the remembered list back (`StyleVariableCount/Name/Value`) right
-after registering and applies it instantly (`_instantResolve`), so late starters match.
+(name with or without `--`, value as stylesheet text) rewrites `varValues` and schedules one
+flush for the next frame (`_AuiFlushStyleVariables`; `FlushStyleVariables()` runs it now), so a
+preset writing ten variables or a slider writing one per frame both cost one pass per view. The
+flush re-substitutes only the templated declarations that read a changed variable (an index of
+`var()` names per declaration, built on the first flush; `SubstituteVars`, the same loop as
+`AuiRuleTable.Substitute`), re-encodes it in Udon (`EncodeStyleValue`, the runtime half of
+`AuiRuleTable.Encode`: colours through `ParseColor`, lengths through `ParseLength`, enums through
+`EnumOrdinal`; the sprite/material halves of a background are their own declarations and are
+skipped) into `declValue`, marking the declarations and properties that changed, then
+`ApplyChangedDecls` walks the elements once without the cascade: `_resolvedSrc` remembers where
+every resolved value came from (a declaration index, `SRC_INHERITED`, an attribute override, or a
+direct `SetStyleValue`), so a property is updated only when its source declaration changed or, for
+an inherited one, when the parent's value did (parents precede children in element order). Changes
+go through each element's transition unless the previous flush was less than a quarter second ago
+(a dragged slider snaps instead of restarting a tween every frame); an element with state rules re-applies its state when one of
+their declarations changed. The call is forwarded to every `elemChildView`. `SetStyleVariableColor`
+writes `#RRGGBBAA`, `SetStyleVariableFloat` a locale-free number; `GetStyleVariable` reads the
+current text at once (the look follows a frame later). A value that fails to encode leaves that
+declaration and logs once. `AuiLanguageService.SetStyleVariable` remembers the value and calls
+`_ApplyStyleVariable` (this view only, quiet) on every registered view; a view's `_AuiStart` reads
+the remembered list back (`StyleVariableCount/Name/Value`) right after registering and flushes it
+once, instantly (`_instantResolve`), so late starters match. `modal::backdrop` rules never enter
+the table (they would read as plain `modal` rules and paint the body with the scrim colour), and a
+node-less element (scrim, popup) hangs off the root in `ElemSubtreeEnd`, so the root's subtree
+reaches the modal body baked after the scrim.
 
 Eases: linear, in/out/in-out quad, cubic, quart, sine, expo, back, bounce, elastic, written
 `out-quad`, `in-out-back`, etc. The builder maps them to `VRCTweenEase` by name.
