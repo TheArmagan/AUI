@@ -685,7 +685,9 @@ constants in `AuiView`.
   `Slider.fillRect`, which has no table of its own), `icon-color` the handle (`elemIcon`, falling
   back to the fill colour at bake). Inputs are Buttons with a label and
   an optional placeholder key. Selects are a header button plus a popup (nested Canvas, sorting
-  order 100, own GraphicRaycaster, 1 mm toward the viewer) containing a scrim and the options.
+  order 100, own GraphicRaycaster, 1 mm toward the viewer) containing a scrim and the options; the
+  popup is baked with the header's `background` and, having no node, is re-tinted at runtime by
+  copying the header's background change (`SelectPopupOf`).
 - Style rows: for each signal, the properties any state touches get a normal-state baseline row
   and one row per state override, each with duration and ease from the element's `transition`,
   and a channel index so tweens are killed per property.

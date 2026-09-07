@@ -643,6 +643,14 @@ namespace Armagan.AUI
             return false;
         }
 
+        /// <summary>The popup element of a select header, or -1.</summary>
+        private int SelectPopupOf(int e)
+        {
+            if (selectElem == null) return -1;
+            for (int s = 0; s < selectElem.Length; s++) if (selectElem[s] == e) return selectPopupElem[s];
+            return -1;
+        }
+
         private VRCTweenHandle Tween(int e, int prop, Vector4 v, float dur, VRCTweenEase ease)
         {
             VRCTweenHandle none = new VRCTweenHandle();
@@ -656,6 +664,13 @@ namespace Armagan.AUI
                 {
                     Image fill = elemSliders[e].fillRect.GetComponent<Image>();
                     if (fill != null) fill.color = c;
+                }
+                // A select's popup is baked with the header's background; it has no node, so no rule
+                // reaches it: the header's background change is copied onto it, instantly.
+                if (prop == PROP_BG && elemKind[e] == KIND_SELECT)
+                {
+                    int pe = SelectPopupOf(e);
+                    if (pe >= 0 && elemBg[pe] != null) elemBg[pe].color = c;
                 }
                 if (g == null) return none;
                 if (dur <= 0f) { g.color = c; return none; }
