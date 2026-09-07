@@ -166,13 +166,22 @@ namespace Armagan.AUI.Core
         }
     }
 
-    /// <summary>none | color | sprite(Name) color</summary>
+    /// <summary>none | color | sprite(Name) color | material(Name) color | shader(Name) color; sprite() may combine with material()/shader().</summary>
     public struct AuiBackground
     {
         public bool IsNone;
         public string Sprite;
+        /// <summary>A Material asset by name, used as the image's material (its shader draws the sprite).</summary>
+        public string Material;
+        /// <summary>A shader by name; the builder creates one Material asset per shader under Assets/AUI/Generated/Materials.</summary>
+        public string Shader;
         public AuiColor Color;
         public bool IsSet;
+
+        public bool HasMaterial
+        {
+            get { return Material != null || Shader != null; }
+        }
 
         public static bool TryParse(string s, out AuiBackground bg)
         {
@@ -181,15 +190,26 @@ namespace Armagan.AUI.Core
             s = s.Trim();
             bg.IsSet = true;
             if (s == "none") { bg.IsNone = true; return true; }
-            if (s.StartsWith("sprite("))
+            bool any = false;
+            while (true)
             {
+                string fn = null;
+                if (s.StartsWith("sprite(")) fn = "sprite";
+                else if (s.StartsWith("material(")) fn = "material";
+                else if (s.StartsWith("shader(")) fn = "shader";
+                if (fn == null) break;
                 int cl = s.IndexOf(')');
                 if (cl < 0) return false;
-                bg.Sprite = s.Substring(7, cl - 7).Trim();
-                string rest = s.Substring(cl + 1).Trim();
-                if (rest.Length == 0) { bg.Color = AuiColor.White; return true; }
-                return AuiColor.TryParse(rest, out bg.Color);
+                string arg = s.Substring(fn.Length + 1, cl - fn.Length - 1).Trim();
+                if (arg.Length == 0) return false;
+                if (fn == "sprite") bg.Sprite = arg;
+                else if (fn == "material") { if (bg.Shader != null) return false; bg.Material = arg; }
+                else { if (bg.Material != null) return false; bg.Shader = arg; }
+                any = true;
+                s = s.Substring(cl + 1).Trim();
             }
+            if (any && s.Length == 0) { bg.Color = AuiColor.White; return true; }
+            if (any && s.StartsWith("var(")) return AuiColor.TryParse(s, out bg.Color);
             return AuiColor.TryParse(s, out bg.Color);
         }
     }

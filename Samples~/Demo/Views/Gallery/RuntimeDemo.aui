@@ -1,0 +1,31 @@
+<view name="RuntimeDemo" width="420" height="540" icons="check x" pool="text:4">
+  <panel class="row">
+    <text id="title" class="title">Runtime</text>
+    <spacer/>
+    <button id="warm" onclick="ToggleWarm" icon="zap">Warm</button>
+    <button id="ask" onclick="Ask">Modal</button>
+  </panel>
+  <panel id="card" class="card {tone}">
+    <text id="status" text="{status}"/>
+    <repeat id="rows" max="6">
+      <button onclick="Pick" class="chip"><text text="{item.label}"/></button>
+      <empty><text class="muted">No rows yet</text></empty>
+    </repeat>
+  </panel>
+  <panel id="actions" class="row">
+    <button id="add" onclick="Add">Add</button>
+    <button id="clear" onclick="Clear">Clear</button>
+    <icon id="badge" name="check" style="position: absolute; top: -6; right: -6"/>
+  </panel>
+  <panel id="log" class="card *flex-col *gap-4" style="opacity: {logAlpha}; padding: {logPad}"/>
+  <template id="line" max="4">
+    <panel class="row"><icon name="check"/><text text="{item.msg}"/></panel>
+  </template>
+  <modal id="confirm" enabled="{asking}" onclose="Cancelled">
+    <text>Clear all rows?</text>
+    <panel class="row">
+      <button id="yes" onclick="ConfirmClear">Yes</button>
+      <button id="no" onclick="CloseConfirm">No</button>
+    </panel>
+  </modal>
+</view>

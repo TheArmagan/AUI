@@ -17,6 +17,10 @@ namespace Armagan.AUI.Core
         public readonly Dictionary<string, AuiDeclaration> Sources = new Dictionary<string, AuiDeclaration>();
         /// <summary>state -> (property -> value). Only states with at least one override are present.</summary>
         public readonly Dictionary<string, Dictionary<string, string>> States = new Dictionary<string, Dictionary<string, string>>();
+        /// <summary>For a modal: the resolved modal::backdrop rules (background, opacity); null elsewhere.</summary>
+        public AuiResolvedStyle Backdrop;
+        /// <summary>property -> the {binding} text of a style="prop: {name}" declaration; the bake uses the property's default, the runtime the binding.</summary>
+        public readonly Dictionary<string, string> Bound = new Dictionary<string, string>();
 
         public bool Has(string prop)
         {
@@ -104,6 +108,15 @@ namespace Armagan.AUI.Core
         public AuiBox Margin { get { return Box("margin"); } }
         public float Gap { get { return Length("gap").Resolve(0, 0); } }
         public string Anchor { get { return Enum("anchor", "none"); } }
+        public string Display { get { return Enum("display", "flex"); } }
+        public bool IsDisplayNone { get { return Display == "none"; } }
+        public bool IsAbsolute { get { return Enum("position", "static") == "absolute"; } }
+        public AuiLength Top { get { return Length("top"); } }
+        public AuiLength Right { get { return Length("right"); } }
+        public AuiLength Bottom { get { return Length("bottom"); } }
+        public AuiLength Left { get { return Length("left"); } }
+        /// <summary>True when the element does not take part in its parent's flow (display none, position absolute, or an anchor).</summary>
+        public bool IsOutOfFlow { get { return IsDisplayNone || IsAbsolute || Anchor != "none"; } }
         public bool IsRow { get { return Enum("flex-direction", "column") == "row"; } }
         public string Justify { get { return Enum("justify", "start"); } }
         public string Align { get { return Enum("align", "stretch"); } }

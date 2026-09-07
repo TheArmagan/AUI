@@ -373,15 +373,68 @@ namespace Armagan.AUI.Core
                 node.EndColumn = _col;
             }
 
-            /// <summary>&lt;link&gt; elements are lifted into Doc.Links; they are not part of the tree.</summary>
+            /// <summary>&lt;link&gt;, &lt;prop&gt;, &lt;event&gt; and &lt;component&gt; are lifted out of the tree into the document's declaration lists.</summary>
             private void LiftSpecial(AuiNode node)
             {
-                if (node.Tag != "link") return;
+                switch (node.Tag)
+                {
+                    case "link":
+                        Detach(node);
+                        Doc.Links.Add(new AuiLink { Href = node.Get("href"), Line = node.Line, Column = node.Column });
+                        if (string.IsNullOrEmpty(node.Get("href")))
+                            _d.Error(AuiCodes.MissingRequiredAttribute, "<link> needs an href.", node.Line, node.Column, 5);
+                        break;
+                    case "prop":
+                    {
+                        Detach(node);
+                        var p = new AuiPropDecl { Name = node.Get("name"), Type = node.Get("type") ?? "string", Default = node.Get("default"), Owner = node.Parent, Line = node.Line, Column = node.Column };
+                        if (string.IsNullOrEmpty(p.Name)) { _d.Error(AuiCodes.MissingRequiredAttribute, "<prop> needs a name.", node.Line, node.Column, 5); break; }
+                        if (p.Type != "string" && p.Type != "int" && p.Type != "float" && p.Type != "bool")
+                        { _d.Error(AuiCodes.BadPropDeclaration, "<prop> type must be string, int, float or bool.", node.Line, node.Column, 5); p.Type = "string"; }
+                        Doc.Props.Add(p);
+                        break;
+                    }
+                    case "event":
+                    {
+                        Detach(node);
+                        var ev = new AuiEventDecl { Name = node.Get("name"), Type = node.Get("type"), Owner = node.Parent, Line = node.Line, Column = node.Column };
+                        if (string.IsNullOrEmpty(ev.Name)) { _d.Error(AuiCodes.MissingRequiredAttribute, "<event> needs a name.", node.Line, node.Column, 6); break; }
+                        if (ev.Type != null && ev.Type != "string" && ev.Type != "int" && ev.Type != "float" && ev.Type != "bool")
+                        { _d.Error(AuiCodes.BadPropDeclaration, "<event> type must be string, int, float or bool (or absent).", node.Line, node.Column, 6); ev.Type = null; }
+                        Doc.Events.Add(ev);
+                        break;
+                    }
+                    case "component":
+                    {
+                        // The template and its subtree leave the tree; the expander clones it per usage.
+                        Detach(node);
+                        RemoveSubtreeFromNodes(node);
+                        var comp = new AuiComponentDecl { Name = node.Get("name"), Node = node };
+                        if (string.IsNullOrEmpty(comp.Name) || !char.IsUpper(comp.Name[0]) || !AuiSchema.IsIdentifier(comp.Name))
+                            _d.Error(AuiCodes.BadPropDeclaration, "<component> needs a name starting with a capital letter (used as <Name/>).", node.Line, node.Column, 10);
+                        if (node.Children.Count != 1)
+                            _d.Error(AuiCodes.BadPropDeclaration, "<component> takes exactly one template child (wrap several in a <panel>).", node.Line, node.Column, 10);
+                        else comp.Root = node.Children[0];
+                        // Its own <prop>/<event> declarations were lifted while inside it.
+                        for (int i = Doc.Props.Count - 1; i >= 0; i--) if (Doc.Props[i].Owner == node) { comp.Props.Insert(0, Doc.Props[i]); Doc.Props.RemoveAt(i); }
+                        for (int i = Doc.Events.Count - 1; i >= 0; i--) if (Doc.Events[i].Owner == node) { comp.Events.Insert(0, Doc.Events[i]); Doc.Events.RemoveAt(i); }
+                        if (comp.Name != null && Doc.FindComponent(comp.Name) != null)
+                            _d.Error(AuiCodes.DuplicateId, "Component '" + comp.Name + "' is declared twice.", node.Line, node.Column, 10);
+                        else if (comp.Name != null) Doc.Components.Add(comp);
+                        break;
+                    }
+                }
+            }
+
+            private void Detach(AuiNode node)
+            {
                 if (node.Parent != null) node.Parent.Children.Remove(node);
                 Doc.Nodes.Remove(node);
-                Doc.Links.Add(new AuiLink { Href = node.Get("href"), Line = node.Line, Column = node.Column });
-                if (string.IsNullOrEmpty(node.Get("href")))
-                    _d.Error(AuiCodes.MissingRequiredAttribute, "<link> needs an href.", node.Line, node.Column, 5);
+            }
+
+            private void RemoveSubtreeFromNodes(AuiNode node)
+            {
+                foreach (AuiNode c in node.Children) { Doc.Nodes.Remove(c); RemoveSubtreeFromNodes(c); }
             }
 
             private void ParseAttribute(AuiNode node)

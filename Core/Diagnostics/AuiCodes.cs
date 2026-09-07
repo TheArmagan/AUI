@@ -46,6 +46,8 @@ namespace Armagan.AUI.Core
         public const string ItemBindingOutsideRepeat = "AUI118";
         public const string UnknownIcon = "AUI119";
         public const string RepeatMaxOutOfRange = "AUI120";
+        public const string UnknownComponentProp = "AUI121";
+        public const string BadPropDeclaration = "AUI122";
 
         // ---- stylesheet
         public const string StyleSyntax = "AUI200";
@@ -59,6 +61,10 @@ namespace Armagan.AUI.Core
         public const string StylesheetNotFound = "AUI208";
         public const string BadTransition = "AUI209";
         public const string NonAnimatableTransition = "AUI210";
+        public const string TooManyClasses = "AUI211";
+        public const string BakeOnlyProperty = "AUI212";
+        public const string BadBoundValue = "AUI213";
+        public const string TooManyStarClasses = "AUI214";
 
         // ---- i18n
         public const string MissingTranslation = "AUI300";
@@ -73,6 +79,10 @@ namespace Armagan.AUI.Core
         // ---- layout
         public const string LayoutOverflow = "AUI400";
         public const string LayoutNegativeSize = "AUI401";
+        public const string AbsoluteWithoutEdges = "AUI402";
+        public const string EdgeConflict = "AUI403";
+        public const string EdgeIgnored = "AUI404";
+        public const string DisplayOnRoot = "AUI405";
 
         // ---- build / codegen (editor only)
         public const string GeneratedClassMissing = "AUI500";

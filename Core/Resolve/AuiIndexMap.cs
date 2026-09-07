@@ -15,7 +15,7 @@ namespace Armagan.AUI.Core
     /// </summary>
     public sealed class AuiIndexMap
     {
-        public const int KIND_NONE = 0, KIND_BUTTON = 1, KIND_TOGGLE = 2, KIND_TAB = 3, KIND_OPTION = 4, KIND_INPUT = 5, KIND_SELECT = 6, KIND_SLIDER = 7, KIND_SCRIM = 8;
+        public const int KIND_NONE = 0, KIND_BUTTON = 1, KIND_TOGGLE = 2, KIND_TAB = 3, KIND_OPTION = 4, KIND_INPUT = 5, KIND_SELECT = 6, KIND_SLIDER = 7, KIND_SCRIM = 8, KIND_MODAL_SCRIM = 9;
         public const int STATE_COUNT = 5;
 
         public int ElementCount;
@@ -37,6 +37,8 @@ namespace Armagan.AUI.Core
         /// <summary>Per select node index: element index of the popup root and the scrim.</summary>
         public readonly Dictionary<int, int> PopupElem = new Dictionary<int, int>();
         public readonly Dictionary<int, int> ScrimElem = new Dictionary<int, int>();
+        /// <summary>Per modal node index: element index of its backdrop scrim (baked just before the modal body).</summary>
+        public readonly Dictionary<int, int> ModalScrimElem = new Dictionary<int, int>();
         /// <summary>Per repeat node index: first signal id of instance 0 and signals per instance.</summary>
         public readonly Dictionary<int, int> RepeatSignalBase = new Dictionary<int, int>();
         public readonly Dictionary<int, int> RepeatSignalStride = new Dictionary<int, int>();
@@ -48,6 +50,9 @@ namespace Armagan.AUI.Core
         private readonly List<int> _kindOf = new List<int>();
         private readonly List<AuiNode> _nodeOf = new List<AuiNode>();
         private readonly List<int> _rowOf = new List<int>();
+        // Templates are walked after everything else: a parked instance may be linked under ANY
+        // element at runtime, and the solvers rely on a parent's index being lower than its child's.
+        private readonly List<AuiNode> _deferred = new List<AuiNode>();
 
         private AuiIndexMap(AuiMarkupDocument doc, AuiViewInfo info, AuiResolvedStyle[] styles)
         {
@@ -65,6 +70,7 @@ namespace Armagan.AUI.Core
             m.Copies = new int[n];
             for (int i = 0; i < n; i++) { m.Base[i] = -1; m.Copies[i] = 1; }
             if (doc.Root != null) m.Walk(doc.Root, -1);
+            foreach (AuiNode t in m._deferred) m.WalkRepeat(t);
             m.ElementCount = m._nodeOf.Count;
             m.SignalOf = m._signalOf.ToArray();
             m.KindOf = m._kindOf.ToArray();
@@ -119,7 +125,7 @@ namespace Armagan.AUI.Core
             _nodeOf.Add(node);
             _kindOf.Add(kind);
             _rowOf.Add(row);
-            bool sig = node != null && NeedsSignal(node) || kind == KIND_SCRIM;
+            bool sig = node != null && NeedsSignal(node) || kind == KIND_SCRIM || kind == KIND_MODAL_SCRIM;
             _signalOf.Add(sig ? SignalCount++ : -1);
             return e;
         }
@@ -131,6 +137,13 @@ namespace Armagan.AUI.Core
                 WalkRepeat(node);
                 return;
             }
+            if (node.Tag == "template")
+            {
+                _deferred.Add(node);
+                return;
+            }
+            // A modal's backdrop scrim is baked right before its body, so the body draws over it.
+            if (node.Tag == "modal") ModalScrimElem[node.Index] = AddElement(null, KIND_MODAL_SCRIM, row);
             int e = AddElement(node, KindOfTag(node.Tag), row);
             if (row < 0) Base[node.Index] = e;
             foreach (AuiNode c in node.Children) Walk(c, row);

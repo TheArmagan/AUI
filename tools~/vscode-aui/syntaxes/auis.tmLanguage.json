@@ -24,6 +24,8 @@
     "selector": {
       "patterns": [
         { "match": ":root\\b", "name": "keyword.other.root.auis" },
+        { "match": "\\.\\*[A-Za-z0-9_-]+", "name": "entity.other.attribute-name.class.star.auis" },
+        { "match": "::backdrop\\b", "name": "entity.other.attribute-name.pseudo-element.auis" },
         { "match": ":(hover|pressed|selected|disabled)\\b", "name": "entity.other.attribute-name.pseudo-class.auis" },
         { "match": ":[A-Za-z_][A-Za-z0-9_-]*", "name": "invalid.illegal.unknown-state.auis" },
         { "match": "\\.[A-Za-z_][A-Za-z0-9_-]*", "name": "entity.other.attribute-name.class.auis" },
@@ -49,7 +51,7 @@
           "captures": { "1": { "name": "variable.other.custom-property.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
         },
         {
-          "match": "\\b(width|height|min-width|min-height|max-width|max-height|anchor|padding|margin|gap|flex-direction|justify|align|grow|wrap|color|background|border|radius|opacity|scale|offset|icon-color|font|font-weight|font-size|text-align|line-height|transition|page-transition|show)\\s*(:)",
+          "match": "\\b(width|height|min-width|min-height|max-width|max-height|anchor|display|position|top|right|bottom|left|padding|margin|gap|flex-direction|justify|align|grow|wrap|color|background|border|radius|opacity|scale|offset|icon-color|font|font-weight|font-size|text-align|line-height|transition|page-transition|show)\\s*(:)",
           "captures": { "1": { "name": "support.type.property-name.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
         },
         {
@@ -57,10 +59,10 @@
           "captures": { "1": { "name": "invalid.illegal.unknown-property.auis" }, "2": { "name": "punctuation.separator.key-value.auis" } }
         },
         { "match": "#[0-9A-Fa-f]{3,8}\\b", "name": "constant.other.color.auis" },
-        { "match": "\\b(var|sprite|rgba?)(?=\\()", "name": "support.function.auis" },
+        { "match": "\\b(var|sprite|material|shader|rgba?)(?=\\()", "name": "support.function.auis" },
         { "match": "--[A-Za-z_][A-Za-z0-9_-]*", "name": "variable.other.custom-property.auis" },
         { "match": "-?(\\d+(\\.\\d+)?|\\.\\d+)(mm|%|s|ms)?\\b", "name": "constant.numeric.auis" },
-        { "match": "\\b(auto|none|all|row|column|start|center|end|space-between|stretch|true|false|fill|top|bottom|left|right|regular|normal|medium|semibold|semi-bold|bold|transparent|white|black|fade|fade-scale|fade-slide|slide-left|slide-right|slide-up|slide-down|scale|Rounded4|Rounded8|Rounded12|Rounded16|Rounded24|Square)\\b", "name": "support.constant.property-value.auis" },
+        { "match": "\\b(auto|none|all|flex|static|absolute|row|column|start|center|end|space-between|stretch|true|false|fill|top|bottom|left|right|regular|normal|medium|semibold|semi-bold|bold|transparent|white|black|fade|fade-scale|fade-slide|slide-left|slide-right|slide-up|slide-down|scale|Rounded4|Rounded8|Rounded12|Rounded16|Rounded24|Square)\\b", "name": "support.constant.property-value.auis" },
         { "match": "\\b(linear|in-quad|out-quad|in-out-quad|in-cubic|out-cubic|in-out-cubic|in-quart|out-quart|in-out-quart|in-sine|out-sine|in-out-sine|in-expo|out-expo|in-out-expo|in-back|out-back|in-out-back|in-bounce|out-bounce|in-out-bounce|in-elastic|out-elastic|in-out-elastic)\\b", "name": "support.constant.ease.auis" },
         { "match": ";", "name": "punctuation.terminator.rule.auis" }
       ]

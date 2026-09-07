@@ -80,6 +80,57 @@ namespace Armagan.AUI.Core
             return null;
         }
 
+        private int CountOf(AuiRepeatInfo r)
+        {
+            if (r == null) return 1;
+            if (_ctx.RepeatCount != null) return System.Math.Max(0, System.Math.Min(r.Max, _ctx.RepeatCount(r)));
+            return r.Max;
+        }
+
+        /// <summary>hidden="" (any value but "false") removes the element like display: none.</summary>
+        private static bool IsHiddenAttr(AuiNode n)
+        {
+            string v = n.Get("hidden");
+            return v != null && v != "false";
+        }
+
+        /// <summary>True when the element takes part in its parent's flow: not display none, not hidden, not absolute or anchored.</summary>
+        private bool IsFlow(AuiNode c)
+        {
+            if (c.Tag == "modal" || c.Tag == "template") return false;   // modal: over its siblings; template: parked instances take no space
+            return !S(c).IsOutOfFlow && !IsHiddenAttr(c);
+        }
+
+        private bool IsHidden(AuiNode c)
+        {
+            return S(c).IsDisplayNone || IsHiddenAttr(c) || c.Tag == "template";
+        }
+
+        /// <summary>Warnings about display/position/edges, reported once per node during measure.</summary>
+        private void CheckPlacement(AuiNode n, AuiResolvedStyle s)
+        {
+            bool hasEdge = s.Top.IsSet || s.Right.IsSet || s.Bottom.IsSet || s.Left.IsSet;
+            if (n.Parent == null)
+            {
+                if (s.IsDisplayNone || s.IsAbsolute)
+                    _d.Error(AuiCodes.DisplayOnRoot, "<view> cannot have display: none or position: absolute.", n.Line, n.Column, n.Tag.Length + 1);
+                return;
+            }
+            if (s.IsAbsolute)
+            {
+                if (!hasEdge && s.Anchor == "none")
+                    _d.Warning(AuiCodes.AbsoluteWithoutEdges, "<" + n.Tag + "> is position: absolute without top/right/bottom/left or an anchor; it sits at the parent's content origin.", n.Line, n.Column, n.Tag.Length + 1);
+                if (s.Top.IsSet && s.Bottom.IsSet && s.Height.IsSet && !s.Height.IsAuto)
+                    _d.Warning(AuiCodes.EdgeConflict, "<" + n.Tag + "> sets top, bottom and height; height wins and bottom is ignored.", n.Line, n.Column, n.Tag.Length + 1);
+                if (s.Left.IsSet && s.Right.IsSet && s.Width.IsSet && !s.Width.IsAuto)
+                    _d.Warning(AuiCodes.EdgeConflict, "<" + n.Tag + "> sets left, right and width; width wins and right is ignored.", n.Line, n.Column, n.Tag.Length + 1);
+            }
+            else if (hasEdge && s.Anchor == "none")
+            {
+                _d.Warning(AuiCodes.EdgeIgnored, "<" + n.Tag + "> has top/right/bottom/left but is not position: absolute; the edges are ignored.", n.Line, n.Column, n.Tag.Length + 1);
+            }
+        }
+
         // ---------------------------------------------------------------- measure
 
         /// <param name="availW">Width the element can expect from its ancestors (0 = unknown); lets wrapping containers measure their real height.</param>
@@ -89,6 +140,24 @@ namespace Armagan.AUI.Core
             AuiResolvedStyle s = S(n);
             float w = 0, h = 0;
 
+            CheckPlacement(n, s);
+            ln.OutOfFlow = n.Parent != null && (s.IsOutOfFlow || n.Tag == "modal" || n.Tag == "template");
+            if (n.Parent != null && IsHidden(n))
+            {
+                // display: none / hidden: the subtree is neither measured nor laid out. A template
+                // IS measured (its parked instances need their intrinsic sizes at runtime) but takes no space.
+                if (n.Tag == "template")
+                {
+                    float availT = s.Width.IsSet && !s.Width.IsAuto ? s.Width.Resolve(availW, availW) : availW;
+                    foreach (AuiNode c in n.Children) Measure(c, availT);
+                }
+                ln.Hidden = true;
+                ln.OutOfFlow = true;
+                ln.IntrinsicW = 0;
+                ln.IntrinsicH = 0;
+                return;
+            }
+
             float own = s.Width.IsSet && !s.Width.IsAuto ? s.Width.Resolve(availW, availW) : availW;
             float inner = own > 0 ? System.Math.Max(0, own - s.Padding.Horizontal) : 0;
             foreach (AuiNode c in n.Children) Measure(c, inner);
@@ -96,7 +165,7 @@ namespace Armagan.AUI.Core
             switch (n.Tag)
             {
                 case "text":
-                    MeasureText(n, s, out w, out h, ref ln.ContentSized);
+                    MeasureText(n, s, ln, out w, out h, ref ln.ContentSized);
                     break;
                 case "icon":
                 {
@@ -154,10 +223,12 @@ namespace Armagan.AUI.Core
                         w = s.Width.Resolve(0, cw);
                         h = s.Height.Resolve(0, ch);
                     }
-                    else MeasureContainer(n, s, inner, out w, out h);
+                    else MeasureContainer(n, s, ln, inner, out w, out h);
                     break;
             }
 
+            ln.RawW = w;
+            ln.RawH = h;
             // explicit sizes (non-percent) override; percent resolves in layout
             if (s.Width.IsSet && !s.Width.IsAuto && !s.Width.IsPercent) w = s.Width.Value;
             if (s.Height.IsSet && !s.Height.IsAuto && !s.Height.IsPercent) h = s.Height.Value;
@@ -174,7 +245,7 @@ namespace Armagan.AUI.Core
             return v;
         }
 
-        private void MeasureText(AuiNode n, AuiResolvedStyle s, out float w, out float h, ref bool contentSized)
+        private void MeasureText(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, out float w, out float h, ref bool contentSized)
         {
             float size = s.FontSize;
             int weight = s.FontWeight;
@@ -208,6 +279,52 @@ namespace Armagan.AUI.Core
             // Small slack so a glyph never clips at the exact measured edge.
             w += 2f;
             h += 1f;
+
+            // Per-language rows for the runtime solver; the same text in every row when the
+            // label is not keyed (bound sample or literal).
+            int L = System.Math.Max(1, _ctx.LanguageCount);
+            ln.LangW = new float[L];
+            ln.LangH = new float[L];
+            for (int l = 0; l < L; l++)
+            {
+                string t = key != null && _ctx.TranslationAt != null ? _ctx.TranslationAt(key, l) : null;
+                if (key != null && t == null) { ln.LangW[l] = w; ln.LangH[l] = h; continue; }
+                if (key != null) t = StripPlaceholders(t, n);
+                else t = n.Get("text") != null ? _ctx.BoundTextSample : (n.Text ?? "");
+                float tw, th;
+                _ctx.Measurer.Measure(t, size, weight, wrap ? maxW : 0, wrap, out tw, out th);
+                if (maxW > 0 && tw > maxW) tw = maxW;
+                ln.LangW[l] = tw + 2f;
+                ln.LangH[l] = th + 1f;
+            }
+        }
+
+        /// <summary>Label sizes of a container's own text per language: width + 2, height + 1 (0 when it has none).</summary>
+        private void MeasureLabel(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, string key, string literal)
+        {
+            int L = System.Math.Max(1, _ctx.LanguageCount);
+            ln.ContentW = new float[L];
+            ln.ContentH = new float[L];
+            for (int l = 0; l < L; l++)
+            {
+                string t = key != null ? (_ctx.TranslationAt != null ? _ctx.TranslationAt(key, l) : null) : literal;
+                if (key != null && t == null)
+                {
+                    // Unknown language row: the widest translation, as the overall measure does.
+                    float mw = 0, mh = 0;
+                    IEnumerable<string> all = _ctx.Translations != null ? _ctx.Translations(key) : null;
+                    var cands = new List<string>();
+                    if (all != null) cands.AddRange(all);
+                    if (cands.Count == 0) cands.Add(key);
+                    foreach (string c in cands) { float a, b; _ctx.Measurer.Measure(c, s.FontSize, s.FontWeight, 0, false, out a, out b); mw = System.Math.Max(mw, a); mh = System.Math.Max(mh, b); }
+                    ln.ContentW[l] = mw + 2f; ln.ContentH[l] = mh + 1f;
+                    continue;
+                }
+                float tw, th;
+                _ctx.Measurer.Measure(t ?? "", s.FontSize, s.FontWeight, 0, false, out tw, out th);
+                ln.ContentW[l] = tw + 2f;
+                ln.ContentH[l] = th + 1f;
+            }
         }
 
         /// <summary>{placeholders} are replaced by the bound-text sample so the box fits a real value.</summary>
@@ -229,12 +346,17 @@ namespace Armagan.AUI.Core
             return sb.ToString();
         }
 
-        private void MeasureContainer(AuiNode n, AuiResolvedStyle s, float availW, out float w, out float h)
+        private void MeasureContainer(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, float availW, out float w, out float h)
         {
             bool row = s.IsRow;
             float gap = s.Gap;
             float main = 0, cross = 0;
             int flowCount = 0;
+            // Own-label bookkeeping for the runtime solver (mirrors the branches below).
+            if (n.Text != null && n.Children.Count == 0 && n.Get("key") == null) { ln.ContentText = true; MeasureLabel(n, s, ln, null, n.Text); }
+            else if (n.Get("key") != null && (n.Tag == "button" || n.Tag == "toggle" || n.Tag == "tab" || n.Tag == "option")) { ln.ContentText = true; ln.ContentIcon = n.Get("icon") != null; MeasureLabel(n, s, ln, n.Get("key"), null); }
+            else if (n.Get("icon") != null && (n.Tag == "button" || n.Tag == "tab")) ln.ContentIconOnly = true;
+            if (n.Tag == "select") MeasureSelectLabel(n, s, ln);
             if (row && s.Wrap && availW > 0)
             {
                 // Simulate the line breaks the layout pass will make, so the container's
@@ -242,7 +364,7 @@ namespace Armagan.AUI.Core
                 float x = 0, y = 0, lineH = 0, widest = 0;
                 foreach (AuiNode c in n.Children)
                 {
-                    if (S(c).Anchor != "none") continue;
+                    if (!IsFlow(c)) continue;
                     AuiLayoutNode cl = _out[c.Index];
                     AuiBox m = S(c).Margin;
                     float cw = cl.IntrinsicW + m.Horizontal, ch = cl.IntrinsicH + m.Vertical;
@@ -259,7 +381,7 @@ namespace Armagan.AUI.Core
             }
             foreach (AuiNode c in n.Children)
             {
-                if (S(c).Anchor != "none") continue;
+                if (!IsFlow(c)) continue;
                 AuiLayoutNode cl = _out[c.Index];
                 AuiBox m = S(c).Margin;
                 float cw = cl.IntrinsicW + m.Horizontal, ch = cl.IntrinsicH + m.Vertical;
@@ -323,12 +445,45 @@ namespace Armagan.AUI.Core
             else { w = cross + p.Horizontal; h = main + p.Vertical; }
         }
 
+        /// <summary>Widest option label per language for the select header (the runtime adds gap + chevron).</summary>
+        private void MeasureSelectLabel(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln)
+        {
+            int L = System.Math.Max(1, _ctx.LanguageCount);
+            ln.ContentW = new float[L];
+            ln.ContentH = new float[L];
+            for (int l = 0; l < L; l++)
+            {
+                float tw = 0, th = 0;
+                foreach (AuiNode o in n.Children)
+                {
+                    string key = o.Get("key");
+                    var cands = new List<string>();
+                    string at = key != null && _ctx.TranslationAt != null ? _ctx.TranslationAt(key, l) : null;
+                    if (at != null) cands.Add(at);
+                    else
+                    {
+                        IEnumerable<string> all = key != null && _ctx.Translations != null ? _ctx.Translations(key) : null;
+                        if (all != null) cands.AddRange(all);
+                        if (cands.Count == 0) cands.Add(o.Text ?? key ?? "");
+                    }
+                    foreach (string t in cands)
+                    {
+                        float a, b;
+                        _ctx.Measurer.Measure(t, s.FontSize, s.FontWeight, 0, false, out a, out b);
+                        tw = System.Math.Max(tw, a); th = System.Math.Max(th, b);
+                    }
+                }
+                ln.ContentW[l] = tw + 2f;
+                ln.ContentH[l] = th + 1f;
+            }
+        }
+
         private void MeasureRepeat(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, float availW, out float w, out float h)
         {
             AuiRepeatInfo r = RepeatOf(n);
             ln.ContentSized = true;
             AuiNode template = r != null ? r.Template : (n.Children.Count > 0 ? n.Children[0] : null);
-            int count = r != null ? r.Max : 1;
+            int count = CountOf(r);
             float iw = 0, ih = 0;
             if (template != null)
             {
@@ -339,7 +494,14 @@ namespace Armagan.AUI.Core
             }
             float gap = s.Gap;
             AuiBox p = s.Padding;
-            if (s.IsRow && !s.Wrap) { w = iw * count + gap * (count - 1) + p.Horizontal; h = ih + p.Vertical; }
+            if (count <= 0)
+            {
+                // No rows: the box is what <empty> needs (it fills the content box), so its message has room.
+                float ew = 0, eh = 0;
+                if (r != null && r.Empty != null) { ew = _out[r.Empty.Index].IntrinsicW; eh = _out[r.Empty.Index].IntrinsicH; }
+                w = ew + p.Horizontal; h = eh + p.Vertical;
+            }
+            else if (s.IsRow && !s.Wrap) { w = iw * count + gap * (count - 1) + p.Horizontal; h = ih + p.Vertical; }
             else if (s.IsRow)
             {
                 // Grid: as many per line as the available width allows, then stacked lines.
@@ -359,6 +521,13 @@ namespace Armagan.AUI.Core
         {
             AuiLayoutNode ln = _out[n.Index];
             AuiResolvedStyle s = S(n);
+            if (ln.Hidden)
+            {
+                ln.Local = new AuiRect(local.X, local.Y, 0, 0);
+                ln.Absolute = new AuiRect(absolute.X, absolute.Y, 0, 0);
+                ln.Content = new AuiRect();
+                return;
+            }
             ln.Local = local;
             ln.Absolute = absolute;
             AuiBox p = s.Padding;
@@ -392,13 +561,13 @@ namespace Armagan.AUI.Core
                 return;
             }
 
-            // ---- anchored children
+            // ---- out-of-flow children (absolute, anchored, hidden)
             var flow = new List<AuiNode>();
             foreach (AuiNode c in n.Children)
             {
-                string a = S(c).Anchor;
-                if (a == "none") { flow.Add(c); continue; }
-                LayoutAnchored(c, a, content, absolute);
+                if (IsFlow(c)) { flow.Add(c); continue; }
+                if (_out[c.Index].Hidden) { Layout(c, new AuiRect(content.X, content.Y, 0, 0), new AuiRect(absolute.X + content.X, absolute.Y + content.Y, 0, 0)); continue; }
+                LayoutAbsolute(c, content, absolute);
             }
             if (flow.Count == 0) return;
 
@@ -415,22 +584,57 @@ namespace Armagan.AUI.Core
             Layout(c, r, new AuiRect(parentAbs.X + r.X, parentAbs.Y + r.Y, r.W, r.H));
         }
 
-        private void LayoutAnchored(AuiNode c, string anchor, AuiRect content, AuiRect parentAbs)
+        /// <summary>
+        /// The ONE placement routine for everything out of flow, mirrored by the Udon solver:
+        /// anchor: fill is absolute with four zero edges; the other anchors centre on the
+        /// axis they do not pin; top/right/bottom/left (negatives allowed) pin an edge to the
+        /// parent's content box; an explicit size wins over an opposite edge; two opposite edges
+        /// with no size stretch between them; otherwise the intrinsic size is used.
+        /// </summary>
+        private void LayoutAbsolute(AuiNode c, AuiRect content, AuiRect parentAbs)
         {
-            if (anchor == "fill") { LayoutFill(c, content, parentAbs); return; }
             AuiLayoutNode cl = _out[c.Index];
             AuiResolvedStyle cs = S(c);
-            float w = cs.Width.IsPercent ? content.W * cs.Width.Value / 100f : cl.IntrinsicW;
-            float h = cs.Height.IsPercent ? content.H * cs.Height.Value / 100f : cl.IntrinsicH;
-            float x = content.X, y = content.Y;
-            switch (anchor)
+            string anchor = cs.Anchor;
+            bool fill = anchor == "fill";
+            AuiLength top = cs.Top, right = cs.Right, bottom = cs.Bottom, left = cs.Left;
+            if (fill)
             {
-                case "top": x = content.X + (content.W - w) / 2; y = content.Y; break;
-                case "bottom": x = content.X + (content.W - w) / 2; y = content.Y + content.H - h; break;
-                case "left": x = content.X; y = content.Y + (content.H - h) / 2; break;
-                case "right": x = content.X + content.W - w; y = content.Y + (content.H - h) / 2; break;
-                case "center": x = content.X + (content.W - w) / 2; y = content.Y + (content.H - h) / 2; break;
+                if (!top.IsSet) top = AuiLength.Mm(0);
+                if (!right.IsSet) right = AuiLength.Mm(0);
+                if (!bottom.IsSet) bottom = AuiLength.Mm(0);
+                if (!left.IsSet) left = AuiLength.Mm(0);
             }
+            float t = top.IsSet && !top.IsAuto ? top.Resolve(content.H, 0) : 0;
+            float rr = right.IsSet && !right.IsAuto ? right.Resolve(content.W, 0) : 0;
+            float b = bottom.IsSet && !bottom.IsAuto ? bottom.Resolve(content.H, 0) : 0;
+            float l = left.IsSet && !left.IsAuto ? left.Resolve(content.W, 0) : 0;
+            bool hasT = top.IsSet && !top.IsAuto, hasR = right.IsSet && !right.IsAuto, hasB = bottom.IsSet && !bottom.IsAuto, hasL = left.IsSet && !left.IsAuto;
+
+            float w, h;
+            if (cs.Width.IsSet && !cs.Width.IsAuto) w = cs.Width.IsPercent ? content.W * cs.Width.Value / 100f : cs.Width.Value;
+            else if (hasL && hasR) w = content.W - l - rr;
+            else w = cl.IntrinsicW;
+            if (cs.Height.IsSet && !cs.Height.IsAuto) h = cs.Height.IsPercent ? content.H * cs.Height.Value / 100f : cs.Height.Value;
+            else if (hasT && hasB) h = content.H - t - b;
+            else h = cl.IntrinsicH;
+            w = Clamp(System.Math.Max(0, w), cs.MinWidth, cs.MaxWidth);
+            h = Clamp(System.Math.Max(0, h), cs.MinHeight, cs.MaxHeight);
+
+            float x, y;
+            if (hasL) x = content.X + l;
+            else if (hasR) x = content.X + content.W - rr - w;
+            else if (anchor == "top" || anchor == "bottom" || anchor == "center") x = content.X + (content.W - w) / 2;
+            else if (anchor == "right") x = content.X + content.W - w;
+            else x = content.X;
+            if (hasT) y = content.Y + t;
+            else if (hasB) y = content.Y + content.H - b - h;
+            else if (anchor == "left" || anchor == "right" || anchor == "center") y = content.Y + (content.H - h) / 2;
+            else if (anchor == "bottom") y = content.Y + content.H - h;
+            else y = content.Y;
+
+            // A fill with no edge overrides and no explicit size still bakes as stretch anchors.
+            if (fill && !cs.Width.IsSet && !cs.Height.IsSet && !cs.Top.IsSet && !cs.Right.IsSet && !cs.Bottom.IsSet && !cs.Left.IsSet) cl.AnchorFill = true;
             var r = new AuiRect(x, y, w, h);
             Layout(c, r, new AuiRect(parentAbs.X + r.X, parentAbs.Y + r.Y, r.W, r.H));
         }
@@ -563,9 +767,22 @@ namespace Armagan.AUI.Core
         {
             AuiRepeatInfo r = RepeatOf(n);
             AuiNode template = r != null ? r.Template : (n.Children.Count > 0 ? n.Children[0] : null);
-            int count = r != null ? r.Max : 1;
+            int count = CountOf(r);
             ln.Instances = new List<AuiRect>();
             if (template == null) return;
+            if (count <= 0)
+            {
+                // No rows: the template still gets a rect (row 0) so the builder has something to bake.
+                var tl0 = _out[template.Index];
+                var m0 = S(template).Margin;
+                float iw0 = tl0.IntrinsicW, ih0 = tl0.IntrinsicH;
+                if (!s.IsRow && !S(template).Width.IsSet) iw0 = System.Math.Max(iw0, content.W - m0.Horizontal);
+                ln.Instances.Add(new AuiRect(m0.Left, m0.Top, iw0, ih0));
+                var local0 = new AuiRect(content.X + m0.Left, content.Y + m0.Top, iw0, ih0);
+                Layout(template, local0, new AuiRect(parentAbs.X + local0.X, parentAbs.Y + local0.Y, local0.W, local0.H));
+                if (r != null && r.Empty != null) LayoutFill(r.Empty, content, parentAbs);
+                return;
+            }
             AuiLayoutNode tl = _out[template.Index];
             AuiResolvedStyle ts = S(template);
             AuiBox m = ts.Margin;

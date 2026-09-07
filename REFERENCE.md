@@ -50,6 +50,7 @@ package.json                  VPM manifest; vpmDependencies com.vrchat.worlds ^3
 README.md  REFERENCE.md       this document and the short one
 Runtime/                      asmdef Armagan.AUI (autoReferenced) + Armagan.AUI.U#.asset
   AuiView.cs                  base class of every view: tables, states, transitions, pages, repeats, selects, input, i18n
+  AuiView.Styles.cs / .Layout.cs / .Create.cs / .Modal.cs / .Elements.cs / .Variables.cs  the runtime cascade, solver, templates, modals, selectors, :root variables
   AuiSignal.cs                per-element relay: uGUI UnityEvent -> view._OnSignal(id, kind)
   AuiLanguageService.cs       the flat language table, detection, persistence, fan-out, tween probe
   AuiInputPanel.cs            the invisible keyboard click target (port of the world's InputPanelManager)
@@ -230,6 +231,12 @@ binding; the binding defaults to true), `hidden` (baked inactive).
 | `page` | `id` | any | must be under `pages`; gets a CanvasGroup and `page-transition` |
 | `repeat` | `id`, `max` (1..64); `onselect` | one template + optional `empty` | template bindings are `{item.x}`; no nested repeats |
 | `empty` | | any | shown when the repeat count is 0 |
+| `modal` | `id`, `enabled` (`{bool}` or true/false), `dismissable`, `show`; `onopen`, `onclose` | any | a dialog over a dimming backdrop; direct child of `view`; out of the flow (theme centres it); backdrop click closes unless `dismissable="false"` |
+| `template` | `id`, `max` (1..64) | one child (no `modal`, `repeat`, `template` inside) | `max` parked copies, baked last in element order and hidden; `CreateElement(T_ID, parent, index)` links one under any container, `DestroyElement` parks it; `{item.x}` bindings become `SetIdX(elem, value)`; direct child of `view` |
+| `slot` | `id`, `views` (view names), `max` | none | sugar: one template per listed view holding a parked prefab copy; `CreateView(...)` / generated `CreateIdView(parent)` returns the `AuiView` |
+| `prop` | `name`, `type` (string, int, float, bool; default string), `default` | none | declares a typed property of the view (a binding that exists even when unused) or of a `component`; lifted out of the tree |
+| `event` | `name`, `type` (payload type or absent) | none | declares an event the view raises with `EmitString/EmitInt/EmitFloat/EmitBool`; a host's `on-name` handler takes the payload |
+| `component` | `name` (capitalised) | one template child, plus `prop` declarations | an inline template; `<Name prop="v"/>` in the same file is replaced by a clone with `{prop}` substituted (literal or a passed-through `{binding}`); the usage's `id`, `class`, `style`, `if` merge onto the clone, inner ids get `usageId_` |
 | `Name` | any attribute = the child view's binding; `on-<event>="Handler"` | none | nested view `Name.aui`; capitalised tag |
 
 Bindings: `{name}` (view level) or `{item.name}` (inside a repeat template). Names are identifiers.
@@ -252,7 +259,22 @@ Selectors: `tag`, `.class`, `tag.class`, any of those `:hover` / `:pressed` / `:
 other. Comments `/* */` and `//`. A missing `;` before a line that looks like `name:` is tolerated
 with a warning.
 
-Cascade: tiers Theme < Linked < Inline (`<style>`) < Attribute (`style=""`); within a tier
+Selectors: `tag`, `.class`, `tag.class`, `*`, each with an optional `:hover` / `:pressed` /
+`:selected` / `:disabled`; `:root` for variables; `modal::backdrop` (also `modal.x::backdrop`)
+for the dimming scrim behind a modal; `.*name` for a star class (style-only: no `C_` constant,
+not searchable, its own 256 budget). The built-in utilities (`Core/Schema/AuiUtilityClasses.cs`,
+generated) are star classes in the Utility tier; a view bakes only the ones it references
+(markup or `<view utilities="...">`).
+
+Bound values: in a `style=""` attribute a declaration may be `{binding}` tokens only
+(`width: {w}`, `offset: {x} {y}`, `padding: {v} {h}`); the resolver records them in
+`AuiResolvedStyle.Bound`, the bake uses the default, and the generated setter calls
+`SetStyleBindingF/C/S(elem, prop, index, value)` which writes an attribute-tier override the
+runtime cascade applies last. Types by kind: Number/Offset float, Color/Background `Color`,
+Length/Box/Enum string (parsed in Udon by `ParseLength` / `EnumOrdinal`). AUI213 for a mixed
+or unbindable value; sheet rules cannot bind.
+
+Cascade: tiers Theme < Utility < Linked < Inline (`<style>`) < Attribute (`style=""`); within a tier
 specificity tag 1, class 2, tag.class 3, plus 10 with a state; later declaration wins ties.
 Variables are collected from every `:root` in tier order (later wins) and substituted as
 `var(--x)` or `var(--x, fallback)`; an undefined variable is an error. Inheritance is limited to
@@ -266,7 +288,10 @@ Properties (unit mm unless stated):
 | Property | Values | Notes |
 |---|---|---|
 | `width`, `height`, `min-*`, `max-*` | number, `Nmm`, `N%`, `auto` | percent against the parent's content box |
-| `anchor` | none, fill, top, bottom, left, right, center | absolute placement in the parent |
+| `anchor` | none, fill, top, bottom, left, right, center | absolute placement in the parent; `fill` equals `position: absolute` with four zero edges |
+| `display` | flex, none | `none` removes the element and the space it took (so does the `hidden` attribute) |
+| `position` | static, absolute | `absolute` leaves the flow; place it with the edges below |
+| `top`, `right`, `bottom`, `left` | number, `Nmm`, `N%` | edges from the parent's content box for `position: absolute`; negatives allowed; two opposite edges without a size stretch the element between them; a size wins over the opposite edge (AUI403) |
 | `padding`, `margin` | 1 to 4 numbers (CSS order) | |
 | `gap` | number | between flow children |
 | `flex-direction` | row, column | default column |
@@ -275,7 +300,7 @@ Properties (unit mm unless stated):
 | `grow` | number | share of leftover main-axis space |
 | `wrap` | true, false | row containers only |
 | `color` | `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`, `rgba()`, transparent, white, black | text; animatable |
-| `background` | none, color, `sprite(Name) color` | animatable (color part); a sprite change is instant |
+| `background` | none, color, `sprite(Name) color`, `material(Name) color`, `shader(Name) color` | animatable (color part); a sprite or material change is instant. `material(Name)` is a Material asset found by name; `shader(Name)` gets one generated material per shader under `Assets/AUI/Generated/Materials`. Either combines with `sprite()`; the sprite (or the radius sprite) stays the texture and the colour the vertex tint. Not valid in `color` |
 | `border` | color or none | a Border child image; animatable |
 | `radius` | number | picks Rounded4/8/12/16/24 |
 | `opacity` | number | needs a CanvasGroup (added automatically); animatable |
@@ -292,8 +317,101 @@ Properties (unit mm unless stated):
 
 State rules may only set `color`, `background`, `border`, `icon-color`, `opacity`, `scale`,
 `offset` (error AUI210 otherwise). At runtime the state precedence is disabled > pressed > selected
-> hover > normal, and the normal rows are re-applied before a state's rows so leaving a state
-restores every property.
+> hover > normal, and the normal values are re-applied before a state's declarations so leaving a
+state restores every property.
+
+### The cascade at runtime
+
+The stylesheet is baked twice: into the prefab (the look at rest) and into flat tables on the
+view (`AuiRuleTable`: every rule of every sheet plus every `style=""`, pre-sorted by tier,
+specificity and order; declarations typed as float4 plus a reference; per-element tag, node and
+class masks). `Runtime/AuiView.Styles.cs` re-resolves an element from those tables whenever its
+classes change: inherit from the parent, then let each matching rule of the tag bucket overwrite,
+which is the compile-time cascade without sorting. Only the properties whose value changed are
+applied, through the element's own `transition`, and the element's descendants are re-resolved
+so inherited properties follow. State rules are collected per element and applied on top as
+before.
+
+Classes are 64-bit masks per element (two ints; more than 64 classes visible to one view is
+error AUI211): the static mask from the markup, one mask per `{binding}` in the class attribute,
+a mask for `AddClass`, and a mask for `RemoveClass` of a static or bound class. The attribute
+mixes both: `class="card {tone} {extra}"`, where each binding is a string of space-separated
+names set through its generated property. API on every view: `ClassId(name)`,
+`AddClass/RemoveClass/ToggleClass/HasClass(elem, classId)`, the `...Named(elem, name)` variants,
+`SetClasses(elem, "a b")` for the API mask, and generated `C_NAME` constants for every class any
+sheet of the view defines (so a class used only at runtime still needs a rule somewhere).
+
+Runtime creation (`Runtime/AuiView.Create.cs`): a `<template>` is an `AuiRepeatInfo` with
+`IsTemplate`; `AuiPoolSynthesizer` turns `<view pool="text:16">` and `<slot>` into templates
+(`PoolTag`, `SlotId`/`SlotView`). The index map walks templates after everything else so a
+parked instance's index is higher than any parent it may get; the solver's pre-order rule
+survives reparenting. The layout tables keep the template and its instance roots hidden;
+`CreateElement` picks a free row, moves the instance's GameObject under the parent, links it into
+the mutable `layParent/layFirstChild/layNextSibling` arrays at the index, shows it, re-resolves
+its cascade and marks the layout dirty. `DestroyElement` unlinks, hides and parks it under the
+template's holder object. `MoveElement` relinks. `CreateView` does the same for a slot's parked
+prefab copy and returns its `AuiView` (`elemChildView`). Class changes on a parent re-resolve
+the created instances linked below it too. Tables: `repeatIsTemplate`, `repeatElem`,
+`poolTag/poolTemplate`, `slotId/slotView/slotTemplate`. Codegen: `T_ID`, `CreateId(parent)`,
+`SetIdX(elem, value)` (row from `InstanceRow`), `CreateSlotView(parent)`; a view inside a template
+has no single generated field and its `on-x` handlers receive the instance element first.
+
+Components and props: an inline `<component>` is expanded by `Core/Resolve/AuiTemplateExpander.cs`
+right after parsing (before the cascade), so its clones are ordinary elements; nothing of it
+exists at runtime. A cross-file nested view declares `<prop>`s, which the analyzer turns into
+typed bindings with defaults (`AuiBinding.IsProp`, `Default`); a host that names an undeclared
+prop on a child that declares any gets error AUI121, and a bound prop takes the child's type.
+`<event name type>` declarations give the host's `on-name` handler a typed parameter; the child
+calls `EmitString/EmitInt/EmitFloat/EmitBool(name, value)`, which parks the value in the public
+`emitS/emitI/emitF/emitB` fields before `_OnChildEvent`, and the generated `_OnChildEvent`
+passes `child.emitX` to the handler. Payloads cross the behaviour boundary through those
+exported fields, the same rule as `inputResult`.
+
+Modals (`Runtime/AuiView.Modal.cs`): `<modal id enabled dismissable show>` with `onopen` /
+`onclose`, a direct child of `<view>`, out of the flow (the theme anchors it centre). The index
+map bakes a `KIND_MODAL_SCRIM` element (full-size image, own signal, CanvasGroup) right before
+the body; the builder appends both to the popups so they are the last children of Content, and
+bakes them inactive unless `enabled="true"` (or the preview shows them). Runtime tables
+`modalElem/modalScrimElem/modalScrimSig/modalKind/modalDismissable/modalStartOpen`;
+`SetModal(m, open, notify)`, generated `OpenX/CloseX/IsXOpen` and `M_X`, `IsModalOpen`,
+`TopModal`, `Back()` (select first, then the top dismissable modal), `_OnModalChanged` override
+(binding + handlers). Opening re-sends scrim and body to the end of Content (last opened on
+top), fades the scrim and runs the body's `show` transition; a `_ModalSnap` deactivates closed
+ones after the tween. The backdrop is styled through the `modal::backdrop` pseudo-element
+(`AuiSelector.Pseudo`, resolved into `AuiResolvedStyle.Backdrop`; background and opacity are
+read).
+
+Selectors and element ops (`Runtime/AuiView.Elements.cs`): `GetElement("#id")` (baked
+`idNames`/`idElem`, row 0 of a repeat), `GetElements(".class" | "tag" | "#id")`, `SetText`
+(escaped, re-measured), `GetText`, `SetIcon` (from `iconNames`/`iconSprites`: every icon the
+view uses plus `<view icons="...">`), `SetBackground` (from the rule table's sprite refs plus
+`<view sprites="...">`), `GetRect`, `GetObject`, `GetBackgroundImage`, `IsElementShown`. An element
+with an id is built with a CanvasGroup so `SetOpacity` works on it.
+
+Runtime-changeable: every property except `radius`, `font-weight`, the weight half of `font`,
+`page-transition` and `show` (marked BakeOnly in the schema). Udon cannot swap a text's font
+asset, so a class that sets a weight and is not used literally in the markup gets warning AUI212;
+its font size still applies. Layout properties changed by a class write the layout tables and
+schedule a solve; `font-size` also re-measures the text. `SetStyleValue(elem, PROP_X, value)` and
+the `SetOpacity/SetColor/SetBackgroundColor/SetIconColor/SetScale/SetFontSize/SetTextAlign`
+helpers write one property directly, until the next class change on that element.
+
+Variables at runtime (`Runtime/AuiView.Variables.cs`): the rule table carries the merged `:root`
+variables (`VarNames` sorted, `VarValues`) and, per declaration, `DeclTemplate`: the raw value when
+it contains `var()`, else null (the builder bakes null as `""`). `SetStyleVariable(name, value)`
+(name with or without `--`, value as stylesheet text) rewrites `varValues`, re-substitutes every
+templated declaration (`SubstituteVars`, the same loop as `AuiRuleTable.Substitute`), re-encodes it
+in Udon (`EncodeStyleValue`, the runtime half of `AuiRuleTable.Encode`: colours through `ParseColor`,
+lengths through `ParseLength`, enums through `EnumOrdinal`; the sprite/material halves of a
+background are their own declarations and are skipped) into `declValue`, and re-resolves every
+element (`ReResolveAll`, parked instances and scrims included) so only changed properties are
+applied, through each element's transition; state rules read `declValue` directly so they follow
+too. The call is forwarded to every `elemChildView`. `SetStyleVariableColor` writes `#RRGGBBAA`,
+`SetStyleVariableFloat` a locale-free number; `GetStyleVariable` reads the current text. A value
+that fails to encode leaves that declaration and logs once. `AuiLanguageService.SetStyleVariable`
+remembers the value and calls `_ApplyStyleVariable` (this view only, quiet) on every registered
+view; a view's `_AuiStart` reads the remembered list back (`StyleVariableCount/Name/Value`) right
+after registering and applies it instantly (`_instantResolve`), so late starters match.
 
 Eases: linear, in/out/in-out quad, cubic, quart, sine, expo, back, bounce, elastic, written
 `out-quad`, `in-out-back`, etc. The builder maps them to `VRCTweenEase` by name.
@@ -316,17 +434,55 @@ height override; min/max clamp.
 Layout (top-down): each child gets a rect. Grow shares leftover; justify places the rest; align
 positions on the cross axis (stretch fills unless the child has an explicit size). On overflow,
 text and content-sized children shrink proportionally (floor 24 mm) before a warning AUI400 is
-raised. `wrap: true` rows break into lines. `anchor` children are placed absolutely. `pages`
-children fill. A repeat lays out instance 0 and records `Instances[]` offsets for the clones; a
-column repeat stretches rows to its width. Select options are stacked below the header at its
-width (the builder moves them into the popup).
+raised. `wrap: true` rows break into lines. Out-of-flow children (`display: none`, `hidden`,
+`position: absolute`, `anchor`) take no space; `display: none` and `hidden` are not laid out at
+all, the others go through one placement routine (`LayoutAbsolute`): an explicit size wins, two
+opposite edges stretch, otherwise the intrinsic size; a set edge pins that side, otherwise the
+anchor centres. `pages` children fill. A repeat lays out instance 0 and records `Instances[]`
+offsets for the clones; a column repeat stretches rows to its width; with zero rows the box is
+the size of its `<empty>`. Select options are stacked below the header at its width (the builder
+moves them into the popup).
 
 Output per node: `Local` (relative to parent top-left, y down), `Absolute`, `AnchorFill`,
-`ContentSized`, `Content` box, and `Instances` for repeats.
+`Hidden`, `OutOfFlow`, `ContentSized`, `Content` box, `Instances` for repeats, and the raw
+measurements the runtime solver starts from (`RawW/H`, per-language `LangW/H` for text, per-language
+`ContentW/H` for a container's own label).
 
 Baking: anchors top-left, pivot centre (scale tweens grow from the middle), `anchoredPosition =
-(x + w/2, -(y + h/2))`, `sizeDelta = (w, h)`. `AnchorFill` becomes real stretch anchors. A bound
-text without an explicit width gets a horizontal `ContentSizeFitter` so runtime text grows.
+(x + w/2, -(y + h/2))`, `sizeDelta = (w, h)` for every element, including fills and bound texts.
+
+### The runtime solver
+
+The same layout runs again in-world. `AuiLayoutTables.Build` flattens the compile result into
+arrays indexed by runtime element index (parent, first child, next sibling, kind, flags, enums,
+padding, margin, sizes as (kind, value) pairs, edges, intrinsic sizes, per-language text and label
+sizes) and the builder copies them onto the view (`lay*` fields). `Runtime/AuiView.Layout.cs` is a
+port of the solver over those arrays: no recursion (indices are pre-order, so measure is a reverse
+loop and place a forward loop), no allocation per solve, one solve per frame.
+
+What triggers a solve: a text written through `SetElemText` (every generated text setter and
+`SetText` use it), `SetActiveElem` / `SetDisplay`, `SetRepeatCount`, a page entering, a language
+change (`_Retranslate` swaps in that language's baked text sizes), `SetPosition`, `SetSize`, a
+nested view's host giving it a new size. Setters call `MarkLayoutDirty()`, which schedules
+`_AuiSolveLayout` one frame later with `SendCustomEventDelayedFrames`; `Relayout()` /
+`RelayoutNow()` solve at once; `SetAutoRelayout(false)` parks the flag so a batch of changes
+solves once on `Relayout()` or `SetAutoRelayout(true)`. `_AuiStart` ends with a synchronous solve,
+so the initial binding values and the player's language are laid out before the first frame.
+
+Text a setter changed is measured through `LayoutUtility.GetPreferredWidth/Height` on the label's
+RectTransform (TMP's own `GetPreferredValues` is not exposed to Udon; `TextMeshProUGUI` implements
+`ILayoutElement`, so `LayoutUtility` asks it). A wrapped text is first given the width it wraps at
+(`max-width` / `width`, else the width of the last solve) and rebuilt with
+`LayoutRebuilder.ForceRebuildLayoutImmediate`. An inactive text (on a hidden page) keeps its dirty
+bit and is measured on the solve that follows its activation. Untouched text uses the baked size
+of the current language, so a view with no runtime text never measures anything.
+
+Nested views: the host reserves the child's declared `<view width height>` (the bake's size),
+writes the solved rect and calls `_AuiSetLayoutSize` on the child, which re-solves its own tree
+at that size. Select popups follow their header (below it, or above when there is no room,
+clamped into the view, the builder's rule). `debugLayout` on a view logs every solve with its
+time. `Tests/Editor/AuiLayoutParityTests.cs` runs the Core solver and the runtime solver on the
+same fixtures and asserts every rect matches, also at runtime repeat counts.
 
 ## 7. Languages and fonts
 
@@ -379,7 +535,8 @@ Public API: `Show()`, `Hide()`, `ShowInstant()`, `HideInstant()`, `Toggle()`, `I
 `GetPage(group)`, `SelectPage(group, page, notify)`; `GetRepeatCount(r)`, `SetRepeatCount(r, n)`,
 `RowElem(r, row, offset)`; `GetSelect(s)`, `SetSelect(s, i)`, `SetSelectOptionLabel(s, i, label)`,
 `SetSelectOptionCount(s, n)`, `CloseSelect()`; `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v,
-decimals)`; `_Retranslate()`.
+decimals)`; `_Retranslate()`; `SetStyleVariable(name, value)`, `SetStyleVariableColor(name, c)`,
+`SetStyleVariableFloat(name, f)`, `GetStyleVariable(name)`, `StyleVariableId(name)` (section 5).
 
 Author hooks (override in your `.cs`): `OnStart()` after wiring and initial values,
 `OnRetranslate()` after a language switch, `OnShown()`, `OnHidden()`. `Emit("name")` in a nested
@@ -413,7 +570,9 @@ the value, renders the header label from the option's label, closes, and calls `
 `AuiLanguageService`: `langCodes`, `langNames`, `defaultLang`, `keyCount`, `keys`, `values`
 (baked, hidden). `Get(key)` falls back default language then key text. `Register(view)`,
 `SetLanguage(i)`, `SetLanguageByCode(code)`, `ClearChoice()`, `GetLanguage()`,
-`GetLanguageCode()`, `LanguageCount()`, `LanguageName(i)`, `IndexOfKey(name)` (slow, editor use).
+`GetLanguageCode()`, `LanguageCount()`, `LanguageName(i)`, `IndexOfKey(name)` (slow, editor use);
+`SetStyleVariable(name, value)` / `GetStyleVariable(name)` / `StyleVariableCount/Name/Value` (the
+world-wide theme override list, section 5).
 Detection: default language at start, then the local player's join reads
 `VRCPlayerApi.GetCurrentLanguage()` (exact code, then base code, then default); a pick is
 remembered in PlayerData `aui.lang` as the code, after `OnPlayerRestored`. `TweensAvailable()`
@@ -519,7 +678,7 @@ constants in `AuiView`.
   child prefab with its root-only components removed and `parentView` set.
 - After filling the tables: `ApplySyncMode`, `CopyProxyToUdon` on the view, every signal and every
   nested view, then a check that `elemObjects` reached the Udon heap and that `inputResult`,
-  `inputResultId`, `elemObjects`, `auiBakeHash` are exported symbols. `AuditComponents` logs any
+  `inputResultId`, `elemObjects`, `auiBakeHash`, `layParent`, `layLangW`, `elemChildView` are exported symbols. `AuditComponents` logs any
   destroyed component left in the tree.
 
 ## 12. Diagnostics
@@ -535,10 +694,12 @@ binding type conflict, 109 handler not identifier, 110 missing required attribut
 bad binding syntax, 117 literal text info, 118 item binding outside repeat, 119 unknown icon, 120
 repeat max); 2xx stylesheet (200 syntax, 201 unknown property, 202 bad value, 203 undefined
 variable, 204 unknown state, 205 bad selector, 206 unused class, 207 unknown class, 208 sheet not
-found, 209 bad transition, 210 non-animatable in a state); 3xx languages (300 missing translation,
+found, 209 bad transition, 210 non-animatable in a state, 211 more than 64 classes, 212 bake-only
+font weight on a runtime-only class); 3xx languages (300 missing translation,
 301 missing default, 302 file syntax, 303 unknown key, 304 placeholder not bound, 305 no
 languages, 306 duplicate key, 307 placeholder mismatch); 4xx layout (400 overflow, 401 negative
-size); 5xx build (500 class missing, 501 program asset missing, 502 handler missing, 503 prefab
+size, 402 absolute without edges, 403 edge conflict, 404 edge on a non-absolute element, 405
+display/position on the root); 5xx build (500 class missing, 501 program asset missing, 502 handler missing, 503 prefab
 build failed, 504 export missing); 6xx fonts (600 stale, 601 glyph missing, 602 source missing).
 Unknown names come with a "did you mean" from an optimal-string-alignment distance (a swapped
 pair costs 1).

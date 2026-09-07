@@ -136,3 +136,16 @@ option:selected { color: var(--accent); }
 
 repeat { flex-direction: column; gap: 8; }
 empty  { color: var(--muted); }
+
+/* A modal floats over the view, centred; its backdrop dims everything behind it. */
+modal {
+  anchor: center;
+  background: sprite(Rounded12) var(--panel);
+  border: var(--border);
+  padding: 16;
+  gap: 12;
+  flex-direction: column;
+  min-width: 200;
+  show: fade-scale;
+}
+modal::backdrop { background: rgba(0, 0, 0, 0.6); }

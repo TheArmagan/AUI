@@ -139,7 +139,7 @@ namespace Armagan.AUI.Generated
             if (!_started) { _auiStashI = row; _auiStashS = value; _AuiStart(); row = _auiStashI; value = _auiStashS; }
             if (row < 0 || row >= 3) return;
             string v = Escape(value);
-            if (elemText[7 + row * 4] != null) elemText[7 + row * 4].text = v;
+            SetElemText(7 + row * 4, v);
         }
         public void SetRowsFav(int row, bool value)
         {
@@ -183,12 +183,12 @@ namespace Armagan.AUI.Generated
         {
             if (elemText[2] == null) return;
             if (lang == null || elemKey[2] < 0) return;
-            elemText[2].text = Fill1(lang.Get(elemKey[2]), "{playerName}", _playerName);
+            SetElemText(2, Fill1(lang.Get(elemKey[2]), "{playerName}", _playerName));
         }
         private void Render_3()
         {
             if (elemText[3] == null) return;
-            elemText[3].text = _status;
+            SetElemText(3, _status);
         }
         private void Render_25()
         {

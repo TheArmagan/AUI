@@ -31,7 +31,7 @@ namespace Armagan.AUI
     /// written by the builder at edit time. None of them may become [NonSerialized].
     /// </summary>
     [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
-    public class AuiView : UdonSharpBehaviour
+    public partial class AuiView : UdonSharpBehaviour
     {
         // ---- signal kinds
         public const int SIG_CLICK = 0, SIG_ENTER = 1, SIG_EXIT = 2, SIG_DOWN = 3, SIG_UP = 4, SIG_VALUE = 5;
@@ -71,17 +71,6 @@ namespace Armagan.AUI
         [Header("Signals")]
         [HideInInspector] public int[] sigElem;
         [HideInInspector] public AuiSignal[] signals;
-
-        [Header("State style rows")]
-        [HideInInspector] public int[] styleRangeStart;  // [sig * STATE_COUNT + state]
-        [HideInInspector] public int[] styleRangeCount;
-        [HideInInspector] public int[] styleProp;
-        [HideInInspector] public Vector4[] styleValue;
-        [HideInInspector] public Sprite[] styleSprite;
-        [HideInInspector] public float[] styleDur;
-        [HideInInspector] public int[] styleEase;        // VRCTweenEase as int
-        [HideInInspector] public int[] styleChannel;     // one tween handle slot per (element, property)
-        [HideInInspector] public int channelCount;
 
         [Header("View transition")]
         [HideInInspector] public int showKind = TRANS_FADE_SCALE;
@@ -124,7 +113,6 @@ namespace Armagan.AUI
 
         // ---- runtime
         private bool[] _hover, _press, _selected, _disabled, _toggleOn;
-        private VRCTweenHandle[] _chan;
         private VRCTweenHandle _fadeH, _scaleH, _slideH;
         private int _seq, _snapSeq;
         private bool _visible;
@@ -177,7 +165,6 @@ namespace Armagan.AUI
             _selected = new bool[_signalCount];
             _disabled = new bool[_signalCount];
             _toggleOn = new bool[n];
-            _chan = new VRCTweenHandle[channelCount > 0 ? channelCount : 1];
 
             int groups = pageGroupStart == null ? 0 : pageGroupStart.Length;
             _pageCur = new int[groups];
@@ -196,6 +183,10 @@ namespace Armagan.AUI
                 _selectValue[s] = 0;
                 if (elemObjects[selectPopupElem[s]] != null) elemObjects[selectPopupElem[s]].SetActive(false);
             }
+            _AuiLayoutInit();
+            _AuiStylesInit();
+            _AuiModalsInit();
+            _AuiCreateInit();
 
             // A PREFAB CANNOT REFERENCE SCENE OBJECTS, so a view placed from its prefab arrives with
             // lang and inputPanel null. Both live on well-known, always-active objects; Find once.
@@ -209,7 +200,15 @@ namespace Armagan.AUI
                 GameObject ip = GameObject.Find("AUI Input Panel");
                 if (ip != null) inputPanel = ip.GetComponent<AuiInputPanel>();
             }
-            if (lang != null) lang.Register(this);
+            if (lang != null)
+            {
+                lang.Register(this);
+                // Theme variables set through the service before this view started: apply them now, instantly.
+                int vc = lang.StyleVariableCount();
+                _instantResolve = true;
+                for (int k = 0; k < vc; k++) _ApplyStyleVariable(lang.StyleVariableName(k), lang.StyleVariableValue(k));
+                _instantResolve = false;
+            }
             _Retranslate();
 
             for (int s = 0; s < _signalCount; s++) ApplyState(s);
@@ -223,6 +222,13 @@ namespace Armagan.AUI
             if (startHidden) HideInstant(); else ShowInstant();
             _AfterStart();
             OnStart();
+            // The prefab is baked for the widest translation; the first solve lays the current
+            // language and the initial binding values out before the first frame is drawn.
+            if (_layoutReady)
+            {
+                _layoutDirty = true;
+                _AuiSolveLayout();
+            }
         }
 
         /// <summary>
@@ -245,9 +251,11 @@ namespace Armagan.AUI
         protected int _auiStashI, _auiStashI2;
         protected bool _auiStashB;
         protected float _auiStashF;
-        protected string _auiStashS;
+        protected string _auiStashS, _auiStashS2;
+        protected Color _auiStashC;
 
         protected string EnsureStartedS(string v) { if (_started) return v; _auiStashS = v; _AuiStart(); return _auiStashS; }
+        protected Color EnsureStartedC(Color v) { if (_started) return v; _auiStashC = v; _AuiStart(); return _auiStashC; }
         protected int EnsureStartedI(int v) { if (_started) return v; _auiStashI = v; _AuiStart(); return _auiStashI; }
         protected float EnsureStartedF(float v) { if (_started) return v; _auiStashF = v; _AuiStart(); return _auiStashF; }
         protected bool EnsureStartedB(bool v) { if (_started) return v; _auiStashB = v; _AuiStart(); return _auiStashB; }
@@ -480,6 +488,7 @@ namespace Armagan.AUI
                 else if (k == KIND_INPUT) { if (inputPanel != null) inputPanel.OpenText(_inputValue[e], this, e); }
                 else if (k == KIND_SELECT) { ToggleSelect(e); }
                 else if (k == KIND_SCRIM) { CloseSelect(); }
+                else if (k == KIND_MODAL_SCRIM) { ClickModalScrim(e); }
             }
             _Dispatch(id, kind);
         }
@@ -552,92 +561,10 @@ namespace Armagan.AUI
         {
             if (elemObjects == null || elem < 0 || elem >= elemObjects.Length || elemObjects[elem] == null) return;
             elemObjects[elem].SetActive(on);
+            _AuiLayoutShown(elem, on);
         }
 
-        private int ResolveState(int id)
-        {
-            if (_disabled[id]) return STATE_DISABLED;
-            if (_press[id] && HasRows(id, STATE_PRESSED)) return STATE_PRESSED;
-            if (_selected[id]) return STATE_SELECTED;
-            if (_hover[id] && HasRows(id, STATE_HOVER)) return STATE_HOVER;
-            return STATE_NORMAL;
-        }
-
-        private bool HasRows(int id, int state)
-        {
-            int r = id * STATE_COUNT + state;
-            return styleRangeCount != null && r < styleRangeCount.Length && styleRangeCount[r] > 0;
-        }
-
-        protected void ApplyState(int id)
-        {
-            if (styleRangeStart == null || styleRangeStart.Length < (id + 1) * STATE_COUNT) return;
-            int state = ResolveState(id);
-            int e = sigElem[id];
-            bool anim = Tweens();
-            // Baseline first (normal rows), then the state's overrides on top. A property the
-            // state does not mention returns to normal, which is what makes exit/up restore.
-            ApplyRows(e, id * STATE_COUNT + STATE_NORMAL, anim);
-            if (state != STATE_NORMAL) ApplyRows(e, id * STATE_COUNT + state, anim);
-        }
-
-        private void ApplyRows(int e, int range, bool anim)
-        {
-            int start = styleRangeStart[range];
-            int count = styleRangeCount[range];
-            for (int i = start; i < start + count; i++)
-            {
-                int ch = styleChannel[i];
-                if (ch >= 0 && ch < _chan.Length) _chan[ch].Kill();
-                float d = anim ? styleDur[i] : 0f;
-                VRCTweenHandle h = ApplyProp(e, i, d);
-                if (ch >= 0 && ch < _chan.Length) _chan[ch] = h;
-            }
-        }
-
-        private VRCTweenHandle ApplyProp(int e, int row, float dur)
-        {
-            VRCTweenHandle none = new VRCTweenHandle();
-            int prop = styleProp[row];
-            Vector4 v = styleValue[row];
-            VRCTweenEase ease = (VRCTweenEase)styleEase[row];
-            if (prop == PROP_BG || prop == PROP_COLOR || prop == PROP_ICON || prop == PROP_BORDER)
-            {
-                Graphic g = prop == PROP_BG ? (Graphic)elemBg[e] : prop == PROP_COLOR ? (Graphic)elemText[e] : prop == PROP_ICON ? (Graphic)elemIcon[e] : (Graphic)elemBorder[e];
-                if (g == null) return none;
-                Color c = new Color(v.x, v.y, v.z, v.w);
-                if (dur <= 0f) { g.color = c; return none; }
-                return VRCTween.TweenColor(g, c, dur, ease);
-            }
-            if (prop == PROP_OPACITY)
-            {
-                CanvasGroup cg = elemGroups[e];
-                if (cg == null) return none;
-                if (dur <= 0f) { cg.alpha = v.x; return none; }
-                return VRCTween.TweenFade(cg, v.x, dur, ease);
-            }
-            if (prop == PROP_SCALE)
-            {
-                RectTransform r = elemRects[e];
-                if (r == null) return none;
-                Vector3 s = new Vector3(v.x, v.x, 1f);
-                if (dur <= 0f) { r.localScale = s; return none; }
-                return VRCTween.TweenScale(r, s, dur, ease);
-            }
-            if (prop == PROP_OFFSET)
-            {
-                RectTransform r = elemRects[e];
-                if (r == null) return none;
-                Vector2 p = elemBasePos[e] + new Vector2(v.x, -v.y);
-                if (dur <= 0f) { r.anchoredPosition = p; return none; }
-                return VRCTween.TweenAnchorPos(r, p, dur, ease);
-            }
-            if (prop == PROP_SPRITE)
-            {
-                if (elemBg[e] != null) elemBg[e].sprite = styleSprite[row];
-            }
-            return none;
-        }
+        // State resolution and application live in AuiView.Styles.cs (runtime cascade).
 
         // ================================================================ pages
 
@@ -731,6 +658,7 @@ namespace Armagan.AUI
             if (elemObjects[e] != null) elemObjects[e].SetActive(true);
             VRCTweenHandle a = new VRCTweenHandle(), b = new VRCTweenHandle(), c = new VRCTweenHandle();
             Enter(elemGroups[e], elemRects[e], pageKind[pageIndex], pageDur, new Vector2(0f, -24f), 0.96f, elemBasePos[e], ref a, ref b, ref c);
+            MarkLayoutDirty();   // texts on the page that changed while it was inactive get measured now
         }
 
         private void PageExit(int pageIndex)
@@ -761,6 +689,7 @@ namespace Armagan.AUI
         {
             if (!_started) { _auiStashI = repeat; _auiStashI2 = count; _AuiStart(); repeat = _auiStashI; count = _auiStashI2; }
             if (repeatFirst == null || repeat < 0 || repeat >= repeatFirst.Length) return;
+            if (IsTemplate(repeat)) return;   // template instances are created one by one
             int max = repeatMax[repeat];
             if (count < 0) count = 0;
             if (count > max) count = max;
@@ -771,6 +700,7 @@ namespace Armagan.AUI
                 if (go != null) go.SetActive(i < count);
             }
             if (repeatEmpty != null && repeatEmpty[repeat] != null) repeatEmpty[repeat].SetActive(count == 0);
+            MarkLayoutDirty();
         }
 
         /// <summary>Element index of a template node in a given row.</summary>
@@ -906,11 +836,24 @@ namespace Armagan.AUI
 
         // ================================================================ nesting
 
+        // PAYLOADS CROSS THE BEHAVIOUR BOUNDARY THROUGH PUBLIC SERIALIZED FIELDS (the same rule as
+        // inputResult): the parent reads child.emitS after _OnChildEvent, so these must be exported.
+        [HideInInspector] public string emitS;
+        [HideInInspector] public int emitI;
+        [HideInInspector] public float emitF;
+        [HideInInspector] public bool emitB;
+
         /// <summary>Author code in a nested view raises a named event; the parent's on-&lt;name&gt; handler runs.</summary>
         protected void Emit(string eventName)
         {
             if (parentView != null) parentView._OnChildEvent(this, eventName);
         }
+
+        /// <summary>Emit with a payload; the host's handler for an &lt;event name type="string"/&gt; receives it.</summary>
+        protected void EmitString(string eventName, string value) { emitS = value; Emit(eventName); }
+        protected void EmitInt(string eventName, int value) { emitI = value; Emit(eventName); }
+        protected void EmitFloat(string eventName, float value) { emitF = value; Emit(eventName); }
+        protected void EmitBool(string eventName, bool value) { emitB = value; Emit(eventName); }
 
         /// <summary>Generated in the parent: routes a child's Emit to the author's handler.</summary>
         public virtual void _OnChildEvent(AuiView child, string eventName)
@@ -932,6 +875,7 @@ namespace Armagan.AUI
             }
             if (selectElem != null && _selectValue != null)
                 for (int s = 0; s < selectElem.Length; s++) RenderSelect(s);
+            _AuiLayoutLanguageChanged();
             if (_started) OnRetranslate();
         }
 

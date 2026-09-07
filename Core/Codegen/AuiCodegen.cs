@@ -11,6 +11,8 @@ namespace Armagan.AUI.Core
         public const string Namespace = "Armagan.AUI.Generated";
         /// <summary>Analyzed model of a nested view by name, for typed child properties; null = unknown.</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
+        /// <summary>Class names in id order (from the rule table), emitted as C_NAME constants.</summary>
+        public string[] ClassNames;
     }
 
     /// <summary>
@@ -178,6 +180,7 @@ namespace Armagan.AUI.Core
                 EmitRepeats();
                 EmitPages();
                 EmitSelects();
+                EmitModals();
                 EmitRenderMethods();
                 EmitRetranslate();
                 EmitAfterStart();
@@ -253,22 +256,56 @@ namespace Armagan.AUI.Core
                     if (sig >= 0) L("public const int " + ConstName("S_", n.Id) + " = " + sig + ";");
                 }
                 foreach (AuiRepeatInfo r in _info.Repeats)
+                {
                     L("public const int " + ConstName("", r.Id) + "_MAX = " + r.Max + ";");
+                    if (r.IsTemplate) L("public const int " + ConstName("T_", r.Id) + " = " + RepeatIndex(r) + ";");
+                }
+                for (int i = 0; i < _info.Modals.Count; i++)
+                    L("public const int " + ConstName("M_", _info.Modals[i].Id) + " = " + i + ";");
+                if (_ctx.ClassNames != null && _ctx.ClassNames.Length > 0)
+                {
+                    L("// ---- class ids for AddClass / RemoveClass / HasClass");
+                    var seen = new HashSet<string>();
+                    for (int i = 0; i < _ctx.ClassNames.Length; i++)
+                    {
+                        string cn = ConstName("C_", _ctx.ClassNames[i]);
+                        if (seen.Add(cn)) L("public const int " + cn + " = " + i + ";");
+                    }
+                }
                 L();
+            }
+
+            /// <summary>A nested view inside a &lt;template&gt; (a slot) has one prefab copy per parked instance; there is no single field for it.</summary>
+            private bool InTemplate(AuiNode n)
+            {
+                AuiRepeatInfo r = RepeatOf(n);
+                return r != null && r.IsTemplate;
             }
 
             private void EmitNestedFields()
             {
-                if (_info.NestedViews.Count == 0) return;
+                bool any = false;
+                foreach (AuiNestedView nv in _info.NestedViews) if (!InTemplate(nv.Node)) any = true;
+                if (!any) return;
                 L("// ---- nested views (assigned by the builder)");
                 foreach (AuiNestedView nv in _info.NestedViews)
-                    L("[HideInInspector] public " + nv.ViewName + " " + nv.FieldName + ";");
+                    if (!InTemplate(nv.Node)) L("[HideInInspector] public " + nv.ViewName + " " + nv.FieldName + ";");
                 L();
             }
 
             private string DefaultOf(AuiBinding b)
             {
                 AuiBindingType t = b.Type;
+                if (b.Default != null)
+                {
+                    switch (t)
+                    {
+                        case AuiBindingType.Bool: return b.Default == "true" ? "true" : "false";
+                        case AuiBindingType.Float: { float f; return AuiNum.TryParse(b.Default, out f) ? f.ToString(System.Globalization.CultureInfo.InvariantCulture) + "f" : "0f"; }
+                        case AuiBindingType.Int: { int i; return int.TryParse(b.Default, out i) ? i.ToString() : "0"; }
+                        default: return Lit(b.Default);
+                    }
+                }
                 switch (t)
                 {
                     case AuiBindingType.Bool:
@@ -277,6 +314,7 @@ namespace Armagan.AUI.Core
                         return "false";
                     case AuiBindingType.Float: return "0f";
                     case AuiBindingType.Int: return "0";
+                    case AuiBindingType.Color: return "Color.white";
                     default: return "\"\"";
                 }
             }
@@ -323,7 +361,10 @@ namespace Armagan.AUI.Core
                 {
                     AuiNestedView nv = null;
                     foreach (AuiNestedView x in _info.NestedViews) if (x.Node == n) nv = x;
-                    if (nv != null) L("if (" + nv.FieldName + " != null) " + nv.FieldName + "." + AuiNaming.Pascal(u.Attribute) + " = " + valueExpr + ";");
+                    if (nv == null) return;
+                    // A view inside a template has one parked copy per row, reached through elemChildView.
+                    if (InTemplate(n)) L("if (elemChildView[" + ex + "] != null) ((" + nv.ViewName + ")elemChildView[" + ex + "])." + AuiNaming.Pascal(u.Attribute) + " = " + valueExpr + ";");
+                    else L("if (" + nv.FieldName + " != null) " + nv.FieldName + "." + AuiNaming.Pascal(u.Attribute) + " = " + valueExpr + ";");
                     return;
                 }
                 switch (u.Attribute)
@@ -335,6 +376,28 @@ namespace Armagan.AUI.Core
                     case "if":
                         L("SetActiveElem(" + ex + ", " + valueExpr + ");");
                         break;
+                    case "class":
+                        L("SetClassSlot(" + ex + ", " + u.Slot + ", " + valueExpr + ");");
+                        break;
+                    case "style":
+                    {
+                        int prop = AuiRuleTable.PropId(u.StyleProp);
+                        if (prop < 0) break;
+                        string setter = b.Type == AuiBindingType.Float ? "SetStyleBindingF" : b.Type == AuiBindingType.Color ? "SetStyleBindingC" : "SetStyleBindingS";
+                        L(setter + "(" + ex + ", " + prop + ", " + u.StyleIndex + ", " + valueExpr + ");");
+                        break;
+                    }
+                    case "icon":
+                    case "name":
+                        L("SetIcon(" + ex + ", " + valueExpr + ");");
+                        break;
+                    case "enabled":
+                    {
+                        int mi = -1;
+                        for (int i = 0; i < _info.Modals.Count; i++) if (_info.Modals[i].Node == n) mi = i;
+                        if (mi >= 0) L("SetModal(" + mi + ", " + valueExpr + ", false);");
+                        break;
+                    }
                     case "disabled":
                         L("SetEnabledElem(" + ex + ", !" + valueExpr + ");");
                         break;
@@ -374,19 +437,36 @@ namespace Armagan.AUI.Core
                 {
                     int ri = RepeatIndex(r);
                     string P = r.PascalId;
-                    L("// ---- repeat '" + r.Id + "'");
-                    Open("public int " + P + "Count");
-                    L("get { return GetRepeatCount(" + ri + "); }");
-                    L("set { SetRepeatCount(" + ri + ", value); }");
-                    Close();
+                    if (r.IsTemplate)
+                    {
+                        L("// ---- template '" + r.Id + "'");
+                        if (r.SlotView != null)
+                            L("public AuiView Create" + P + "(int parent) { return CreateView(" + ri + ", parent, -1); }");
+                        else
+                            L("public int Create" + P + "(int parent) { return CreateElement(" + ri + ", parent, -1); }");
+                    }
+                    else
+                    {
+                        L("// ---- repeat '" + r.Id + "'");
+                        Open("public int " + P + "Count");
+                        L("get { return GetRepeatCount(" + ri + "); }");
+                        L("set { SetRepeatCount(" + ri + ", value); }");
+                        Close();
+                    }
                     foreach (AuiBinding b in r.ItemBindings)
                     {
                         // Values that feed a placeholder are kept so a language switch can re-render the row.
                         bool stored = b.Type == AuiBindingType.String && UsedByArgs(b);
                         if (stored) L("private string[] _" + AuiNaming.Identifier(r.Id) + "_" + b.Name + " = new string[" + r.Max + "];");
-                        Open("public void Set" + P + b.PropertyName + "(int row, " + b.CsType + " value)");
+                        // A template setter takes the created element (what CreateElement returned) and finds its row.
+                        Open("public void Set" + P + b.PropertyName + "(int " + (r.IsTemplate ? "elem" : "row") + ", " + b.CsType + " value)");
                         string stash = "_auiStash" + StashSuffix(b.Type);
-                        L("if (!_started) { _auiStashI = row; " + stash + " = value; _AuiStart(); row = _auiStashI; value = " + stash + "; }");
+                        if (r.IsTemplate)
+                        {
+                            L("if (!_started) { _auiStashI = elem; " + stash + " = value; _AuiStart(); elem = _auiStashI; value = " + stash + "; }");
+                            L("int row = InstanceRow(" + ri + ", elem);");
+                        }
+                        else L("if (!_started) { _auiStashI = row; " + stash + " = value; _AuiStart(); row = _auiStashI; value = " + stash + "; }");
                         L("if (row < 0 || row >= " + r.Max + ") return;");
                         string val = b.Type == AuiBindingType.String ? "Escape(value)" : "value";
                         if (stored)
@@ -402,7 +482,7 @@ namespace Armagan.AUI.Core
                         foreach (AuiBindingUse u in b.Uses)
                         {
                             if (u.Attribute == "text")
-                                L("if (elemText[" + Ex(u.Node, "row") + "] != null) elemText[" + Ex(u.Node, "row") + "].text = " + val + ";");
+                                L("SetElemText(" + Ex(u.Node, "row") + ", " + val + ");");
                             else EmitApplyUse(b, u, val, "row");
                         }
                         Close();
@@ -419,6 +499,7 @@ namespace Armagan.AUI.Core
                     case AuiBindingType.Bool: return "B";
                     case AuiBindingType.Float: return "F";
                     case AuiBindingType.Int: return "I";
+                    case AuiBindingType.Color: return "C";
                     default: return "S";
                 }
             }
@@ -486,6 +567,34 @@ namespace Armagan.AUI.Core
                 L();
             }
 
+            private void EmitModals()
+            {
+                if (_info.Modals.Count == 0) return;
+                for (int i = 0; i < _info.Modals.Count; i++)
+                {
+                    AuiModalInfo m = _info.Modals[i];
+                    string P = m.PascalId;
+                    L("// ---- modal '" + m.Id + "'");
+                    L("public void Open" + P + "() { SetModal(" + i + ", true, true); }");
+                    L("public void Close" + P + "() { SetModal(" + i + ", false, true); }");
+                    L("public bool Is" + P + "Open() { return IsModalOpen(" + i + "); }");
+                }
+                Open("protected override void _OnModalChanged(int modal, bool open)");
+                for (int i = 0; i < _info.Modals.Count; i++)
+                {
+                    AuiModalInfo m = _info.Modals[i];
+                    Open("if (modal == " + i + ")");
+                    if (m.Binding != null) L(AuiNaming.Field(m.Binding.Name) + " = open;");
+                    string onOpen = m.Node.Get("onopen"), onClose = m.Node.Get("onclose");
+                    if (onOpen != null) L("if (open) " + onOpen + "();");
+                    if (onClose != null) L("if (!open) " + onClose + "();");
+                    L("return;");
+                    Close();
+                }
+                Close();
+                L();
+            }
+
             private void EmitRenderMethods()
             {
                 if (_renderTexts.Count + _sliders.Count + _inputs.Count == 0) return;
@@ -500,7 +609,7 @@ namespace Armagan.AUI.Core
                     if (text != null)
                     {
                         AuiBinding b = BindingFor(n, text);
-                        if (b != null) L("elemText[" + ex + "].text = " + ValueExpr(b, n) + ";");
+                        if (b != null) L("SetElemText(" + ex + ", " + ValueExpr(b, n) + ");");
                     }
                     else
                     {
@@ -508,14 +617,14 @@ namespace Armagan.AUI.Core
                         var args = new List<AuiBinding>();
                         foreach (AuiKeyUse ku in _info.Keys) if (ku.Node == n && ku.Attribute.Name == "key") args = ku.Args;
                         L("if (lang == null || elemKey[" + ex + "] < 0) return;");
-                        if (args.Count == 0) L("elemText[" + ex + "].text = lang.Get(elemKey[" + ex + "]);");
+                        if (args.Count == 0) L("SetElemText(" + ex + ", lang.Get(elemKey[" + ex + "]));");
                         else
                         {
                             int count = System.Math.Min(4, args.Count);
-                            var sb = new StringBuilder("elemText[" + ex + "].text = Fill" + count + "(lang.Get(elemKey[" + ex + "])");
+                            var sb = new StringBuilder("SetElemText(" + ex + ", Fill" + count + "(lang.Get(elemKey[" + ex + "])");
                             for (int i = 0; i < count; i++)
                                 sb.Append(", ").Append(Lit("{" + args[i].Name + "}")).Append(", ").Append(ValueExpr(args[i], n));
-                            sb.Append(");");
+                            sb.Append("));");
                             L(sb.ToString());
                             if (args.Count > 4)
                                 _d.Warning(AuiCodes.PlaceholderMismatch, "Only the first four args are substituted.", n.Line, n.Column, 5);
@@ -591,7 +700,7 @@ namespace Armagan.AUI.Core
                 // now, before this view's OnStart can write to it, so an author never meets a child
                 // whose OnStart defaults land after their own writes.
                 foreach (AuiNestedView nv in _info.NestedViews)
-                    lines.Add("if (" + nv.FieldName + " != null) " + nv.FieldName + ".EnsureStarted();");
+                    if (!InTemplate(nv.Node)) lines.Add("if (" + nv.FieldName + " != null) " + nv.FieldName + ".EnsureStarted();");
                 foreach (AuiNode n in _renderTexts) if (n.Get("text") != null && Stride(n) == 0) lines.Add(RenderName(n) + "();");
                 foreach (AuiNode n in _sliders)
                 {
@@ -607,6 +716,7 @@ namespace Armagan.AUI.Core
                 }
                 foreach (AuiNestedView nv in _info.NestedViews)
                 {
+                    if (InTemplate(nv.Node)) continue;   // slot instances are configured after CreateView
                     AuiViewInfo child = _ctx.ChildInfo != null ? _ctx.ChildInfo(nv.ViewName) : null;
                     foreach (AuiAttribute a in nv.Node.Attributes)
                     {
@@ -689,6 +799,7 @@ namespace Armagan.AUI.Core
                             else if (h.Node.Tag == "slider") value.Add(h);
                             break; // select/tabs go through their own overrides
                         case "onsubmit": break; // input result path
+                        case "onclose": case "onopen": break; // modal path (_OnModalChanged)
                         default: pointer.Add(h); break;
                     }
                 }
@@ -793,9 +904,22 @@ namespace Armagan.AUI.Core
             {
                 var lines = new List<string>();
                 foreach (AuiNestedView nv in _info.NestedViews)
+                {
+                    AuiViewInfo child = _ctx.ChildInfo != null ? _ctx.ChildInfo(nv.ViewName) : null;
                     foreach (AuiAttribute a in nv.Node.Attributes)
-                        if (a.Name.StartsWith("on-") && AuiSchema.IsIdentifier(a.Value))
-                            lines.Add("if (child == " + nv.FieldName + " && eventName == " + Lit(a.Name.Substring(3)) + ") { " + a.Value + "(); return; }");
+                    {
+                        if (!a.Name.StartsWith("on-") || !AuiSchema.IsIdentifier(a.Value)) continue;
+                        AuiEventDecl ev = child != null ? child.FindEvent(a.Name.Substring(3)) : null;
+                        // A typed event hands the payload the child parked in its emit field.
+                        string arg = ev == null || ev.Type == null ? "" : ev.Type == "string" ? "child.emitS" : ev.Type == "int" ? "child.emitI" : ev.Type == "float" ? "child.emitF" : "child.emitB";
+                        // A view inside a template has one copy per instance: match by template, and pass the instance element first.
+                        AuiRepeatInfo tr = RepeatOf(nv.Node);
+                        if (tr != null && tr.IsTemplate)
+                            lines.Add("if (eventName == " + Lit(a.Name.Substring(3)) + " && InstanceRowOfView(" + RepeatIndex(tr) + ", child) >= 0) { " + a.Value + "(InstanceElemOfView(" + RepeatIndex(tr) + ", child)" + (arg.Length > 0 ? ", " + arg : "") + "); return; }");
+                        else
+                            lines.Add("if (child == " + nv.FieldName + " && eventName == " + Lit(a.Name.Substring(3)) + ") { " + a.Value + "(" + arg + "); return; }");
+                    }
+                }
                 if (lines.Count == 0) return;
                 Open("public override void _OnChildEvent(AuiView child, string eventName)");
                 foreach (string s in lines) L(s);

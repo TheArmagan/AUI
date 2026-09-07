@@ -35,6 +35,7 @@ namespace Armagan.AUI.Editor
         private const string KeyHiddenWas = "AUI.Preview.HiddenWasHidden";
         private const string KeyPages = "AUI.Preview.Pages";
         private const string KeyOpen = "AUI.Preview.OpenSelects";
+        private const string KeyOpenModals = "AUI.Preview.OpenModals";
         private const string KeyFollow = "AUI.Preview.Follow";
         private const string KeyPickable = "AUI.Preview.Pickable";
         private const string RootPrefix = "AUI Preview: ";
@@ -116,6 +117,8 @@ namespace Armagan.AUI.Editor
             }
             Options.OpenSelects.Clear();
             foreach (string k in SessionState.GetString(KeyOpen, "").Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries)) Options.OpenSelects.Add(k);
+            Options.OpenModals.Clear();
+            foreach (string k in SessionState.GetString(KeyOpenModals, "").Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries)) Options.OpenModals.Add(k);
         }
 
         private static void SaveOptions()
@@ -124,6 +127,7 @@ namespace Armagan.AUI.Editor
             foreach (KeyValuePair<string, string> kv in Options.Pages) sb.Append(kv.Key).Append('=').Append(kv.Value).Append(';');
             SessionState.SetString(KeyPages, sb.ToString());
             SessionState.SetString(KeyOpen, string.Join(";", Options.OpenSelects));
+            SessionState.SetString(KeyOpenModals, string.Join(";", Options.OpenModals));
         }
 
         /// <summary>The page the preview shows for a group, or null for the markup default.</summary>
@@ -150,6 +154,19 @@ namespace Armagan.AUI.Editor
         {
             string key = viewName + "/" + nodeIndex;
             if (open) Options.OpenSelects.Add(key); else Options.OpenSelects.Remove(key);
+            SaveOptions();
+            if (Live) Rebuild();
+        }
+
+        public static bool IsModalOpen(string viewName, int nodeIndex)
+        {
+            return Options.OpenModals.Contains(viewName + "/" + nodeIndex);
+        }
+
+        public static void SetModalOpen(string viewName, int nodeIndex, bool open)
+        {
+            string key = viewName + "/" + nodeIndex;
+            if (open) Options.OpenModals.Add(key); else Options.OpenModals.Remove(key);
             SaveOptions();
             if (Live) Rebuild();
         }
@@ -242,7 +259,7 @@ namespace Armagan.AUI.Editor
             string abs = Path.GetFullPath(auiPath);
             if (!File.Exists(abs)) { AuiLog.Error("preview: " + auiPath + " does not exist."); return; }
             Hook();
-            if (ViewPath != null && Norm(ViewPath) != Norm(abs)) { Teardown(); Options.Pages.Clear(); Options.OpenSelects.Clear(); SaveOptions(); }
+            if (ViewPath != null && Norm(ViewPath) != Norm(abs)) { Teardown(); Options.Pages.Clear(); Options.OpenSelects.Clear(); Options.OpenModals.Clear(); SaveOptions(); }
             ViewPath = abs;
             Live = true;
             LastText.Clear();
@@ -318,6 +335,7 @@ namespace Armagan.AUI.Editor
             // What the window can switch, gathered once per compile (not per GUI frame).
             LastPageGroups.Clear();
             LastSelects.Clear();
+            LastModals.Clear();
             Collect(r, LastPageGroups, LastSelects, settings, ws, 0);
             return true;
         }
@@ -702,6 +720,10 @@ namespace Armagan.AUI.Editor
                 {
                     if (Options.OpenSelects.Add(r.ViewName + "/" + p.Parent.Index)) changed = true;
                 }
+                else if (p.Tag == "modal")
+                {
+                    if (Options.OpenModals.Add(r.ViewName + "/" + p.Index)) changed = true;
+                }
             }
             return changed;
         }
@@ -756,11 +778,15 @@ namespace Armagan.AUI.Editor
         /// <summary>Every select whose popup the preview can open, as (view name, select node).</summary>
         public static readonly List<KeyValuePair<string, AuiNode>> LastSelects = new List<KeyValuePair<string, AuiNode>>();
 
+        /// <summary>Every modal the preview can show open, as (view name, modal node).</summary>
+        public static readonly List<KeyValuePair<string, AuiNode>> LastModals = new List<KeyValuePair<string, AuiNode>>();
+
         private static void Collect(AuiCompileResult r, List<KeyValuePair<string, AuiPageGroup>> groups, List<KeyValuePair<string, AuiNode>> selects, AuiSettings settings, AuiWorkspace ws, int depth)
         {
             if (r == null || r.Info == null || depth > 8) return;
             foreach (AuiPageGroup g in r.Info.PageGroups) if (g.Id != null) groups.Add(new KeyValuePair<string, AuiPageGroup>(r.ViewName, g));
             foreach (AuiSelectInfo s in r.Info.Selects) selects.Add(new KeyValuePair<string, AuiNode>(r.ViewName, s.Node));
+            foreach (AuiModalInfo m in r.Info.Modals) LastModals.Add(new KeyValuePair<string, AuiNode>(r.ViewName, m.Node));
             foreach (AuiNestedView nv in r.Info.NestedViews)
             {
                 string cp;

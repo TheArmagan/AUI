@@ -29,6 +29,11 @@
     "body": ["background: sprite(${1|Rounded4,Rounded8,Rounded12,Rounded16,Rounded24,Square|}) ${2:var(--card)};"],
     "description": "A 9-slice sprite tinted with a colour"
   },
+  "Absolute placement": {
+    "prefix": "abs",
+    "body": ["position: absolute;", "top: ${1:0};", "left: ${2:0};"],
+    "description": "Take the element out of the flow and pin it to the parent's content box (negatives allowed)"
+  },
   "Font": {
     "prefix": "font",
     "body": ["font: ${1|400,500,600,700|} ${2:18};"],

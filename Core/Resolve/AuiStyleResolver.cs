@@ -44,6 +44,35 @@ namespace Armagan.AUI.Core
             get { return _vars.Values; }
         }
 
+        /// <summary>Every sheet rule in cascade input order (Order assigned), for the runtime rule table.</summary>
+        public IEnumerable<AuiStyleRule> Rules
+        {
+            get { return _rules; }
+        }
+
+        /// <summary>Classes that appear literally in a class attribute of the resolved document.</summary>
+        public HashSet<string> UsedClasses
+        {
+            get { return _usedClasses; }
+        }
+
+        /// <summary>Substitute variables and validate one declaration without reporting (its problems were reported by Resolve). False = unusable.</summary>
+        public bool TryResolveValue(AuiDeclaration decl, out string value)
+        {
+            value = null;
+            AuiPropDef def = AuiSchema.FindProp(decl.Property);
+            if (def == null || IsBoundValue(decl.Value)) return false;
+            var quiet = new AuiDiagnosticBag("");
+            var saved = new HashSet<AuiDeclaration>(_reported);
+            string v = Substitute(decl, quiet, "");
+            bool ok = v != null && Validate(def, v, decl, quiet, "");
+            _reported.Clear();
+            foreach (AuiDeclaration x in saved) _reported.Add(x);
+            if (!ok) return false;
+            value = v;
+            return true;
+        }
+
         public AuiVariable FindVariable(string name)
         {
             AuiVariable v;
@@ -133,7 +162,7 @@ namespace Armagan.AUI.Core
             {
                 AuiAttribute a = node.FindAttribute("style");
                 AuiStyleRule rule = AuiStyleParser.ParseDeclarations(inline, doc.File, a.ValueLine, a.ValueColumn, d);
-                ApplyRule(rule, rs.Values, rs.Sources, d, false);
+                ApplyRule(rule, rs.Values, rs.Sources, d, false, rs.Bound);
             }
 
             // ---- states
@@ -146,10 +175,53 @@ namespace Armagan.AUI.Core
                 if (values.Count > 0) rs.States[kv.Key] = values;
             }
 
+            // ---- modal::backdrop: the scrim's own cascade (no inheritance, no states)
+            if (node.Tag == "modal")
+            {
+                var bd = new List<Candidate>();
+                foreach (AuiStyleRule r in _rules)
+                    foreach (AuiSelector sel in r.Selectors)
+                        if (sel.Pseudo == "backdrop" && sel.MatchesElement(node.Tag, classes))
+                            bd.Add(new Candidate { Rule = r, Selector = sel, Tier = (int)r.Sheet.Tier });
+                bd.Sort(Compare);
+                rs.Backdrop = new AuiResolvedStyle();
+                foreach (Candidate c in bd) ApplyRule(c.Rule, rs.Backdrop.Values, rs.Backdrop.Sources, d, false);
+            }
+
             return rs;
         }
 
-        private void ApplyRule(AuiStyleRule rule, Dictionary<string, string> values, Dictionary<string, AuiDeclaration> sources, AuiDiagnosticBag d, bool isState)
+        /// <summary>A style value made of {binding} tokens (style="width: {w}").</summary>
+        public static bool IsBoundValue(string v)
+        {
+            return v != null && v.IndexOf('{') >= 0;
+        }
+
+        /// <summary>
+        /// Check a bound value: every whitespace-separated token must be a {binding}; Number,
+        /// Length, Color, Background, Enum and Font-size take one, Offset two, Box one to four.
+        /// Returns null when fine, else the error text.
+        /// </summary>
+        public static string CheckBoundValue(AuiPropDef def, string v)
+        {
+            string[] toks = v.Split(new[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
+            foreach (string t in toks)
+            {
+                if (!AuiAnalyzer.IsBindingValue(t) || !AuiSchema.IsIdentifier(AuiAnalyzer.BindingName(t)))
+                    return "a bound value is made of {binding} tokens only (no literal parts): '" + v + "'";
+            }
+            switch (def.Kind)
+            {
+                case AuiPropKind.Offset: return toks.Length == 2 ? null : "offset takes two bindings: {x} {y}";
+                case AuiPropKind.Box: return toks.Length >= 1 && toks.Length <= 4 ? null : "padding/margin take one to four bindings";
+                case AuiPropKind.Transition: case AuiPropKind.Font: case AuiPropKind.FontWeight:
+                    return "'" + def.Name + "' cannot be bound";
+            }
+            if (def.BakeOnly) return "'" + def.Name + "' is applied at bake only and cannot be bound";
+            return toks.Length == 1 ? null : "'" + def.Name + "' takes one binding";
+        }
+
+        private void ApplyRule(AuiStyleRule rule, Dictionary<string, string> values, Dictionary<string, AuiDeclaration> sources, AuiDiagnosticBag d, bool isState, Dictionary<string, string> bound = null)
         {
             foreach (AuiDeclaration decl in rule.Declarations)
             {
@@ -158,6 +230,16 @@ namespace Armagan.AUI.Core
                 if (isState && !def.Animatable)
                 {
                     Report(decl, d, AuiCodes.NonAnimatableTransition, "'" + decl.Property + "' cannot change in a state rule; states may change color, background, border, icon-color, opacity, scale and offset.", rule.Sheet.File);
+                    continue;
+                }
+                if (IsBoundValue(decl.Value))
+                {
+                    // style="prop: {binding}": the bake keeps the property's default; the runtime writes the binding.
+                    if (bound == null) { Report(decl, d, AuiCodes.BadBoundValue, "Only a style=\"\" attribute may bind a value; a stylesheet rule cannot.", rule.Sheet.File); continue; }
+                    string err = CheckBoundValue(def, decl.Value);
+                    if (err != null) { Report(decl, d, AuiCodes.BadBoundValue, err + ".", rule.Sheet.File); continue; }
+                    bound[decl.Property] = decl.Value;
+                    sources[decl.Property] = decl;
                     continue;
                 }
                 string v = Substitute(decl, d, rule.Sheet.File);
@@ -220,11 +302,39 @@ namespace Armagan.AUI.Core
             string err = null;
             switch (def.Kind)
             {
-                case AuiPropKind.Length: { AuiLength l; if (!AuiLength.TryParse(v, out l)) err = "expected a length (12, 12mm, 50%, auto)"; break; }
-                case AuiPropKind.Box: { AuiBox b; if (!AuiBox.TryParse(v, out b)) err = "expected 1 to 4 lengths"; break; }
+                case AuiPropKind.Length:
+                {
+                    AuiLength l;
+                    if (!AuiLength.TryParse(v, out l)) err = "expected a length (12, 12mm, 50%, auto)";
+                    else if (l.IsSet && !l.IsAuto && l.Value < 0 && !AllowsNegative(def.Name))
+                    {
+                        Report(decl, d, AuiCodes.LayoutNegativeSize, "'" + def.Name + "' cannot be negative (" + v + "). Only top, right, bottom, left, margin and offset may be.", file);
+                        return false;
+                    }
+                    break;
+                }
+                case AuiPropKind.Box:
+                {
+                    AuiBox b;
+                    if (!AuiBox.TryParse(v, out b)) err = "expected 1 to 4 lengths";
+                    else if (def.Name != "margin" && (b.Top < 0 || b.Right < 0 || b.Bottom < 0 || b.Left < 0))
+                    {
+                        Report(decl, d, AuiCodes.LayoutNegativeSize, "'" + def.Name + "' cannot be negative (" + v + "). Only margin may be.", file);
+                        return false;
+                    }
+                    break;
+                }
                 case AuiPropKind.Number: { float f; if (!AuiNum.TryParse(v, out f)) err = "expected a number"; break; }
-                case AuiPropKind.Color: { AuiColor c; if (!AuiColor.TryParse(v, out c)) err = "expected a color (#RRGGBB, #RRGGBBAA, rgba(), transparent)"; break; }
-                case AuiPropKind.Background: { AuiBackground b; if (!AuiBackground.TryParse(v, out b)) err = "expected none | color | sprite(Name) color"; break; }
+                case AuiPropKind.Color:
+                {
+                    AuiColor c;
+                    if (!AuiColor.TryParse(v, out c))
+                        err = v.StartsWith("material(") || v.StartsWith("shader(") || v.StartsWith("sprite(")
+                            ? "material(), shader() and sprite() are only valid in background; text is coloured by a plain color"
+                            : "expected a color (#RRGGBB, #RRGGBBAA, rgba(), transparent)";
+                    break;
+                }
+                case AuiPropKind.Background: { AuiBackground b; if (!AuiBackground.TryParse(v, out b)) err = "expected none | color | sprite(Name) color | material(Name) color | shader(Name) color"; break; }
                 case AuiPropKind.FontWeight: if (AuiNum.ParseWeight(v) == 0) err = "expected regular | medium | semibold | bold | 400..700"; break;
                 case AuiPropKind.Font:
                 {
@@ -270,6 +380,11 @@ namespace Armagan.AUI.Core
             return false;
         }
 
+        private static bool AllowsNegative(string prop)
+        {
+            return prop == "top" || prop == "right" || prop == "bottom" || prop == "left";
+        }
+
         private void ReportClassUsage(AuiMarkupDocument doc, AuiDiagnosticBag d)
         {
             HashSet<string> defined = DefinedClasses();
@@ -286,14 +401,29 @@ namespace Armagan.AUI.Core
             }
             foreach (AuiStyleSheet s in _sheets)
             {
-                if (s.Tier == AuiStyleTier.Theme) continue;
+                if (s.Tier == AuiStyleTier.Theme || s.Tier == AuiStyleTier.Utility) continue;   // theme classes are documented as bake-only where they set a weight
                 foreach (AuiStyleRule r in s.Rules)
                     foreach (AuiSelector sel in r.Selectors)
                     {
                         if (sel.Class == null || _usedClasses.Contains(sel.Class)) continue;
-                        d.Items.Add(new AuiDiagnostic(AuiSeverity.Warning, AuiCodes.UnusedClass, "Class '." + sel.Class + "' is not used by this view.", s.File, r.Line, r.Column, sel.Class.Length + 1));
+                        // Info, not a warning: a class may exist only for AddClass / class="{x}" at runtime.
+                        d.Items.Add(new AuiDiagnostic(AuiSeverity.Info, AuiCodes.UnusedClass, "Class '." + sel.Class + "' is not used in the markup (fine if it is added at runtime).", s.File, r.Line, r.Column, sel.Class.Length + 1));
+                        // A class only reachable at runtime (AddClass, class="{x}") cannot change the font
+                        // weight: Udon has no font setter. Its size half still applies.
+                        foreach (AuiDeclaration decl in r.Declarations)
+                        {
+                            if (decl.Property != "font-weight" && decl.Property != "font") continue;
+                            if (decl.Property == "font" && !SetsWeight(decl.Value)) continue;
+                            d.Items.Add(new AuiDiagnostic(AuiSeverity.Warning, AuiCodes.BakeOnlyProperty, "'." + sel.Class + "' sets the font weight, which is applied at bake only; an element that gains '." + sel.Class + "' at runtime keeps its baked weight.", s.File, decl.Line, decl.Column, decl.Property.Length));
+                        }
                     }
             }
+        }
+
+        private static bool SetsWeight(string fontValue)
+        {
+            string[] parts = (fontValue ?? "").Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length >= 1 && AuiNum.ParseWeight(parts[0]) > 0 && AuiNum.ParseWeight(parts[0]) != 400;
         }
     }
 }

@@ -170,6 +170,11 @@ namespace Armagan.AUI.Tests
             Assert.IsTrue(AuiBackground.TryParse("#111", out bg)); Assert.IsNull(bg.Sprite);
             Assert.IsTrue(AuiBackground.TryParse("sprite(Rounded8) #E0A86A", out bg)); Assert.AreEqual("Rounded8", bg.Sprite); Assert.AreEqual("#E0A86A", bg.Color.ToHex());
             Assert.IsTrue(AuiBackground.TryParse("sprite(X)", out bg)); Assert.AreEqual("#FFFFFF", bg.Color.ToHex());
+            Assert.IsTrue(AuiBackground.TryParse("material(Glow) #112233", out bg)); Assert.AreEqual("Glow", bg.Material); Assert.IsNull(bg.Shader); Assert.AreEqual("#112233", bg.Color.ToHex()); Assert.IsTrue(bg.HasMaterial);
+            Assert.IsTrue(AuiBackground.TryParse("shader(UI/Default)", out bg)); Assert.AreEqual("UI/Default", bg.Shader); Assert.AreEqual("#FFFFFF", bg.Color.ToHex());
+            Assert.IsTrue(AuiBackground.TryParse("sprite(Rounded8) shader(Custom/Glow) #FF0000", out bg)); Assert.AreEqual("Rounded8", bg.Sprite); Assert.AreEqual("Custom/Glow", bg.Shader);
+            Assert.IsFalse(AuiBackground.TryParse("material(A) shader(B)", out bg), "one material source only");
+            Assert.IsFalse(AuiBackground.TryParse("material()", out bg));
         }
 
         [Test]

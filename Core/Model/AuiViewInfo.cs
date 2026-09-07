@@ -9,6 +9,8 @@ namespace Armagan.AUI.Core
         Bool,
         Float,
         Int,
+        /// <summary>UnityEngine.Color, for style="color: {c}" and background colours.</summary>
+        Color,
     }
 
     public sealed class AuiBindingUse
@@ -16,6 +18,11 @@ namespace Armagan.AUI.Core
         public AuiNode Node;
         public string Attribute;
         public AuiBindingType Type;
+        /// <summary>For a class="a {b} {c}" attribute: which binding token this use is (0-based), so each keeps its own runtime mask.</summary>
+        public int Slot;
+        /// <summary>For a style="prop: {x}" use: the property, and which component of it (offset x/y, box edges) this binding fills.</summary>
+        public string StyleProp;
+        public int StyleIndex;
     }
 
     /// <summary>One {name} the markup mentions; becomes one generated property (or one SetRowsX method inside a repeat).</summary>
@@ -27,6 +34,10 @@ namespace Armagan.AUI.Core
         public bool IsItem;
         public AuiRepeatInfo Repeat;
         public readonly List<AuiBindingUse> Uses = new List<AuiBindingUse>();
+        /// <summary>Initial value as written in a &lt;prop default="..."&gt;, or null for the type's zero.</summary>
+        public string Default;
+        /// <summary>Declared through &lt;prop&gt; (typed up front, visible to hosts even when unused in the markup).</summary>
+        public bool IsProp;
 
         /// <summary>PascalCase name for the generated member.</summary>
         public string PropertyName
@@ -71,6 +82,13 @@ namespace Armagan.AUI.Core
         public int Max;
         public AuiNode Template;
         public AuiNode Empty;
+        /// <summary>A &lt;template&gt;: rows are parked at bake and linked under a parent by CreateElement, never laid out as a list.</summary>
+        public bool IsTemplate;
+        /// <summary>For a template synthesized from &lt;view pool="tag:N"&gt;: the tag it hands out.</summary>
+        public string PoolTag;
+        /// <summary>For a template synthesized from a &lt;slot&gt;: the slot id and the nested view it holds.</summary>
+        public string SlotId;
+        public string SlotView;
         public readonly List<AuiBinding> ItemBindings = new List<AuiBinding>();
         public readonly List<AuiHandler> Handlers = new List<AuiHandler>();
 
@@ -127,6 +145,22 @@ namespace Armagan.AUI.Core
         public AuiBinding Binding;
     }
 
+    public sealed class AuiModalInfo
+    {
+        public AuiNode Node;
+        public string Id;
+        /// <summary>The enabled="{flag}" binding, or null when enabled is literal / absent.</summary>
+        public AuiBinding Binding;
+        /// <summary>Open at start (enabled="true" literal).</summary>
+        public bool StartOpen;
+        public bool Dismissable = true;
+
+        public string PascalId
+        {
+            get { return AuiNaming.Pascal(Id); }
+        }
+    }
+
     /// <summary>
     /// Everything the code generator and the prefab builder need to know about one view, as
     /// the analyzer derived it from the tree: bindings with their inferred types, handler
@@ -143,7 +177,22 @@ namespace Armagan.AUI.Core
         public readonly List<AuiRepeatInfo> Repeats = new List<AuiRepeatInfo>();
         public readonly List<AuiPageGroup> PageGroups = new List<AuiPageGroup>();
         public readonly List<AuiSelectInfo> Selects = new List<AuiSelectInfo>();
+        public readonly List<AuiModalInfo> Modals = new List<AuiModalInfo>();
+        /// <summary>Events declared with &lt;event name type/&gt;; a host's on-name handler takes the payload type.</summary>
+        public readonly List<AuiEventDecl> Events = new List<AuiEventDecl>();
         public readonly List<AuiKeyUse> Keys = new List<AuiKeyUse>();
+
+        public AuiEventDecl FindEvent(string name)
+        {
+            foreach (AuiEventDecl e in Events) if (e.Name == name) return e;
+            return null;
+        }
+
+        /// <summary>Bindings declared as props (for host completion and validation).</summary>
+        public bool HasDeclaredProps
+        {
+            get { foreach (AuiBinding b in Bindings) if (b.IsProp) return true; return false; }
+        }
         public readonly List<AuiNestedView> NestedViews = new List<AuiNestedView>();
 
         public AuiBinding FindBinding(string name, AuiRepeatInfo repeat)
@@ -203,6 +252,7 @@ namespace Armagan.AUI.Core
                 case AuiBindingType.Bool: return "bool";
                 case AuiBindingType.Float: return "float";
                 case AuiBindingType.Int: return "int";
+                case AuiBindingType.Color: return "Color";
                 default: return "string";
             }
         }

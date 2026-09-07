@@ -11,6 +11,8 @@ namespace Armagan.AUI.Core
         public System.Func<string, bool> ViewExists;
         /// <summary>Whether an icon of this name exists; null skips the check.</summary>
         public System.Func<string, bool> IconExists;
+        /// <summary>Analyzed model of a nested view by name (declared props and events); null = unknown.</summary>
+        public System.Func<string, AuiViewInfo> ChildInfo;
     }
 
     /// <summary>
@@ -31,6 +33,7 @@ namespace Armagan.AUI.Core
             CollectRepeats(doc, info, d);
             CollectPageGroups(doc, info, d);
             CollectSelects(doc, info, d);
+            CollectModals(doc, info, d);
 
             var ids = new Dictionary<string, AuiNode>();
             foreach (AuiNode n in doc.Nodes) AnalyzeNode(n, ctx, info, ids, d);
@@ -57,6 +60,33 @@ namespace Armagan.AUI.Core
 
             info.Width = NumberAttr(root, "width", 400, d);
             info.Height = NumberAttr(root, "height", 300, d);
+
+            // <prop name type default/>: a typed binding that exists whether or not the markup uses it.
+            foreach (AuiPropDecl p in doc.Props)
+            {
+                if (!AuiSchema.IsIdentifier(p.Name)) { d.Error(AuiCodes.BadPropDeclaration, "'" + p.Name + "' is not a valid prop name.", p.Line, p.Column, 5); continue; }
+                AuiBinding existing = info.FindBinding(p.Name, null);
+                if (existing != null) { d.Error(AuiCodes.DuplicateId, "Prop '" + p.Name + "' is declared twice.", p.Line, p.Column, 5); continue; }
+                var b = new AuiBinding { Name = p.Name, Type = TypeOf(p.Type), IsProp = true, Default = p.Default };
+                info.Bindings.Add(b);
+            }
+            foreach (AuiEventDecl ev in doc.Events)
+            {
+                if (!AuiSchema.IsIdentifier(ev.Name.Replace('-', '_'))) { d.Error(AuiCodes.BadPropDeclaration, "'" + ev.Name + "' is not a valid event name.", ev.Line, ev.Column, 6); continue; }
+                if (info.FindEvent(ev.Name) != null) { d.Error(AuiCodes.DuplicateId, "Event '" + ev.Name + "' is declared twice.", ev.Line, ev.Column, 6); continue; }
+                info.Events.Add(ev);
+            }
+        }
+
+        public static AuiBindingType TypeOf(string type)
+        {
+            switch (type)
+            {
+                case "int": return AuiBindingType.Int;
+                case "float": return AuiBindingType.Float;
+                case "bool": return AuiBindingType.Bool;
+            }
+            return AuiBindingType.String;
         }
 
         private static float NumberAttr(AuiNode n, string name, float fallback, AuiDiagnosticBag d)
@@ -75,32 +105,39 @@ namespace Armagan.AUI.Core
         {
             foreach (AuiNode n in doc.Nodes)
             {
-                if (n.Tag != "repeat") continue;
-                var r = new AuiRepeatInfo { Node = n, Id = n.Id };
+                if (n.Tag != "repeat" && n.Tag != "template") continue;
+                bool tpl = n.Tag == "template";
+                var r = new AuiRepeatInfo { Node = n, Id = n.Id, IsTemplate = tpl, PoolTag = n.Get("pool"), SlotId = n.Get("slot"), SlotView = n.Get("view") };
                 if (string.IsNullOrEmpty(r.Id))
                 {
-                    d.Error(AuiCodes.MissingRequiredAttribute, "<repeat> needs an id; it names the generated SetIdCount / SetIdX methods.", n.Line, n.Column, 7);
-                    r.Id = "repeat" + info.Repeats.Count;
+                    d.Error(AuiCodes.MissingRequiredAttribute, "<" + n.Tag + "> needs an id; it names the generated " + (tpl ? "T_ID / CreateId / SetIdX" : "SetIdCount / SetIdX") + " members.", n.Line, n.Column, n.Tag.Length + 1);
+                    r.Id = n.Tag + info.Repeats.Count;
                 }
                 int max;
                 AuiAttribute ma = n.FindAttribute("max");
                 if (ma == null || !int.TryParse(ma.Value, out max) || max < 1 || max > 64)
                 {
-                    d.Error(AuiCodes.RepeatMaxOutOfRange, "<repeat> needs max=\"N\" with 1 <= N <= 64; every instance is baked.", ma != null ? ma.Line : n.Line, ma != null ? ma.Column : n.Column, ma != null ? ma.Name.Length : 7);
+                    d.Error(AuiCodes.RepeatMaxOutOfRange, "<" + n.Tag + "> needs max=\"N\" with 1 <= N <= 64; every instance is baked.", ma != null ? ma.Line : n.Line, ma != null ? ma.Column : n.Column, ma != null ? ma.Name.Length : n.Tag.Length + 1);
                     max = 1;
                 }
                 r.Max = max;
                 foreach (AuiNode c in n.Children)
                 {
-                    if (c.Tag == "empty") { r.Empty = c; continue; }
+                    if (c.Tag == "empty" && !tpl) { r.Empty = c; continue; }
                     if (r.Template == null) r.Template = c;
-                    else d.Error(AuiCodes.RepeatTemplateCount, "<repeat> takes exactly one template child (plus an optional <empty>); wrap several in a <panel>.", c.Line, c.Column, c.Tag.Length + 1);
+                    else d.Error(AuiCodes.RepeatTemplateCount, "<" + n.Tag + "> takes exactly one template child" + (tpl ? "" : " (plus an optional <empty>)") + "; wrap several in a <panel>.", c.Line, c.Column, c.Tag.Length + 1);
                 }
                 if (r.Template == null)
-                    d.Error(AuiCodes.RepeatTemplateCount, "<repeat> has no template child.", n.Line, n.Column, 7);
+                    d.Error(AuiCodes.RepeatTemplateCount, "<" + n.Tag + "> has no template child.", n.Line, n.Column, n.Tag.Length + 1);
+                if (tpl && n.Parent != null && n.Parent.Tag != "view")
+                    d.Error(AuiCodes.ElementNotAllowedHere, "<template> must be a direct child of <view>; its instances are linked under any parent by CreateElement.", n.Line, n.Column, 9);
                 foreach (AuiRepeatInfo outer in info.Repeats)
                     if (outer.Template != null && IsInside(n, outer.Template))
-                        d.Error(AuiCodes.ElementNotAllowedHere, "Nested <repeat> is not supported.", n.Line, n.Column, 7);
+                        d.Error(AuiCodes.ElementNotAllowedHere, "A <repeat> or <template> cannot sit inside another one.", n.Line, n.Column, n.Tag.Length + 1);
+                if (tpl && r.Template != null)
+                    foreach (AuiNode inner in doc.Nodes)
+                        if (inner != n && IsInside(inner, r.Template) && (inner.Tag == "modal" || inner.Tag == "template" || inner.Tag == "repeat"))
+                            d.Error(AuiCodes.ElementNotAllowedHere, "<" + inner.Tag + "> cannot be inside a <template>.", inner.Line, inner.Column, inner.Tag.Length + 1);
                 info.Repeats.Add(r);
             }
         }
@@ -223,6 +260,29 @@ namespace Armagan.AUI.Core
             }
         }
 
+        private static void CollectModals(AuiMarkupDocument doc, AuiViewInfo info, AuiDiagnosticBag d)
+        {
+            foreach (AuiNode n in doc.Nodes)
+            {
+                if (n.Tag != "modal") continue;
+                var m = new AuiModalInfo { Node = n, Id = n.Id };
+                if (string.IsNullOrEmpty(m.Id))
+                {
+                    d.Error(AuiCodes.MissingRequiredAttribute, "<modal> needs an id; it names the generated OpenId / CloseId methods.", n.Line, n.Column, 6);
+                    m.Id = "modal" + info.Modals.Count;
+                }
+                // The builder moves the modal to the end of Content, which is the view's coordinate
+                // space; a modal nested deeper would be laid out against the wrong parent.
+                if (n.Parent != null && n.Parent.Tag != "view")
+                    d.Error(AuiCodes.ElementNotAllowedHere, "<modal> must be a direct child of <view>.", n.Line, n.Column, 6);
+                string dis = n.Get("dismissable");
+                m.Dismissable = dis == null || dis != "false";
+                string en = n.Get("enabled");
+                if (en != null && !IsBindingValue(en)) m.StartOpen = en == "true";
+                info.Modals.Add(m);
+            }
+        }
+
         // ---------------------------------------------------------------- per node
 
         private static void AnalyzeNode(AuiNode n, AuiAnalysisContext ctx, AuiViewInfo info, Dictionary<string, AuiNode> ids, AuiDiagnosticBag d)
@@ -246,14 +306,36 @@ namespace Armagan.AUI.Core
                     d.Error(AuiCodes.NestedViewNotFound, "No view named '" + n.Tag + "' (expected " + n.Tag + ".aui next to this file or in a component folder).", n.Line, n.Column, n.Tag.Length + 1);
                 if (n.Children.Count > 0)
                     d.Error(AuiCodes.ElementNotAllowedHere, "A nested view takes no children in this version.", n.Children[0].Line, n.Children[0].Column, 1);
-                if (repeat != null)
-                    d.Error(AuiCodes.ElementNotAllowedHere, "A nested view cannot be a repeat template in this version.", n.Line, n.Column, n.Tag.Length + 1);
+                // Inside a <template> (a slot) every parked instance is its own prefab copy; inside a
+                // <repeat> the rows would all share one generated field, which does not work yet.
+                if (repeat != null && !repeat.IsTemplate)
+                    d.Error(AuiCodes.ElementNotAllowedHere, "A nested view cannot be a repeat template in this version (use a <slot> or <template>).", n.Line, n.Column, n.Tag.Length + 1);
                 info.NestedViews.Add(nv);
+                AuiViewInfo child = ctx.ChildInfo != null ? ctx.ChildInfo(n.Tag) : null;
                 foreach (AuiAttribute a in n.Attributes)
                 {
                     if (AuiSchema.IsCommonAttribute(a.Name)) { CommonAttribute(n, a, repeat, info, d); continue; }
-                    if (a.Name.StartsWith("on-")) { AddHandler(n, a, null, repeat, info, d); continue; }
-                    if (IsBindingValue(a.Value)) AddBinding(n, a, AuiBindingType.Unknown, repeat, info, d);
+                    if (a.Name.StartsWith("on-"))
+                    {
+                        AuiHandler h = AddHandler(n, a, null, repeat, info, d);
+                        // A declared <event type> gives the host handler its payload parameter.
+                        AuiEventDecl ev = child != null ? child.FindEvent(a.Name.Substring(3)) : null;
+                        if (h != null && ev != null) h.ParamType = ev.Type;
+                        if (child != null && ev == null && child.Events.Count > 0)
+                            d.Warning(AuiCodes.UnknownComponentProp, "<" + n.Tag + "> declares no event '" + a.Name.Substring(3) + "' (events: " + string.Join(", ", EventNames(child)) + ").", a.Line, a.Column, a.Name.Length);
+                        continue;
+                    }
+                    // A child that declares props rejects unknown attributes; one that does not still accepts any binding name.
+                    if (child != null && child.HasDeclaredProps && child.FindBinding(a.Name, null) == null)
+                    {
+                        var names = new List<string>();
+                        foreach (AuiBinding cb in child.Bindings) names.Add(cb.Name);
+                        string hint = AuiSchema.Suggest(a.Name, names);
+                        d.Error(AuiCodes.UnknownComponentProp, "<" + n.Tag + "> has no prop '" + a.Name + "'." + (hint != null ? " Did you mean '" + hint + "'?" : " Props: " + string.Join(", ", names) + "."), a.Line, a.Column, a.Name.Length);
+                        continue;
+                    }
+                    AuiBinding childBinding = child != null ? child.FindBinding(a.Name, null) : null;
+                    if (IsBindingValue(a.Value)) AddBinding(n, a, childBinding != null ? childBinding.Type : AuiBindingType.Unknown, repeat, info, d);
                     // Literal values are passed to the child's setter once at Start; the type is the child's.
                 }
                 return;
@@ -309,14 +391,14 @@ namespace Armagan.AUI.Core
                 case "text":
                     if (n.Get("key") != null && (n.Get("text") != null || n.Text != null))
                         d.Error(AuiCodes.TextAndKeyBoth, "<text> takes key= OR text= OR literal content, not several.", n.Line, n.Column, 5);
-                    else if (n.Get("key") == null && n.Get("text") == null && n.Text == null)
+                    else if (n.Get("key") == null && n.Get("text") == null && n.Text == null && !(n.Parent != null && n.Parent.Tag == "template" && n.Parent.Get("pool") != null))
                         d.Warning(AuiCodes.MissingRequiredAttribute, "<text> with nothing to show: give it key=, text=\"{binding}\" or literal content.", n.Line, n.Column, 5);
                     if (n.Get("args") != null && n.Get("key") == null)
                         d.Error(AuiCodes.PlaceholderNotBound, "args= only makes sense with key=; placeholders live in the translated string.", n.FindAttribute("args").Line, n.FindAttribute("args").Column, 4);
                     break;
                 case "icon":
                     if (n.Get("name") == null) d.Error(AuiCodes.MissingRequiredAttribute, "<icon> needs name=\"lucide-name\".", n.Line, n.Column, 5);
-                    else if (ctx.IconExists != null && !ctx.IconExists(n.Get("name")))
+                    else if (!IsBindingValue(n.Get("name")) && ctx.IconExists != null && !ctx.IconExists(n.Get("name")))
                         d.Error(AuiCodes.UnknownIcon, "No icon named '" + n.Get("name") + "'.", n.FindAttribute("name").ValueLine, n.FindAttribute("name").ValueColumn, n.Get("name").Length);
                     break;
                 case "image":
@@ -371,6 +453,53 @@ namespace Armagan.AUI.Core
                     if (!AuiSchema.IsIdentifier(AuiNaming.Identifier(a.Value)) || a.Value.Length == 0)
                         d.Error(AuiCodes.BadAttributeValue, "id must be a plain identifier.", a.ValueLine, a.ValueColumn, a.Value.Length);
                     break;
+                case "style":
+                {
+                    // style="width: {w}; color: {c}": each bound declaration is a typed binding of this view.
+                    AuiStyleRule rule = AuiStyleParser.ParseDeclarations(a.Value, "", a.ValueLine, a.ValueColumn, null);
+                    foreach (AuiDeclaration decl in rule.Declarations)
+                    {
+                        if (!AuiStyleResolver.IsBoundValue(decl.Value)) continue;
+                        AuiPropDef def = AuiSchema.FindProp(decl.Property);
+                        if (def == null || AuiStyleResolver.CheckBoundValue(def, decl.Value) != null) continue;   // reported by the resolver
+                        string[] toks = decl.Value.Split(new[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
+                        for (int i = 0; i < toks.Length; i++)
+                        {
+                            AuiBindingType t;
+                            switch (def.Kind)
+                            {
+                                case AuiPropKind.Number: case AuiPropKind.Offset: t = AuiBindingType.Float; break;
+                                case AuiPropKind.Color: case AuiPropKind.Background: t = AuiBindingType.Color; break;
+                                default: t = AuiBindingType.String; break;   // Length, Box (parsed in Udon: 12, 50%, auto), Enum
+                            }
+                            AuiBinding b = AddBindingNamed(n, a, BindingName(toks[i]), IsItemBinding(toks[i]), t, repeat, info, d);
+                            if (b == null) continue;
+                            AuiBindingUse use = b.Uses[b.Uses.Count - 1];
+                            use.StyleProp = decl.Property;
+                            use.StyleIndex = i;
+                        }
+                    }
+                    break;
+                }
+                case "class":
+                {
+                    // class="card {tone} {extra}": literal names are static, each {binding} is a
+                    // string of space-separated names that gets its own runtime slot.
+                    int slot = 0;
+                    foreach (string tok in a.Value.Split(new[] { ' ', '\t', '\n', '\r' }, System.StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (tok[0] != '{')
+                        {
+                            if (tok.IndexOf('}') >= 0) d.Error(AuiCodes.BadBindingSyntax, "Class token '" + tok + "' mixes a name and a binding; separate them with a space.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                            continue;
+                        }
+                        if (!IsBindingValue(tok)) { d.Error(AuiCodes.BadBindingSyntax, "Class token '" + tok + "' is not a binding like {tone}.", a.ValueLine, a.ValueColumn, a.Value.Length); continue; }
+                        AuiBinding b = AddBindingNamed(n, a, BindingName(tok), IsItemBinding(tok), AuiBindingType.String, repeat, info, d);
+                        if (b != null) b.Uses[b.Uses.Count - 1].Slot = slot;
+                        slot++;
+                    }
+                    break;
+                }
             }
         }
 
@@ -396,9 +525,18 @@ namespace Armagan.AUI.Core
                 }
                 case "disabled":
                 case "selected":
-                    if (IsBindingValue(a.Value)) AddBinding(n, a, AuiBindingType.Bool, repeat, info, d);
+                case "enabled":
+                    if (IsBindingValue(a.Value))
+                    {
+                        AuiBinding b = AddBinding(n, a, AuiBindingType.Bool, repeat, info, d);
+                        if (b != null && a.Name == "enabled") foreach (AuiModalInfo m in info.Modals) if (m.Node == n) m.Binding = b;
+                    }
                     else if (a.Value != "true" && a.Value != "false" && a.Value != "")
                         d.Error(AuiCodes.BadAttributeValue, a.Name + " takes true, false or a {binding}.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    break;
+                case "dismissable":
+                    if (a.Value != "true" && a.Value != "false" && a.Value != "")
+                        d.Error(AuiCodes.BadAttributeValue, "dismissable is a flag: true or false.", a.ValueLine, a.ValueColumn, a.Value.Length);
                     break;
                 case "key":
                 case "placeholder-key":
@@ -423,6 +561,11 @@ namespace Armagan.AUI.Core
                 case "args":
                     // handled with key
                     break;
+                case "pool":
+                case "slot":
+                case "view":
+                case "views":
+                    break;   // handled by the pool synthesizer
                 case "min":
                 case "max":
                 case "step":
@@ -432,7 +575,7 @@ namespace Armagan.AUI.Core
                 case "max-lines":
                 {
                     float v;
-                    if (n.Tag == "repeat" || n.Tag == "select") break; // validated in the collect passes
+                    if (n.Tag == "repeat" || n.Tag == "template" || n.Tag == "select") break; // validated in the collect passes
                     if (!AuiNum.TryParse(a.Value, out v)) d.Error(AuiCodes.BadAttributeValue, a.Name + " must be a number.", a.ValueLine, a.ValueColumn, a.Value.Length);
                     break;
                 }
@@ -456,11 +599,22 @@ namespace Armagan.AUI.Core
                     break;
                 }
                 case "name":
-                    if (n.Tag == "icon" && ctx.IconExists != null && !ctx.IconExists(a.Value))
-                    {
-                        // reported in the element-level switch
-                    }
+                    if (n.Tag == "icon" && IsBindingValue(a.Value)) AddBinding(n, a, AuiBindingType.String, repeat, info, d);
                     break;
+                case "icon":
+                    if (IsBindingValue(a.Value)) AddBinding(n, a, AuiBindingType.String, repeat, info, d);
+                    else if (ctx.IconExists != null && !ctx.IconExists(a.Value))
+                        d.Error(AuiCodes.UnknownIcon, "No icon named '" + a.Value + "'.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    break;
+                case "icons":
+                    // <view icons="a b"> preloads icon sprites for SetIcon; every name must exist.
+                    foreach (string icon in a.Value.Split(new[] { ' ', ',' }, System.StringSplitOptions.RemoveEmptyEntries))
+                        if (ctx.IconExists != null && !ctx.IconExists(icon))
+                            d.Error(AuiCodes.UnknownIcon, "No icon named '" + icon + "' (in icons=).", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    break;
+                case "sprites":
+                case "materials":
+                    break;   // resolved by the builder (a missing asset logs there)
             }
         }
 
@@ -516,12 +670,19 @@ namespace Armagan.AUI.Core
             return b;
         }
 
-        private static void AddHandler(AuiNode n, AuiAttribute a, AuiElementDef def, AuiRepeatInfo repeat, AuiViewInfo info, AuiDiagnosticBag d)
+        private static List<string> EventNames(AuiViewInfo child)
+        {
+            var names = new List<string>();
+            foreach (AuiEventDecl e in child.Events) names.Add(e.Name);
+            return names;
+        }
+
+        private static AuiHandler AddHandler(AuiNode n, AuiAttribute a, AuiElementDef def, AuiRepeatInfo repeat, AuiViewInfo info, AuiDiagnosticBag d)
         {
             if (!AuiSchema.IsIdentifier(a.Value))
             {
                 d.Error(AuiCodes.HandlerNotIdentifier, a.Name + "=\"" + a.Value + "\" must name a method (letters, digits, underscore).", a.ValueLine, a.ValueColumn, a.Value.Length);
-                return;
+                return null;
             }
             var h = new AuiHandler { Name = a.Value, Event = a.Name, Node = n, HasRow = repeat != null, Repeat = repeat };
             switch (a.Name)
@@ -545,10 +706,11 @@ namespace Armagan.AUI.Core
             if (existing != null && (existing.ParamType != h.ParamType || existing.HasRow != h.HasRow))
             {
                 d.Error(AuiCodes.BindingTypeConflict, "Handler '" + h.Name + "' is used with different signatures: " + existing.Signature + " (line " + existing.Node.Line + ") and " + h.Signature + ".", a.ValueLine, a.ValueColumn, a.Value.Length);
-                return;
+                return null;
             }
             info.Handlers.Add(h);
             if (repeat != null) repeat.Handlers.Add(h);
+            return h;
         }
 
         private static string Shorten(string s)

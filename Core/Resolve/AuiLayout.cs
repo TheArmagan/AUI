@@ -69,8 +69,24 @@ namespace Armagan.AUI.Core
         public AuiRect Absolute;
         /// <summary>Intrinsic size from the measure pass.</summary>
         public float IntrinsicW, IntrinsicH;
+        /// <summary>Measured size BEFORE the explicit width/height override and the min/max clamp; what the runtime solver starts from.</summary>
+        public float RawW, RawH;
+        /// <summary>Text only: raw size per language (index = language table order), so the runtime can lay out the current language tightly.</summary>
+        public float[] LangW, LangH;
+        /// <summary>Containers with their own label (button key/text, select header): label width + 2 and height + 1 per language.</summary>
+        public float[] ContentW, ContentH;
+        /// <summary>The container's own label counts toward its size (literal text or key on button/toggle/tab/option).</summary>
+        public bool ContentText;
+        /// <summary>The label is accompanied by an icon (row: + 18 + gap on the main axis).</summary>
+        public bool ContentIcon;
+        /// <summary>An icon and nothing else (button/tab): 18 mm on both axes.</summary>
+        public bool ContentIconOnly;
         /// <summary>Anchored to fill the parent: bake as stretch anchors instead of a fixed rect.</summary>
         public bool AnchorFill;
+        /// <summary>display: none, or hidden=""; the subtree takes no space and is not laid out.</summary>
+        public bool Hidden;
+        /// <summary>Out of the parent's flow (display none, position absolute, or an anchor).</summary>
+        public bool OutOfFlow;
         /// <summary>Content varies at runtime; the builder adds a LayoutGroup + ContentSizeFitter on this subtree.</summary>
         public bool ContentSized;
         /// <summary>For repeat containers: offset of each baked instance relative to the repeat's content box.</summary>
@@ -91,6 +107,12 @@ namespace Armagan.AUI.Core
         public string BoundTextSample = "Mmmmmmmmmmm日";
         /// <summary>Analyzed model of a nested view by name, for its declared width and height; null = unknown.</summary>
         public System.Func<string, AuiViewInfo> ChildInfo;
+        /// <summary>Rows to lay out for a repeat; null = its max. Lets a test run the solver at a runtime count.</summary>
+        public System.Func<AuiRepeatInfo, int> RepeatCount;
+        /// <summary>Languages in table order, for per-language text sizes; 0 = unknown (one row).</summary>
+        public int LanguageCount;
+        /// <summary>One key's text in one language (fallback applied), or null when missing.</summary>
+        public System.Func<string, int, string> TranslationAt;
     }
 
     public delegate bool AuiImageSizeLookup(string src, out float w, out float h);

@@ -7,10 +7,11 @@ namespace Armagan.AUI.Core
     /// </summary>
     public enum AuiStyleTier
     {
-        Theme = 0,    // the package default theme
-        Linked = 1,   // <link href> or the sibling Foo.auis
-        Inline = 2,   // <style> blocks in the view
-        Attribute = 3 // style="" on an element
+        Theme = 0,     // the package default theme
+        Utility = 1,   // the generated *utility classes (AuiUtilityClasses)
+        Linked = 2,    // <link href> or the sibling Foo.auis
+        Inline = 3,    // <style> blocks in the view
+        Attribute = 4  // style="" on an element
     }
 
     /// <summary>tag | .class | tag.class | tag:state | .class:state | :root | *</summary>
@@ -20,6 +21,8 @@ namespace Armagan.AUI.Core
         public string Class;  // null = any
         public string State;  // null = normal
         public bool IsRoot;   // :root, only for variables
+        /// <summary>"backdrop" for modal::backdrop: styles the dimming scrim, not the element.</summary>
+        public string Pseudo;
 
         /// <summary>tag 1, class 2, tag+class 3; +10 with a state. Later rules break ties.</summary>
         public int Specificity
@@ -36,7 +39,13 @@ namespace Armagan.AUI.Core
 
         public bool Matches(string tag, string[] classes)
         {
-            if (IsRoot) return false;
+            if (IsRoot || Pseudo != null) return false;
+            return MatchesElement(tag, classes);
+        }
+
+        /// <summary>Tag and class test alone, used for pseudo-element rules against their host element.</summary>
+        public bool MatchesElement(string tag, string[] classes)
+        {
             if (Tag != null && Tag != tag && !(Tag == "panel" && tag == "div") && !(Tag == "div" && tag == "panel")) return false;
             if (Class != null)
             {
@@ -52,6 +61,7 @@ namespace Armagan.AUI.Core
             if (IsRoot) return ":root";
             string s = Tag ?? (Class == null ? "*" : "");
             if (Class != null) s += "." + Class;
+            if (Pseudo != null) s += "::" + Pseudo;
             if (State != null) s += ":" + State;
             return s;
         }

@@ -113,6 +113,58 @@ namespace Armagan.AUI
             _views[_viewCount++] = v;
         }
 
+        // ---------------------------------------------------------------- theme variables
+
+        // Variables set through the service are remembered so a view that starts later (a hidden
+        // page, a spawned prefab) applies them from its own _AuiStart, which reads them back through
+        // StyleVariableCount/Name/Value rather than being called into while it is still starting.
+        private string[] _varNames = new string[8];
+        private string[] _varValues = new string[8];
+        private int _varCount;
+
+        /// <summary>
+        /// Set a :root variable ("accent" or "--accent") on every registered view, and on every view
+        /// that starts later, so one call re-themes the whole world. Values are stylesheet text.
+        /// </summary>
+        public void SetStyleVariable(string varName, string value)
+        {
+            if (varName == null) return;
+            varName = varName.Trim();
+            if (!varName.StartsWith("--")) varName = "--" + varName;
+            if (value == null) value = "";
+            int at = -1;
+            for (int i = 0; i < _varCount; i++) if (_varNames[i] == varName) { at = i; break; }
+            if (at < 0)
+            {
+                if (_varCount >= _varNames.Length)
+                {
+                    string[] gn = new string[_varNames.Length * 2];
+                    string[] gv = new string[_varNames.Length * 2];
+                    for (int i = 0; i < _varCount; i++) { gn[i] = _varNames[i]; gv[i] = _varValues[i]; }
+                    _varNames = gn; _varValues = gv;
+                }
+                at = _varCount++;
+                _varNames[at] = varName;
+            }
+            _varValues[at] = value;
+            for (int i = 0; i < _viewCount; i++)
+                if (_views[i] != null) _views[i]._ApplyStyleVariable(varName, value);
+        }
+
+        /// <summary>The value set through this service, or null when the variable was never set here.</summary>
+        public string GetStyleVariable(string varName)
+        {
+            if (varName == null) return null;
+            varName = varName.Trim();
+            if (!varName.StartsWith("--")) varName = "--" + varName;
+            for (int i = 0; i < _varCount; i++) if (_varNames[i] == varName) return _varValues[i];
+            return null;
+        }
+
+        public int StyleVariableCount() { return _varCount; }
+        public string StyleVariableName(int i) { return i < 0 || i >= _varCount ? null : _varNames[i]; }
+        public string StyleVariableValue(int i) { return i < 0 || i >= _varCount ? null : _varValues[i]; }
+
         public void SetLanguage(int index)
         {
             if (index < 0 || index >= LanguageCount()) return;

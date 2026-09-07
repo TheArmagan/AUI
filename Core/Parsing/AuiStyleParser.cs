@@ -198,8 +198,23 @@ namespace Armagan.AUI.Core
                 {
                     Advance();
                     int cl = _line, cc = _col;
+                    // .*name: a style-only (star) class, outside the 64-class budget and invisible to GetElements.
+                    bool star = Cur == '*';
+                    if (star) Advance();
                     sel.Class = ReadIdent();
                     if (sel.Class.Length == 0) { _d.Error(AuiCodes.BadSelector, "Expected a class name after '.'.", cl, cc, 1); return null; }
+                    if (star) sel.Class = "*" + sel.Class;
+                }
+                if (Cur == ':' && Peek(1) == ':')
+                {
+                    // Pseudo-element: only modal::backdrop exists (the dimming scrim behind a modal).
+                    Advance(); Advance();
+                    int pl = _line, pc = _col;
+                    sel.Pseudo = ReadIdent();
+                    if (sel.Pseudo != "backdrop") { _d.Error(AuiCodes.BadSelector, "Unknown pseudo-element '::" + sel.Pseudo + "'; only ::backdrop exists.", pl, pc, sel.Pseudo.Length + 2); return null; }
+                    if (sel.Tag != "modal") { _d.Error(AuiCodes.BadSelector, "::backdrop only applies to modal (modal::backdrop, modal.dim::backdrop).", pl, pc, 10); return null; }
+                    if (Cur == ':') { _d.Error(AuiCodes.BadSelector, "::backdrop takes no state; style the modal itself for hover and friends.", _line, _col, 1); return null; }
+                    return sel;
                 }
                 if (Cur == ':')
                 {
@@ -282,8 +297,10 @@ namespace Armagan.AUI.Core
                             if (!Eof) { Advance(); Advance(); }
                             continue;
                         }
-                        if (ch == '(') depth++;
-                        if (ch == ')') depth--;
+                        // Parentheses and {binding} braces nest; a bare '}' closes the rule.
+                        if (ch == '(' || ch == '{') depth++;
+                        if (ch == ')' && depth > 0) depth--;
+                        if (ch == '}' && depth > 0) { depth--; value.Append(ch); Advance(); continue; }
                         if (depth <= 0 && (ch == ';' || ch == '}')) break;
                         if (ch == '\n' && depth <= 0)
                         {

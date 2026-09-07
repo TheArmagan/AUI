@@ -5,6 +5,8 @@
     "Armagan.AUI.Core",
     "Armagan.AUI.Editor",
     "Armagan.AUI",
+    "UdonSharp.Runtime",
+    "Unity.TextMeshPro",
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner"
   ],

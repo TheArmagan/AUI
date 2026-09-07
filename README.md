@@ -2,8 +2,10 @@
 
 A UI engine for VRChat worlds written in UdonSharp. You write a view in an HTML-like file and a
 small CSS-like stylesheet; the editor compiles them into a plain uGUI prefab with generated
-UdonSharp wiring. Every string is a translation key, the player's language switches in-game
-without a rebuild, and nothing is parsed at runtime.
+UdonSharp wiring. Every string is a translation key and the player's language switches in-game
+without a rebuild. The flex layout and the stylesheet cascade are baked into tables the view
+re-runs in Udon, so text, classes, visibility, style values and created elements can change at
+runtime; nothing is parsed from text in-world.
 
 Package id `rest.armagan.aui`, namespace `Armagan.AUI`. Targets Unity 2022.3 and VRChat Worlds
 SDK 3.10.4 or newer. This file is the overview; `USAGE.md` is the recipe book for building panels;
@@ -96,7 +98,34 @@ code moves the control silently. Repeats use methods because Udon has no per-row
 `RowsCount = 3; SetRowsName(0, "first");`.
 
 Two more author hooks: `OnRetranslate()` runs after a language switch, `Emit("picked")` in a
-nested view runs the parent's `on-picked="Handler"`.
+nested view runs the parent's `on-picked="Handler"` (`EmitInt("picked", 3)` when the child
+declares `<event name="picked" type="int"/>`; the handler then takes `int value`).
+
+## Change things at runtime
+
+Every view carries its layout and its stylesheet as tables and re-solves them in Udon when
+something changes. From the view's own code, or from another script holding the typed reference:
+
+```csharp
+SetActiveElem(E_DETAILS, false);          // hides and frees the space; siblings move up
+AddClass(E_CARD, C_WARM);                 // restyles the card and its children through the cascade
+Tone = "big";                             // class="card {tone}" mixes literals and bindings
+BarWidth = "50%";                         // style="width: {barWidth}"; lengths are strings, colours are Color
+SetPosition(E_BADGE, -6f, -6f, float.NaN, float.NaN);   // position: absolute at negative edges
+int line = CreateLine(E_LOG);             // a parked <template> instance, linked under the log card
+SetLineMsg(line, "hello"); DestroyElement(line);
+OpenConfirm();                            // a <modal>, over a dimming backdrop, no z-index games
+int hint = GetElement("#hint");           // or GetElements(".chip") / GetElements("button")
+SetText(hint, "done"); SetIcon(hint, "check"); SetOpacity(hint, 0.5f);
+SetStyleVariable("accent", "#4FC3F7");    // a :root variable: every rule that reads it follows, nested views too
+lang.SetStyleVariable("base", "#101418"); // the same through the language service: every view in the world
+SetAutoRelayout(false); /* many changes */ Relayout();   // one solve for a batch
+```
+
+Solves are one per frame and only when marked dirty; a 40-element view solves in about a
+millisecond in the editor's Udon interpreter. Two things cannot change in-world because Udon has
+no API for them: a text's font weight (a class that sets one is applied at bake and warns when
+it can only be reached at runtime) and new materials (`shader()` materials are created at bake).
 
 ## Linking other scripts
 
@@ -121,9 +150,10 @@ public class DemoBrightness : UdonSharpBehaviour
 ```
 
 A script that must not depend on a specific view (a library) can instead take an `AuiView` and
-use the base API: `Show()`, `Hide()`, `SetSelected(id, on)`, `SetRepeatCount(i, n)`, or send
-`_Retranslate`. For the generated properties the concrete class is the API; that is the point of
-generating it.
+use the base API: `Show()`, `Hide()`, `Back()`, `GetElement("#id")`, `SetText`, `AddClassNamed`,
+`SetActiveElem`, `SetRepeatCount(i, n)`, `CreateElementByTag("text", parent, "muted", -1)`, or
+send `_Retranslate`. For the generated properties the concrete class is the API; that is the
+point of generating it.
 
 ## Languages
 
@@ -165,39 +195,62 @@ objects.
 | `tabs` / `tab` | `bind="{i}"`, `for`; `<tab page key icon/>` | `onchange`: `void H(int page)` |
 | `pages` / `page` | `id`, `mode=crossfade\|sequential`, `default` | |
 | `repeat` | `id`, `max` (1..64), one template child, optional `<empty>` | `onselect`: `void H(int row)`; handlers inside get `int row` first |
-| `Name` | a nested `Name.aui`; attributes become the child's properties; `on-<event>` | `void H()` |
+| `template` | `id`, `max` (1..64), one child; direct child of `view` | parked copies for `CreateId(parent)` / `CreateElement`; `{item.x}` become `SetIdX(elem, v)` |
+| `slot` | `id`, `views="A B"`, `max` | parked nested views for `CreateIdA(parent)` / `CreateViewNamed` |
+| `modal` | `id`, `enabled="{b}"`, `dismissable`, `show`; direct child of `view` | `onopen`, `onclose`: `void H()`; generated `OpenId()`, `CloseId()`, `IsIdOpen()` |
+| `prop` | `name`, `type`, `default`; on `view` or inside `component` | declares a typed property |
+| `event` | `name`, `type`; on `view` | declares what `EmitX(name, value)` sends |
+| `component` | `name` (capitalised), one child, `prop`s | an inline template used as `<Name prop="v"/>`, expanded at compile time |
+| `Name` | a nested `Name.aui`; attributes are its props (`{binding}` or literal); `on-<event>` | `void H()` or `void H(T value)` for a typed event |
 
-Common attributes: `id`, `class`, `style`, `if="{b}"` (active), `hidden`. Pointer handlers
-`onhover`, `onleave`, `onpress`, `onrelease` on anything clickable. Inside a repeat template
-bindings are `{item.name}`.
+Common attributes: `id`, `class` (literals and `{bindings}`, `*utility` classes), `style`
+(values may be `{bindings}`), `if="{b}"` (active), `hidden`. `view` also takes `icons`,
+`sprites`, `materials`, `utilities` (preloads for `SetIcon` / `SetBackground` / `SetMaterial` /
+`AddClass`) and `pool="text:16 panel:8"`. Pointer handlers `onhover`, `onleave`, `onpress`,
+`onrelease` on anything clickable. Inside a repeat or template, bindings are `{item.name}`.
 
 ## Stylesheet
 
-A view uses, in cascade order: the package theme (`Theme/Default.auis`), `<link href>` or the
-sibling `Name.auis`, `<style>` blocks, then `style=""`. Selectors are `tag`, `.class`,
-`tag.class`, any of those with `:hover`, `:pressed`, `:selected` or `:disabled`, and `:root` for
-variables. No descendant selectors: styles are baked per element.
+A view uses, in cascade order: the package theme (`Theme/Default.auis`), the built-in utility
+classes, `<link href>` or the sibling `Name.auis`, `<style>` blocks, then `style=""`. Selectors
+are `tag`, `.class`, `tag.class`, any of those with `:hover`, `:pressed`, `:selected` or
+`:disabled`, `.*star` for a style-only class, `modal::backdrop` for a modal's scrim, and `:root`
+for variables. No descendant selectors: styles are resolved per element.
 
 ```
 :root { --accent: #E0A86A; }
 .card { background: sprite(Rounded8) var(--card); padding: 12; gap: 8; }
 button:hover { background: var(--accent); scale: 1.03; }
+.glow { background: sprite(Rounded8) shader(Custom/UIGlow) var(--accent); }
 ```
 
-Properties: `width height min-* max-*` (mm, `auto`, `%`), `anchor`, `padding margin gap`,
-`flex-direction justify align grow wrap`, `color background border radius opacity scale offset
-icon-color`, `font font-weight font-size text-align line-height`, `transition`,
-`page-transition`, `show`. State rules may only change `color`, `background`, `border`,
-`icon-color`, `opacity`, `scale` and `offset`; they animate with the element's `transition`.
+Properties: `width height min-* max-*` (mm, `auto`, `%`), `display`, `position` with
+`top right bottom left` (negatives allowed), `anchor`, `padding margin gap`, `flex-direction
+justify align grow wrap`, `color background border radius opacity scale offset icon-color`,
+`font font-weight font-size text-align line-height`, `transition`, `page-transition`, `show`.
+`background` takes `none`, a colour, `sprite(Name)`, `material(Name)` (an asset) or
+`shader(Name)` (one generated material per shader). State rules may only change `color`,
+`background`, `border`, `icon-color`, `opacity`, `scale` and `offset`; they animate with the
+element's `transition`. Every property except `radius`, `font-weight`, `page-transition` and
+`show` can change at runtime through a class or a bound style value.
+
+Utility classes: `*flex-row *items-center *gap-8 *p-12 *w-full *hidden *absolute *rounded-8
+*text-lg *fg-muted` and so on (steps 0 1 2 4 6 8 12 16 24 32 48 64; the full list is generated by
+`Core/Schema/AuiUtilityClasses.cs` and documented in `USAGE.md`). They never count toward the
+64 regular classes a view can switch at runtime, and only the ones a view mentions are baked.
 
 Units are millimetres: the canvas is scaled 0.001 so a 440 wide view is 44 cm in the world.
 
 ## Layout
 
-A flex subset resolved at compile time: one axis per container, `grow` shares leftover space,
-`wrap` breaks rows, `anchor` places absolutely. Text is measured with the real font over every
-translation so a box fits its widest language; text and bound content shrink first when a row
-would overflow. Repeats bake `max` copies and page rather than scroll.
+A flex subset: one axis per container, `grow` shares leftover space, `wrap` breaks rows,
+`position: absolute` and `anchor` place out of the flow, `display: none` and `hidden` free their
+space. The editor solves it once to bake the prefab (text measured with the real font over every
+translation) and the view solves it again in Udon whenever a text, a class, a visibility, a
+repeat count, a created element or the language changes, using the baked per-language text
+sizes and measuring changed strings through uGUI's `LayoutUtility`. A test suite runs both
+solvers on the same trees and requires identical rectangles. Repeats bake `max` copies and lay
+out the live rows; they page rather than scroll.
 
 ## Inspector
 
@@ -217,7 +270,9 @@ view meanwhile) or in front of the scene camera, is never saved with the scene, 
 mark the scene dirty.
 
 Buttons do nothing in the preview, so what the prefab hides at rest is reachable from the
-window: a dropdown per `pages` group, a checkbox per `select` popup, and a language dropdown.
+window: a dropdown per `pages` group, a checkbox per `select` popup and per `modal`, and a
+language dropdown. Templates and slots are parked and do not show; bound style values show
+their defaults.
 With "Follow edits" on (the default), a save inside a page shows that page and draws its tab
 selected; a save inside an `<option>` opens that select. Hover and pressed looks, transitions
 and clicks still need the real prefab in play mode.
@@ -271,8 +326,11 @@ Messages are `[AUI] path:line:col code: text`, clickable in the console. Codes a
 ## Tests
 
 `Tests/Editor` holds NUnit edit-mode tests for the parser, stylesheet, cascade, analyzer, layout,
-language table and code generator (golden file under `Tests/Editor/Golden`). Run them from the
-Test Runner.
+language table and code generator (golden file under `Tests/Editor/Golden`), plus parity suites
+that run the Udon-side layout solver and cascade against the compile-time ones on the same
+fixtures, and tests for modals, components, templates and utilities. Run them from the Test
+Runner. `Assets/AUI/Demo/Gallery/RuntimeDemo.aui` (also under `Samples~`) exercises the runtime
+features together.
 
 ## Known issues
 
@@ -285,6 +343,13 @@ Test Runner.
 - Han unification: a CJK character present in Japanese, Korean and Chinese renders with the
   Japanese glyph shape.
 - Only the first four `args` of a text are substituted.
+- The VS Code extension's bundled server must be rebuilt (`tools~/vscode-aui/install.ps1`) after
+  the compiler changes; an old server shows errors for `display`, `modal`, `template` and the
+  `*utility` classes that the Unity importer accepts.
+- Runtime text is re-measured through `LayoutUtility` because TextMeshPro's own measurement
+  calls are not exposed to Udon; a text on an inactive page is measured when the page opens.
+- Font weight cannot change at runtime, and a bound `width: {w}` is a string parsed in Udon
+  (`"12"`, `"50%"`, `"auto"`).
 
 ## Not verified
 
@@ -297,3 +362,6 @@ where these things cannot be seen:
 - Laser hover enter/exit reliability on Quest.
 - `OnLanguageChanged` being raised by the live client, and PlayerData persistence of the pick.
 - Text legibility of the default sizes at 2 m, and atlas memory on Quest.
+- The cost of a runtime solve on Quest hardware (measured only in the editor's Udon interpreter:
+  about 2 ms for a 42-element view with five nested views).
+- Backdrop clicks on a modal and `shader()` backgrounds in the live client.

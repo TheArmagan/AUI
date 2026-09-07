@@ -30,6 +30,8 @@ namespace Armagan.AUI.Core
         public AuiViewInfo Info;
         public AuiIndexMap Map;
         public AuiLayoutNode[] Layout;
+        /// <summary>The cascade as runtime tables (rules, declarations, class ids, per-element tags and masks).</summary>
+        public AuiRuleTable Rules;
         public string GeneratedSource;
         /// <summary>Hash of everything the prefab depends on; equal hashes mean an identical prefab.</summary>
         public string Hash;
@@ -67,6 +69,7 @@ namespace Armagan.AUI.Core
 
             // ---- sheets in tier order
             if (opt.Theme != null) r.Sheets.Add(opt.Theme);
+            r.Sheets.Add(AuiUtilityClasses.Sheet());
             string dir = Path.GetDirectoryName(filePath) ?? "";
             bool linked = false;
             foreach (AuiLink link in r.Doc.Links)
@@ -104,13 +107,19 @@ namespace Armagan.AUI.Core
             }
 
             // ---- cascade, semantics, keys
-            r.Styles = new AuiStyleResolver(r.Sheets).Resolve(r.Doc, r.Diagnostics);
-            r.Info = AuiAnalyzer.Analyze(r.Doc, new AuiAnalysisContext { FileStem = stem, ViewExists = opt.ViewExists, IconExists = opt.IconExists }, r.Diagnostics);
+            // Inline components become ordinary elements before anything looks at the tree;
+            // pools and slots become templates.
+            AuiTemplateExpander.Expand(r.Doc, r.Diagnostics);
+            AuiPoolSynthesizer.Synthesize(r.Doc, r.Diagnostics);
+            var resolver = new AuiStyleResolver(r.Sheets);
+            r.Styles = resolver.Resolve(r.Doc, r.Diagnostics);
+            r.Info = AuiAnalyzer.Analyze(r.Doc, new AuiAnalysisContext { FileStem = stem, ViewExists = opt.ViewExists, IconExists = opt.IconExists, ChildInfo = opt.ChildInfo }, r.Diagnostics);
             if (opt.Lang != null) opt.Lang.Check(r.Info, r.Diagnostics);
             if (r.Doc.Root == null) return r;
 
             // ---- indices, layout, code
             r.Map = AuiIndexMap.Build(r.Doc, r.Info, r.Styles);
+            r.Rules = AuiRuleTable.Build(resolver, r.Doc, r.Map, r.Diagnostics);
             var lctx = new AuiLayoutContext
             {
                 Measurer = opt.Measurer ?? new AuiApproxTextMeasurer(),
@@ -118,6 +127,8 @@ namespace Armagan.AUI.Core
                 ImageSize = opt.ImageSize,
                 BoundTextSample = opt.BoundTextSample,
                 ChildInfo = opt.ChildInfo,
+                LanguageCount = opt.Lang != null ? opt.Lang.LanguageCount : 0,
+                TranslationAt = opt.Lang != null ? (System.Func<string, int, string>)((k, l) => opt.Lang.IndexOfKey(k) < 0 ? null : opt.Lang.GetWithFallback(l, k)) : null,
             };
             r.Layout = new AuiLayoutSolver(r.Doc, r.Styles, r.Info, lctx, r.Diagnostics).Solve();
 
@@ -125,7 +136,7 @@ namespace Armagan.AUI.Core
             // (r.Hash) also covers layout and styles, and putting that in the header would rewrite
             // Foo.g.cs, and so force a script reload, for a change that only moves a rectangle.
             // The text is emitted once with an empty hash and the header line patched afterwards.
-            var cg = new AuiCodegenContext { Hash = "", ChildInfo = opt.ChildInfo };
+            var cg = new AuiCodegenContext { Hash = "", ChildInfo = opt.ChildInfo, ClassNames = r.Rules.ClassNames };
             string unhashed = AuiCodegen.Emit(r.Info, r.Map, cg, r.Diagnostics);
             r.Hash = ComputeHash(r, unhashed);
             r.GeneratedSource = AuiCodegen.WithHeaderHash(unhashed, Sha1(unhashed));
@@ -152,7 +163,7 @@ namespace Armagan.AUI.Core
             sb.Append(generated);
             foreach (AuiLayoutNode ln in r.Layout)
             {
-                sb.Append(ln.Local.ToString()).Append(ln.AnchorFill ? "F" : "").Append(ln.ContentSized ? "C" : "").Append('|');
+                sb.Append(ln.Local.ToString()).Append(ln.AnchorFill ? "F" : "").Append(ln.ContentSized ? "C" : "").Append(ln.Hidden ? "H" : "").Append(ln.OutOfFlow ? "A" : "").Append('|');
                 if (ln.Instances != null) foreach (AuiRect i in ln.Instances) sb.Append(i.ToString());
             }
             foreach (AuiResolvedStyle s in r.Styles)

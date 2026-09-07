@@ -2,36 +2,97 @@
   "name": "aui",
   "displayName": "AUI",
   "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition, references, rename, quick fixes, colours, inlay hints, generated code preview.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "armagan",
   "license": "MIT",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages", "Snippets"],
-  "activationEvents": ["onLanguage:aui", "onLanguage:auis", "workspaceContains:**/*.aui"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onLanguage:aui",
+    "onLanguage:auis",
+    "workspaceContains:**/*.aui"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
-      { "id": "aui", "aliases": ["AUI view"], "extensions": [".aui"], "configuration": "./language-configuration-aui.json" },
-      { "id": "auis", "aliases": ["AUI stylesheet"], "extensions": [".auis"], "configuration": "./language-configuration-auis.json" }
+      {
+        "id": "aui",
+        "aliases": [
+          "AUI view"
+        ],
+        "extensions": [
+          ".aui"
+        ],
+        "configuration": "./language-configuration-aui.json"
+      },
+      {
+        "id": "auis",
+        "aliases": [
+          "AUI stylesheet"
+        ],
+        "extensions": [
+          ".auis"
+        ],
+        "configuration": "./language-configuration-auis.json"
+      }
     ],
     "grammars": [
-      { "language": "aui", "scopeName": "text.xml.aui", "path": "./syntaxes/aui.tmLanguage.json", "embeddedLanguages": { "source.css.auis": "auis", "meta.embedded.line.auis": "auis" } },
-      { "language": "auis", "scopeName": "source.css.auis", "path": "./syntaxes/auis.tmLanguage.json" }
+      {
+        "language": "aui",
+        "scopeName": "text.xml.aui",
+        "path": "./syntaxes/aui.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.css.auis": "auis",
+          "meta.embedded.line.auis": "auis"
+        }
+      },
+      {
+        "language": "auis",
+        "scopeName": "source.css.auis",
+        "path": "./syntaxes/auis.tmLanguage.json"
+      }
     ],
     "snippets": [
-      { "language": "aui", "path": "./snippets/aui.json" },
-      { "language": "auis", "path": "./snippets/auis.json" }
+      {
+        "language": "aui",
+        "path": "./snippets/aui.json"
+      },
+      {
+        "language": "auis",
+        "path": "./snippets/auis.json"
+      }
     ],
     "commands": [
-      { "command": "aui.showGenerated", "title": "Show Generated C#", "category": "AUI", "icon": "$(code)" },
-      { "command": "aui.restartServer", "title": "Restart Language Server", "category": "AUI" }
+      {
+        "command": "aui.showGenerated",
+        "title": "Show Generated C#",
+        "category": "AUI",
+        "icon": "$(code)"
+      },
+      {
+        "command": "aui.restartServer",
+        "title": "Restart Language Server",
+        "category": "AUI"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "aui.showGenerated", "when": "resourceLangId == aui", "group": "navigation" }
+        {
+          "command": "aui.showGenerated",
+          "when": "resourceLangId == aui",
+          "group": "navigation"
+        }
       ],
       "commandPalette": [
-        { "command": "aui.showGenerated", "when": "resourceLangId == aui" }
+        {
+          "command": "aui.showGenerated",
+          "when": "resourceLangId == aui"
+        }
       ]
     },
     "configuration": {
@@ -59,7 +120,11 @@
         },
         "aui.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Trace the communication with the language server."
         }

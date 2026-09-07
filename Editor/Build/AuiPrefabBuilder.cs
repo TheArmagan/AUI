@@ -40,7 +40,9 @@ namespace Armagan.AUI.Editor
         // 5: labels no longer inset vertically (TMP renders nothing in a rect shorter than one line).
         // 6: circular slider thumb.
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
-        public const int BuilderVersion = 11;
+        // 12: runtime layout tables; every element placed with a centre pivot (no text widen/fitter hacks).
+        // 13: cascade tables replace the per-signal style rows.
+        public const int BuilderVersion = 14;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -67,6 +69,7 @@ namespace Armagan.AUI.Editor
             public int[] Signal, Key, Kind;
             public AuiSignal[] Signals;
             public int[] SigElem;
+            public AuiView[] ChildView;
             public List<AuiNestedView> Nested = new List<AuiNestedView>();
             public Dictionary<AuiNestedView, AuiView> NestedInstances = new Dictionary<AuiNestedView, AuiView>();
             public Transform Content;
@@ -91,6 +94,8 @@ namespace Armagan.AUI.Editor
             public readonly Dictionary<string, string> Pages = new Dictionary<string, string>();
             /// <summary>"ViewName/nodeIndex" of every select whose popup is left open.</summary>
             public readonly HashSet<string> OpenSelects = new HashSet<string>();
+            /// <summary>"ViewName/nodeIndex" of every modal shown open.</summary>
+            public readonly HashSet<string> OpenModals = new HashSet<string>();
         }
 
         // ================================================================ entry
@@ -261,6 +266,7 @@ namespace Armagan.AUI.Editor
             c.Signal = new int[n];
             c.Key = new int[n];
             c.Kind = new int[n];
+            c.ChildView = new AuiView[n];
             for (int i = 0; i < n; i++) { c.Signal[i] = c.R.Map.SignalOf[i]; c.Key[i] = -1; c.Kind[i] = c.R.Map.KindOf[i]; }
             c.Signals = new AuiSignal[c.R.Map.SignalCount];
             c.SigElem = new int[c.R.Map.SignalCount];
@@ -347,7 +353,7 @@ namespace Armagan.AUI.Editor
         /// <summary>Create the objects of one node (and its subtree) for one repeat row. Mirrors AuiIndexMap.Walk.</summary>
         private static void BuildNode(Ctx c, AuiNode n, Transform parent, int row, AuiNode parentNode)
         {
-            if (n.Tag == "repeat") { BuildRepeat(c, n, parent); return; }
+            if (n.Tag == "repeat" || n.Tag == "template") { BuildRepeat(c, n, parent); return; }
             if (n.IsComponentTag) { BuildNested(c, n, parent, row); return; }
 
             int e = c.R.Map.Elem(n, row);
@@ -364,15 +370,19 @@ namespace Armagan.AUI.Editor
                 }
             }
 
+            // A modal's backdrop is its own element, baked just before the body so the body draws over it.
+            GameObject scrimGo = n.Tag == "modal" ? BuildModalScrim(c, n, parent, s) : null;
+
             var go = new GameObject(Name(n), typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
             AuiLayoutNode pl = parentNode != null ? c.R.Layout[parentNode.Index] : null;
             float pw = pl != null ? pl.Local.W : c.R.Info.Width, ph = pl != null ? pl.Local.H : c.R.Info.Height;
-            if (parentNode != null && parentNode.Tag == "repeat" && row > 0) { }
-            Place(rt, local, ln.AnchorFill, pw, ph);
+            // Never stretch anchors: the runtime solver writes sizeDelta / anchoredPosition, which
+            // only mean the same thing as the baked rect under top-left anchors and a centre pivot.
+            Place(rt, local, false, pw, ph);
             Register(c, e, go, rt, rt.anchoredPosition);
-            if (n.HasAttribute("hidden") && n.Get("hidden") != "false") go.SetActive(false);
+            if (ln.Hidden || (n.HasAttribute("hidden") && n.Get("hidden") != "false")) go.SetActive(false);
 
             bool interactive = AuiIndexMap.KindOfTag(n.Tag) != AuiIndexMap.KIND_NONE || c.Signal[e] >= 0;
             switch (n.Tag)
@@ -400,6 +410,13 @@ namespace Armagan.AUI.Editor
                     }
                     break;
                 }
+                case "modal":
+                    // The body swallows clicks (raycast) so nothing behind it reacts; it fades with its own group.
+                    ApplyBackground(c, n, e, go.transform, true, s);
+                    c.Groups[e] = go.AddComponent<CanvasGroup>();
+                    c.Popups.Add(scrimGo);
+                    c.Popups.Add(go);
+                    break;
                 default:
                     // panel/div, button, toggle, tab, tabs, pages, option, empty
                     if (c.Preview && n.Tag == "tab") s = PreviewTabStyle(c, n, s);
@@ -409,7 +426,8 @@ namespace Armagan.AUI.Editor
                     break;
             }
 
-            if (NeedsGroup(s) && c.Groups[e] == null)
+            // An id means "scriptable": it gets a CanvasGroup so SetOpacity works on it.
+            if ((NeedsGroup(s) || (n.Id != null && !c.Preview)) && c.Groups[e] == null)
             {
                 c.Groups[e] = go.AddComponent<CanvasGroup>();
                 c.Groups[e].alpha = s.Opacity;
@@ -419,6 +437,51 @@ namespace Armagan.AUI.Editor
             if (c.Signal[e] >= 0) AddSignal(c, n, e, go, s, interactive);
 
             foreach (AuiNode child in n.Children) BuildNode(c, child, go.transform, row, n);
+
+            if (n.Tag == "modal" && !ModalShownAtRest(c, n))
+            {
+                go.SetActive(false);
+                if (scrimGo != null) scrimGo.SetActive(false);
+            }
+        }
+
+        /// <summary>A modal is baked open when enabled="true", or when the preview asks for it.</summary>
+        private static bool ModalShownAtRest(Ctx c, AuiNode n)
+        {
+            if (c.Preview && c.Opt.OpenModals.Contains(c.R.ViewName + "/" + n.Index)) return true;
+            foreach (AuiModalInfo m in c.R.Info.Modals) if (m.Node == n) return m.StartOpen;
+            return false;
+        }
+
+        /// <summary>The dimming scrim behind a modal: a full-size image under Content that closes the modal on click.</summary>
+        private static GameObject BuildModalScrim(Ctx c, AuiNode n, Transform parent, AuiResolvedStyle s)
+        {
+            var scrim = new GameObject(Name(n) + " backdrop", typeof(RectTransform));
+            scrim.transform.SetParent(parent, false);
+            var srt = (RectTransform)scrim.transform;
+            Stretch(srt);
+            var img = scrim.AddComponent<Image>();
+            AuiBackground bg = s.Backdrop != null ? s.Backdrop.Background : new AuiBackground { IsNone = true };
+            img.color = bg.IsNone ? new Color(0f, 0f, 0f, 0.6f) : ToColor(bg.Color);
+            if (bg.Sprite != null) { img.sprite = NamedSprite(c, bg.Sprite); img.type = Image.Type.Sliced; img.pixelsPerUnitMultiplier = 1f; }
+            img.raycastTarget = true;
+            int se;
+            if (!c.R.Map.ModalScrimElem.TryGetValue(n.Index, out se)) return scrim;
+            Register(c, se, scrim, srt, Vector2.zero);
+            c.Kind[se] = AuiIndexMap.KIND_MODAL_SCRIM;
+            var cg = scrim.AddComponent<CanvasGroup>();
+            c.Groups[se] = cg;
+            if (s.Backdrop != null && s.Backdrop.Opacity < 1f) cg.alpha = s.Backdrop.Opacity;
+            if (!c.Preview)
+            {
+                var btn = scrim.AddComponent<Button>();
+                btn.transition = Selectable.Transition.None;
+                var nav = btn.navigation; nav.mode = Navigation.Mode.None; btn.navigation = nav;
+                c.Buttons[se] = btn;
+                AuiSignal sig = MakeSignal(c, scrim, c.Signal[se]);
+                Wire(btn.onClick, sig, "_Click");
+            }
+            return scrim;
         }
 
         private static string Name(AuiNode n)
@@ -518,6 +581,7 @@ namespace Armagan.AUI.Editor
         public static void ClearSpriteCache()
         {
             SpriteCache.Clear();
+            MaterialCache.Clear();
         }
 
         private static Sprite CachedSprite(string key, System.Func<Sprite> load)
@@ -566,6 +630,51 @@ namespace Armagan.AUI.Editor
             return new Color(c.R, c.G, c.B, c.A);
         }
 
+        private static readonly Dictionary<string, Material> MaterialCache = new Dictionary<string, Material>();
+        public const string GeneratedMaterialDir = "Assets/AUI/Generated/Materials";
+
+        /// <summary>background: material(Name) -> any Material asset of that name in the project.</summary>
+        private static Material NamedMaterial(Ctx c, string name)
+        {
+            Material m;
+            if (MaterialCache.TryGetValue("named:" + name, out m) && m != null) return m;
+            foreach (string guid in AssetDatabase.FindAssets(name + " t:Material"))
+            {
+                string p = AssetDatabase.GUIDToAssetPath(guid);
+                if (Path.GetFileNameWithoutExtension(p) == name) { m = AssetDatabase.LoadAssetAtPath<Material>(p); break; }
+            }
+            if (m == null) AuiLog.Warn("material '" + name + "' not found");
+            MaterialCache["named:" + name] = m;
+            return m;
+        }
+
+        /// <summary>background: shader(Name) -> one Material asset per shader under Assets/AUI/Generated/Materials, created on first use.</summary>
+        private static Material ShaderMaterial(Ctx c, string shaderName)
+        {
+            Material m;
+            if (MaterialCache.TryGetValue("shader:" + shaderName, out m) && m != null) return m;
+            Shader sh = Shader.Find(shaderName);
+            if (sh == null) { AuiLog.Warn("shader '" + shaderName + "' not found"); return null; }
+            string path = GeneratedMaterialDir + "/" + shaderName.Replace('/', '_').Replace(' ', '-') + ".mat";
+            m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                Directory.CreateDirectory(GeneratedMaterialDir);
+                m = new Material(sh);
+                AssetDatabase.CreateAsset(m, path);
+                AuiLog.Info("created " + path + " for shader(" + shaderName + ")");
+            }
+            MaterialCache["shader:" + shaderName] = m;
+            return m;
+        }
+
+        private static Material BackgroundMaterial(Ctx c, AuiBackground bg)
+        {
+            if (bg.Material != null) return NamedMaterial(c, bg.Material);
+            if (bg.Shader != null) return ShaderMaterial(c, bg.Shader);
+            return null;
+        }
+
         /// <summary>Background image on the element itself (elemBg) and an optional Border child (elemBorder).</summary>
         private static void ApplyBackground(Ctx c, AuiNode n, int e, Transform t, bool raycast, AuiResolvedStyle s = null)
         {
@@ -590,6 +699,8 @@ namespace Armagan.AUI.Editor
                     img.type = Image.Type.Sliced;
                     img.pixelsPerUnitMultiplier = 1f;
                     img.color = ToColor(bg.Color);
+                    // material() / shader(): the image keeps its (radius) sprite as _MainTex and its colour as the vertex tint.
+                    if (bg.HasMaterial) img.material = BackgroundMaterial(c, bg);
                 }
                 img.raycastTarget = needsRaycast;
                 c.Bg[e] = img;
@@ -674,49 +785,9 @@ namespace Armagan.AUI.Editor
             t.text = initial ?? "";
             c.Text[e] = t;
             c.Key[e] = KeyIndex(c, key);
-            if (n.Get("text") != null && !s.Width.IsSet)
-            {
-                // RUNTIME TEXT IS BOXED, NOT GROWN. The solver reserved a sample width; a preferred-size
-                // fitter let a long string run past the row and off the canvas. The box is the
-                // reserved width, widened to the parent's remaining content width when nothing
-                // follows the text in its row, and the text ellipsises inside it. max-width stays a cap.
-                var rt = (RectTransform)go.transform;
-                float w = local.W;
-                if (!s.MaxWidth.IsSet && parentNode != null && IsLastFlowChild(c, n, parentNode))
-                {
-                    AuiLayoutNode pl = c.R.Layout[parentNode.Index];
-                    float innerRight = pl.Local.W - c.R.Styles[parentNode.Index].Padding.Right;
-                    w = Mathf.Max(w, innerRight - local.X);
-                }
-                rt.pivot = new Vector2(0f, 0.5f);
-                rt.sizeDelta = new Vector2(w, local.H);
-                // The row's rect, not the template's: every row of a repeat used to stack on row 0.
-                rt.anchoredPosition = new Vector2(local.X, -(local.Y + local.H * 0.5f));
-                c.BasePos[e] = rt.anchoredPosition;
-                if (wrap)
-                {
-                    // Wrapped runtime text keeps its width and grows downward within what the solver reserved.
-                    var fit = go.AddComponent<ContentSizeFitter>();
-                    fit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-                    fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                    rt.pivot = new Vector2(0f, 1f);
-                    rt.anchoredPosition = new Vector2(local.X, -local.Y);
-                    c.BasePos[e] = rt.anchoredPosition;
-                }
-            }
-        }
-
-        /// <summary>True when no in-flow sibling (anything but anchored elements and the repeat's &lt;empty&gt;) follows n in its parent.</summary>
-        private static bool IsLastFlowChild(Ctx c, AuiNode n, AuiNode parentNode)
-        {
-            bool after = false;
-            foreach (AuiNode sib in parentNode.Children)
-            {
-                if (sib == n) { after = true; continue; }
-                if (!after || sib.Tag == "empty") continue;
-                if (c.R.Styles[sib.Index].Anchor == "none") return false;
-            }
-            return true;
+            // RUNTIME TEXT IS RE-MEASURED IN-WORLD. The box baked here is the solver's sample width;
+            // AuiView.Layout measures the real string through LayoutUtility and re-solves the row,
+            // so no widen-to-parent or ContentSizeFitter hack is needed any more.
         }
 
         private static bool Flag(AuiNode n, string attr)
@@ -1010,10 +1081,22 @@ namespace Armagan.AUI.Editor
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
             AuiLayoutNode pl = c.R.Layout[n.Parent.Index];
-            Place(rt, ln.Local, ln.AnchorFill, pl.Local.W, pl.Local.H);
+            Place(rt, ln.Local, false, pl.Local.W, pl.Local.H);
             Register(c, e, go, rt, rt.anchoredPosition);
-            ApplyBackground(c, n, e, go.transform, false);
             if (r == null || r.Template == null) return;
+            if (r.IsTemplate)
+            {
+                // Parked instances: an inactive holder at zero size, each row inactive until CreateElement moves it out.
+                go.SetActive(false);
+                for (int row = 0; row < r.Max; row++)
+                {
+                    BuildNode(c, r.Template, go.transform, row, n);
+                    int re = c.R.Map.Elem(r.Template, row);
+                    if (re >= 0 && c.Objects[re] != null) c.Objects[re].SetActive(false);
+                }
+                return;
+            }
+            ApplyBackground(c, n, e, go.transform, false);
             for (int row = 0; row < r.Max; row++) BuildNode(c, r.Template, go.transform, row, n);
             if (r.Empty != null) BuildNode(c, r.Empty, go.transform, 0, n);
         }
@@ -1033,7 +1116,7 @@ namespace Armagan.AUI.Editor
             var rt = (RectTransform)inst.transform;
             AuiLayoutNode ln = c.R.Layout[n.Index];
             AuiLayoutNode pl = c.R.Layout[n.Parent.Index];
-            Place(rt, ln.Local, ln.AnchorFill, pl.Local.W, pl.Local.H);
+            Place(rt, ln.Local, false, pl.Local.W, pl.Local.H);
             // A nested view is not its own canvas: drop the pieces that only make sense on a root.
             foreach (var comp in new Component[] { inst.GetComponent<VRCUiShape>(), inst.GetComponent<BoxCollider>(), inst.GetComponent<GraphicRaycaster>(), inst.GetComponent<Canvas>() })
                 if (comp != null) Object.DestroyImmediate(comp);
@@ -1042,11 +1125,17 @@ namespace Armagan.AUI.Editor
             {
                 child.parentView = c.View;
                 EditorUtility.SetDirty(child);
-                c.NestedInstances[nv] = child;
+                // A slot's parked copies have no single generated field; only a plain nested view does.
+                AuiRepeatInfo rep = c.R.Info.RepeatContaining(n);
+                if (rep == null || !rep.IsTemplate) c.NestedInstances[nv] = child;
             }
             // Element index reserved by the map for the component node
             int e = c.R.Map.Elem(n, row);
-            if (e >= 0) Register(c, e, inst, rt, rt.anchoredPosition);
+            if (e >= 0)
+            {
+                Register(c, e, inst, rt, rt.anchoredPosition);
+                c.ChildView[e] = child;
+            }
         }
 
         /// <summary>A nested view in the preview: compiled from its source (cached) and built inline, so its edits are live too.</summary>
@@ -1065,7 +1154,7 @@ namespace Armagan.AUI.Editor
             }
             AuiLayoutNode ln = c.R.Layout[n.Index];
             AuiLayoutNode pl = c.R.Layout[n.Parent.Index];
-            Place(rt, ln.Local, ln.AnchorFill, pl.Local.W, pl.Local.H);
+            Place(rt, ln.Local, false, pl.Local.W, pl.Local.H);
             if (e >= 0) Register(c, e, go, rt, rt.anchoredPosition);
         }
 
@@ -1176,54 +1265,55 @@ namespace Armagan.AUI.Editor
             v.showKind = show == "none" ? AuiView.TRANS_NONE : show == "fade" ? AuiView.TRANS_FADE : show == "fade-slide" ? AuiView.TRANS_FADE_SLIDE : AuiView.TRANS_FADE_SCALE;
             v.startHidden = Flag(r.Doc.Root, "start-hidden");
 
-            // ---- style rows
-            int sigCount = r.Map.SignalCount;
-            var rangeStart = new int[sigCount * AuiView.STATE_COUNT];
-            var rangeCount = new int[sigCount * AuiView.STATE_COUNT];
-            var prop = new List<int>(); var val = new List<Vector4>(); var spr = new List<Sprite>(); var dur = new List<float>(); var ease = new List<int>(); var chan = new List<int>();
-            int channels = 0;
-            for (int id = 0; id < sigCount; id++)
+            // ---- cascade tables (rules, declarations, class ids); the runtime re-resolves from these
+            AuiRuleTable rt = r.Rules;
+            v.classNames = rt.ClassNames; v.tagNames = rt.TagNames;
+            v.ruleTag = rt.RuleTag; v.ruleClass = rt.RuleClass; v.ruleNode = rt.RuleNode; v.ruleState = rt.RuleState; v.ruleDeclStart = rt.RuleDeclStart; v.ruleDeclCount = rt.RuleDeclCount;
+            v.declProp = rt.DeclProp; v.declRef = rt.DeclRef;
+            var dv = new Vector4[rt.DeclProp.Length];
+            for (int i = 0; i < dv.Length; i++) dv[i] = new Vector4(rt.DeclValue[4 * i], rt.DeclValue[4 * i + 1], rt.DeclValue[4 * i + 2], rt.DeclValue[4 * i + 3]);
+            v.declValue = dv;
+            var sprites = new Sprite[rt.RefNames.Length];
+            var materials = new Material[rt.RefNames.Length];
+            for (int i = 0; i < rt.RefNames.Length; i++)
             {
-                int e = c.SigElem[id];
-                AuiNode n = r.Map.NodeOf[e];
-                if (n == null) { for (int st = 0; st < AuiView.STATE_COUNT; st++) rangeStart[id * AuiView.STATE_COUNT + st] = prop.Count; continue; }
-                AuiResolvedStyle s = r.Styles[n.Index];
-                // Which properties any state touches: those get a normal baseline row.
-                var touched = new List<string>();
-                foreach (KeyValuePair<string, Dictionary<string, string>> st in s.States)
-                    foreach (string p in st.Value.Keys) if (PropId(p) >= 0 && !touched.Contains(p)) touched.Add(p);
-                touched.Sort(string.CompareOrdinal);
-                var channelOf = new Dictionary<string, int>();
-                foreach (string p in touched) channelOf[p] = channels++;
-
-                for (int st = 0; st < AuiView.STATE_COUNT; st++)
-                {
-                    int range = id * AuiView.STATE_COUNT + st;
-                    rangeStart[range] = prop.Count;
-                    Dictionary<string, string> values = null;
-                    if (st == 0) { values = new Dictionary<string, string>(); foreach (string p in touched) { string nv = s.Get(p); if (nv != null || p == "scale" || p == "opacity" || p == "offset") values[p] = nv ?? (p == "scale" ? "1" : p == "opacity" ? "1" : "0 0"); } }
-                    else s.States.TryGetValue(StateNames[st], out values);
-                    if (values != null)
-                        foreach (string p in touched)
-                        {
-                            string raw;
-                            if (!values.TryGetValue(p, out raw)) continue;
-                            float d; string es;
-                            if (!s.TransitionFor(p, out d, out es)) { d = 0f; es = "out-quad"; }
-                            Vector4 vec; Sprite sprite;
-                            if (!RowValue(c, p, raw, s, out vec, out sprite)) continue;
-                            prop.Add(PropId(p)); val.Add(vec); spr.Add(null); dur.Add(d); ease.Add(EaseId(es)); chan.Add(channelOf[p]);
-                            if (sprite != null && p == "background")
-                            {
-                                prop.Add(AuiView.PROP_SPRITE); val.Add(Vector4.zero); spr.Add(sprite); dur.Add(0f); ease.Add(0); chan.Add(-1);
-                            }
-                        }
-                    rangeCount[range] = prop.Count - rangeStart[range];
-                }
+                int kind = rt.RefKind != null && i < rt.RefKind.Length ? rt.RefKind[i] : AuiRuleTable.REF_SPRITE;
+                if (kind == AuiRuleTable.REF_SPRITE) sprites[i] = NamedSprite(c, rt.RefNames[i]);
+                else if (kind == AuiRuleTable.REF_MATERIAL) materials[i] = NamedMaterial(c, rt.RefNames[i]);
+                else materials[i] = ShaderMaterial(c, rt.RefNames[i]);
             }
-            v.styleRangeStart = rangeStart; v.styleRangeCount = rangeCount;
-            v.styleProp = prop.ToArray(); v.styleValue = val.ToArray(); v.styleSprite = spr.ToArray(); v.styleDur = dur.ToArray(); v.styleEase = ease.ToArray(); v.styleChannel = chan.ToArray();
-            v.channelCount = channels;
+            v.declSprite = sprites; v.declMaterial = materials;
+            v.bucketStart = rt.BucketStart; v.bucketCount = rt.BucketCount; v.bucketRules = rt.BucketRules;
+            v.tsStart = rt.TsStart; v.tsCount = rt.TsCount; v.tsProp = rt.TsProp; v.tsEase = rt.TsEase; v.tsDur = rt.TsDur;
+            v.inheritedProps = rt.InheritedProps;
+            v.elemTag = rt.ElemTag; v.elemNode = rt.ElemNode; v.elemSubtreeEnd = rt.ElemSubtreeEnd; v.elemClass0 = rt.ElemClass0; v.elemClass1 = rt.ElemClass1;
+            v.classSlots = rt.ClassSlots;
+            v.starNames = rt.StarNames; v.ruleStar = rt.RuleStar; v.elemStar = rt.ElemStar;
+            v.refNames = rt.RefNames;
+            // :root variables and the declarations built from them (SetStyleVariable re-encodes those in-world).
+            v.varNames = rt.VarNames; v.varValues = rt.VarValues;
+            var templates = new string[rt.DeclTemplate.Length];
+            for (int i = 0; i < templates.Length; i++) templates[i] = rt.DeclTemplate[i] ?? "";   // Unity serialises a null string as "", so the runtime tests for empty
+            v.declTemplate = templates;
+
+            // ---- lookups for GetElement / SetIcon
+            var idN = new List<string>(); var idE = new List<int>();
+            foreach (AuiNode n in r.Doc.Nodes)
+                if (n.Id != null && r.Map.Base[n.Index] >= 0) { idN.Add(n.Id); idE.Add(r.Map.Base[n.Index]); }
+            v.idNames = idN.ToArray(); v.idElem = idE.ToArray();
+            var icons = new List<string>();
+            foreach (AuiNode n in r.Doc.Nodes)
+            {
+                string ic = n.Tag == "icon" ? n.Get("name") : n.Get("icon");
+                if (ic != null && !icons.Contains(ic)) icons.Add(ic);
+            }
+            string preload = r.Doc.Root.Get("icons");
+            if (preload != null)
+                foreach (string ic in preload.Split(new[] { ' ', ',' }, System.StringSplitOptions.RemoveEmptyEntries))
+                    if (!icons.Contains(ic)) icons.Add(ic);
+            var iconSprites = new Sprite[icons.Count];
+            for (int i = 0; i < icons.Count; i++) iconSprites[i] = IconSprite(c, icons[i]);
+            v.iconNames = icons.ToArray(); v.iconSprites = iconSprites;
 
             // ---- pages
             var gStart = new List<int>(); var gCount = new List<int>(); var gMode = new List<int>(); var gDefault = new List<int>();
@@ -1246,14 +1336,25 @@ namespace Armagan.AUI.Editor
 
             // ---- repeats
             var rFirst = new List<int>(); var rStride = new List<int>(); var rMax = new List<int>(); var rEmpty = new List<GameObject>();
+            var rTpl = new List<bool>(); var rElem = new List<int>();
+            var pTag = new List<string>(); var pTpl = new List<int>();
+            var sId = new List<string>(); var sView = new List<string>(); var sTpl = new List<int>();
             foreach (AuiRepeatInfo rep in r.Info.Repeats)
             {
+                int ri = rFirst.Count;
                 rFirst.Add(rep.Template != null ? r.Map.Elem(rep.Template, 0) : 0);
                 rStride.Add(rep.Template != null ? r.Map.Stride[rep.Template.Index] : 1);
                 rMax.Add(rep.Max);
                 rEmpty.Add(rep.Empty != null ? c.Objects[r.Map.Elem(rep.Empty, 0)] : null);
+                rTpl.Add(rep.IsTemplate);
+                rElem.Add(r.Map.Elem(rep.Node, 0));
+                if (rep.PoolTag != null) { pTag.Add(rep.PoolTag); pTpl.Add(ri); }
+                if (rep.SlotId != null) { sId.Add(rep.SlotId); sView.Add(rep.SlotView); sTpl.Add(ri); }
             }
             v.repeatFirst = rFirst.ToArray(); v.repeatStride = rStride.ToArray(); v.repeatMax = rMax.ToArray(); v.repeatEmpty = rEmpty.ToArray();
+            v.repeatIsTemplate = rTpl.ToArray(); v.repeatElem = rElem.ToArray();
+            v.poolTag = pTag.ToArray(); v.poolTemplate = pTpl.ToArray();
+            v.slotId = sId.ToArray(); v.slotView = sView.ToArray(); v.slotTemplate = sTpl.ToArray();
 
             // ---- selects
             var sElem = new List<int>(); var sPopup = new List<int>(); var sFirst = new List<int>(); var sCount = new List<int>(); var sScrim = new List<int>();
@@ -1266,6 +1367,32 @@ namespace Armagan.AUI.Editor
                 sScrim.Add(c.Signal[r.Map.ScrimElem[sel.Node.Index]]);
             }
             v.selectElem = sElem.ToArray(); v.selectPopupElem = sPopup.ToArray(); v.selectOptionFirst = sFirst.ToArray(); v.selectOptionCount = sCount.ToArray(); v.selectScrimSig = sScrim.ToArray();
+
+            // ---- modals
+            var mElem = new List<int>(); var mScrim = new List<int>(); var mSig = new List<int>(); var mKind = new List<int>(); var mDis = new List<bool>(); var mOpen = new List<bool>();
+            foreach (AuiModalInfo m in r.Info.Modals)
+            {
+                int se;
+                if (!r.Map.ModalScrimElem.TryGetValue(m.Node.Index, out se)) continue;
+                mElem.Add(r.Map.Elem(m.Node, 0));
+                mScrim.Add(se);
+                mSig.Add(c.Signal[se]);
+                string mshow = m.Node.Get("show") ?? r.Styles[m.Node.Index].Show;
+                mKind.Add(mshow == "none" ? AuiView.TRANS_NONE : mshow == "fade" ? AuiView.TRANS_FADE : mshow == "fade-slide" ? AuiView.TRANS_FADE_SLIDE : AuiView.TRANS_FADE_SCALE);
+                mDis.Add(m.Dismissable);
+                mOpen.Add(m.StartOpen);
+            }
+            v.modalElem = mElem.ToArray(); v.modalScrimElem = mScrim.ToArray(); v.modalScrimSig = mSig.ToArray(); v.modalKind = mKind.ToArray(); v.modalDismissable = mDis.ToArray(); v.modalStartOpen = mOpen.ToArray();
+
+            // ---- layout tables for the runtime solver
+            AuiLayoutTables lt = AuiLayoutTables.Build(r);
+            v.layoutEnabled = true;
+            v.layLangCount = lt.LangCount; v.layRootW = lt.RootW; v.layRootH = lt.RootH;
+            v.layParent = lt.Parent; v.layFirstChild = lt.FirstChild; v.layNextSibling = lt.NextSibling; v.layKind = lt.Kind; v.layFlags = lt.Flags;
+            v.layJustify = lt.Justify; v.layAlign = lt.Align; v.layAnchor = lt.Anchor; v.layRepeat = lt.Repeat; v.laySizeKind = lt.SizeKind; v.layEdgeKind = lt.EdgeKind;
+            v.layGrow = lt.Grow; v.layGap = lt.Gap; v.layPad = lt.Pad; v.layMargin = lt.Margin; v.laySizeVal = lt.SizeVal; v.layEdgeVal = lt.EdgeVal;
+            v.layIntrinsicW = lt.IntrinsicW; v.layIntrinsicH = lt.IntrinsicH; v.layLangW = lt.LangW; v.layLangH = lt.LangH; v.layContentW = lt.ContentW; v.layContentH = lt.ContentH;
+            v.elemChildView = c.ChildView;
 
             // ---- nested view fields on the generated class
             foreach (KeyValuePair<AuiNestedView, AuiView> kv in c.NestedInstances)
@@ -1374,7 +1501,7 @@ namespace Armagan.AUI.Editor
             if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
             {
                 var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
-                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "auiBakeHash" })
+                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate" })
                     if (!exports.Contains(must)) AuiLog.Error(c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }
         }

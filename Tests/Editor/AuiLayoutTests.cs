@@ -192,6 +192,83 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void DisplayNoneAndHiddenFreeTheirSpace()
+        {
+            AuiMarkupDocument doc; AuiDiagnosticBag bag;
+            var l = Solve("<view name=\"V\" width=\"200\" height=\"100\"><icon id=\"a\" name=\"x\" size=\"10\" style=\"display: none\"/><icon id=\"h\" name=\"x\" size=\"10\" hidden=\"\"/><icon id=\"b\" name=\"x\" size=\"10\"/></view>",
+                "view { padding: 0; gap: 5 }", out doc, out bag);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items));
+            var a = ById(l, doc, "a");
+            Assert.IsTrue(a.Hidden);
+            Assert.IsTrue(a.OutOfFlow);
+            Assert.AreEqual(0, a.Local.W); Assert.AreEqual(0, a.IntrinsicH);
+            Assert.IsTrue(ById(l, doc, "h").Hidden);
+            Assert.AreEqual(0, ById(l, doc, "b").Local.Y, 0.01);      // first flow child: nothing hidden reserves space
+        }
+
+        [Test]
+        public void AbsoluteEdgesAllowNegativesAndStretch()
+        {
+            AuiMarkupDocument doc; AuiDiagnosticBag bag;
+            var l = Solve("<view name=\"V\" width=\"200\" height=\"100\">" +
+                "<icon id=\"tl\" name=\"x\" size=\"10\" style=\"position: absolute; top: -4; left: -6\"/>" +
+                "<icon id=\"br\" name=\"x\" size=\"10\" style=\"position: absolute; bottom: 2; right: 3\"/>" +
+                "<panel id=\"st\" style=\"position: absolute; top: 5; bottom: 5; left: 20; right: 20\"/>" +
+                "<icon id=\"flow\" name=\"x\" size=\"10\"/></view>",
+                "view { padding: 10; gap: 0 } panel { padding: 0 }", out doc, out bag);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items));
+            var tl = ById(l, doc, "tl");
+            Assert.IsTrue(tl.OutOfFlow);
+            Assert.AreEqual(10 - 6, tl.Local.X, 0.01); Assert.AreEqual(10 - 4, tl.Local.Y, 0.01);
+            var br = ById(l, doc, "br");
+            Assert.AreEqual(10 + 180 - 3 - 10, br.Local.X, 0.01); Assert.AreEqual(10 + 80 - 2 - 10, br.Local.Y, 0.01);
+            var st = ById(l, doc, "st");
+            Assert.AreEqual(30, st.Local.X, 0.01); Assert.AreEqual(140, st.Local.W, 0.01);
+            Assert.AreEqual(15, st.Local.Y, 0.01); Assert.AreEqual(70, st.Local.H, 0.01);
+            Assert.AreEqual(10, ById(l, doc, "flow").Local.Y, 0.01);  // absolutes reserve nothing
+        }
+
+        [Test]
+        public void AbsoluteDiagnostics()
+        {
+            AuiMarkupDocument doc; AuiDiagnosticBag bag;
+            Solve("<view name=\"V\" width=\"200\" height=\"100\">" +
+                "<icon name=\"x\" size=\"10\" style=\"position: absolute\"/>" +
+                "<icon name=\"x\" size=\"10\" style=\"position: absolute; top: 0; bottom: 0; height: 10\"/>" +
+                "<icon name=\"x\" size=\"10\" style=\"top: 4\"/></view>",
+                "view { padding: 0 }", out doc, out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.AbsoluteWithoutEdges));
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.EdgeConflict));
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.EdgeIgnored));
+            Solve("<view name=\"V\" width=\"200\" height=\"100\" style=\"display: none\"/>", "view { padding: 0 }", out doc, out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.DisplayOnRoot));
+        }
+
+        [Test]
+        public void NegativeSizesAreRejectedButEdgesAndMarginAreNot()
+        {
+            AuiMarkupDocument doc; AuiDiagnosticBag bag;
+            Solve("<view name=\"V\" width=\"200\" height=\"100\"><icon id=\"a\" name=\"x\" size=\"10\" style=\"width: -5; padding: -1; margin: -2; left: -3; position: absolute\"/></view>",
+                "view { padding: 0 }", out doc, out bag);
+            Assert.AreEqual(2, bag.Items.Count(x => x.Code == AuiCodes.LayoutNegativeSize));
+        }
+
+        [Test]
+        public void RepeatCountContextLimitsRows()
+        {
+            var doc = AuiParser.Parse("<view name=\"V\" width=\"200\" height=\"200\"><repeat id=\"rows\" max=\"3\"><panel id=\"item\" style=\"height: 30\"/></repeat></view>", "V.aui");
+            var bag = new AuiDiagnosticBag("V.aui");
+            var sheets = new List<AuiStyleSheet> { AuiStyleParser.Parse("view { padding: 0 } repeat { gap: 5; padding: 0 } panel { padding: 0 }", "V.auis", AuiStyleTier.Linked) };
+            var styles = new AuiStyleResolver(sheets).Resolve(doc, bag);
+            var info = AuiAnalyzer.Analyze(doc, new AuiAnalysisContext(), bag);
+            var ctx = new AuiLayoutContext { Measurer = new StubMeasurer(), RepeatCount = r => 2 };
+            var l = new AuiLayoutSolver(doc, styles, info, ctx, bag).Solve();
+            var r = ById(l, doc, "rows");
+            Assert.AreEqual(2, r.Instances.Count);
+            Assert.AreEqual(2 * 30 + 5, r.IntrinsicH, 0.01);
+        }
+
+        [Test]
         public void ApproxMeasurerCountsCjkWide()
         {
             var m = new AuiApproxTextMeasurer();

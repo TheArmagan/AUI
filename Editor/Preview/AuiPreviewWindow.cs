@@ -124,7 +124,8 @@ namespace Armagan.AUI.Editor
                 // Copies: picking a page rebuilds the preview, which refills these lists mid-draw.
                 var groups = AuiPreview.LastPageGroups.ToArray();
                 var selects = AuiPreview.LastSelects.ToArray();
-                if (groups.Length > 0 || selects.Length > 0)
+                var modals = AuiPreview.LastModals.ToArray();
+                if (groups.Length > 0 || selects.Length > 0 || modals.Length > 0)
                 {
                     EditorGUILayout.Space(4);
                     EditorGUILayout.LabelField("Shown", EditorStyles.boldLabel);
@@ -148,6 +149,14 @@ namespace Armagan.AUI.Editor
                     bool open = AuiPreview.IsSelectOpen(kv.Key, n.Index);
                     bool pick = EditorGUILayout.Toggle(label, open);
                     if (pick != open) AuiPreview.SetSelectOpen(kv.Key, n.Index, pick);
+                }
+                foreach (KeyValuePair<string, AuiNode> kv in modals)
+                {
+                    AuiNode n = kv.Value;
+                    string label = (kv.Key == AuiPreview.ViewName ? "" : kv.Key + ".") + "modal" + (n.Id != null ? "#" + n.Id : " (line " + n.Line + ")");
+                    bool open = AuiPreview.IsModalOpen(kv.Key, n.Index);
+                    bool pick = EditorGUILayout.Toggle(label, open);
+                    if (pick != open) AuiPreview.SetModalOpen(kv.Key, n.Index, pick);
                 }
             }
 

@@ -25,6 +25,8 @@ namespace Armagan.AUI.Core
         public bool Inherited;
         /// <summary>Can appear in a :state rule and be tweened at runtime.</summary>
         public bool Animatable;
+        /// <summary>Applied by the prefab builder only; a class that gains it at runtime has no effect (AUI212).</summary>
+        public bool BakeOnly;
         /// <summary>Human text for hover in the editor.</summary>
         public string Doc;
     }
@@ -84,7 +86,7 @@ namespace Armagan.AUI.Core
 
         public static readonly AuiElementDef[] Elements =
         {
-            new AuiElementDef { Name = "view", Attributes = new[] { "name", "width", "height", "show", "start-hidden" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Root of a view file. name must equal the file stem; width/height in mm." },
+            new AuiElementDef { Name = "view", Attributes = new[] { "name", "width", "height", "show", "start-hidden", "icons", "sprites", "materials", "pool", "utilities" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Root of a view file. name must equal the file stem; width/height in mm. icons / sprites / materials / utilities preload names for SetIcon / SetBackground / SetMaterial / AddClass; pool=\"text:16 panel:8\" bakes elements CreateElement(tag, ...) can hand out." },
             new AuiElementDef { Name = "panel", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "A container. Direction, gap and padding come from the stylesheet." },
             new AuiElementDef { Name = "div", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Alias of panel." },
             new AuiElementDef { Name = "text", Attributes = new[] { "key", "text", "args", "wrap", "max-lines", "ellipsis", "runtime" }, Events = NoEvents, AllowsChildren = false, AllowsText = true, Doc = "A label. key= for a translated string, text=\"{binding}\" for a runtime value, or literal content." },
@@ -103,6 +105,12 @@ namespace Armagan.AUI.Core
             new AuiElementDef { Name = "page", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = false, AllowedParents = new[] { "pages" }, Doc = "One page of a pages group. Needs an id." },
             new AuiElementDef { Name = "repeat", Attributes = new[] { "max" }, Events = new[] { "onselect" }, AllowsChildren = true, AllowsText = false, Doc = "Bakes max copies of its single template child. {item.x} bindings become SetIdX(row, value)." },
             new AuiElementDef { Name = "empty", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = true, AllowedParents = new[] { "repeat" }, Doc = "Shown when the repeat count is 0." },
+            new AuiElementDef { Name = "template", Attributes = new[] { "max", "pool", "slot", "view" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Bakes max parked copies of its single child; CreateElement(T_ID, parent) links one into the tree at runtime. {item.x} bindings become SetIdX(elem, value)." },
+            new AuiElementDef { Name = "slot", Attributes = new[] { "views", "max" }, Events = NoEvents, AllowsChildren = false, AllowsText = false, Doc = "Bakes max parked instances of each listed view; CreateView(\"slotId\", \"View\", parent) links one in at runtime." },
+            new AuiElementDef { Name = "prop", Attributes = new[] { "name", "type", "default" }, Events = NoEvents, AllowsChildren = false, AllowsText = false, AllowedParents = new[] { "view", "component" }, Doc = "Declares a property of this view or component: name, type (string | int | float | bool), default." },
+            new AuiElementDef { Name = "event", Attributes = new[] { "name", "type" }, Events = NoEvents, AllowsChildren = false, AllowsText = false, AllowedParents = new[] { "view" }, Doc = "Declares an event this view raises with EmitX(name, value); type is the payload (string | int | float | bool) or absent." },
+            new AuiElementDef { Name = "component", Attributes = new[] { "name" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, AllowedParents = new[] { "view" }, Doc = "An inline template: <component name=\"Card\"> one child </component>, used as <Card prop=\"...\"/> in the same file. {prop} inside it is substituted at compile time." },
+            new AuiElementDef { Name = "modal", Attributes = new[] { "enabled", "dismissable", "show" }, Events = new[] { "onclose", "onopen" }, AllowsChildren = true, AllowsText = false, AllowedParents = new[] { "view" }, Doc = "A dialog over a dimmed backdrop. enabled=\"{flag}\" opens and closes it; a click on the backdrop closes it unless dismissable=\"false\"." },
         };
 
         public static readonly AuiPropDef[] Props =
@@ -114,6 +122,12 @@ namespace Armagan.AUI.Core
             new AuiPropDef { Name = "max-width", Kind = AuiPropKind.Length },
             new AuiPropDef { Name = "max-height", Kind = AuiPropKind.Length },
             new AuiPropDef { Name = "anchor", Kind = AuiPropKind.Enum, EnumValues = new[] { "none", "fill", "top", "bottom", "left", "right", "center" }, Doc = "Absolute placement inside the parent instead of flowing with siblings." },
+            new AuiPropDef { Name = "display", Kind = AuiPropKind.Enum, EnumValues = new[] { "flex", "none" }, Doc = "flex takes part in the parent's flow; none removes the element and its space." },
+            new AuiPropDef { Name = "position", Kind = AuiPropKind.Enum, EnumValues = new[] { "static", "absolute" }, Doc = "absolute takes the element out of the flow; place it with top/right/bottom/left." },
+            new AuiPropDef { Name = "top", Kind = AuiPropKind.Length, Doc = "Distance from the parent's content top for position: absolute. May be negative." },
+            new AuiPropDef { Name = "right", Kind = AuiPropKind.Length, Doc = "Distance from the parent's content right edge for position: absolute. May be negative." },
+            new AuiPropDef { Name = "bottom", Kind = AuiPropKind.Length, Doc = "Distance from the parent's content bottom for position: absolute. May be negative." },
+            new AuiPropDef { Name = "left", Kind = AuiPropKind.Length, Doc = "Distance from the parent's content left edge for position: absolute. May be negative." },
             new AuiPropDef { Name = "padding", Kind = AuiPropKind.Box, Doc = "1 to 4 values: all | vertical horizontal | top horizontal bottom | top right bottom left." },
             new AuiPropDef { Name = "margin", Kind = AuiPropKind.Box },
             new AuiPropDef { Name = "gap", Kind = AuiPropKind.Length, Doc = "Space between children." },
@@ -123,21 +137,21 @@ namespace Armagan.AUI.Core
             new AuiPropDef { Name = "grow", Kind = AuiPropKind.Number, Doc = "Share of leftover main-axis space this element takes." },
             new AuiPropDef { Name = "wrap", Kind = AuiPropKind.Enum, EnumValues = new[] { "true", "false" }, Doc = "Row containers wrap fixed-size children into lines." },
             new AuiPropDef { Name = "color", Kind = AuiPropKind.Color, Inherited = true, Animatable = true, Doc = "Text color." },
-            new AuiPropDef { Name = "background", Kind = AuiPropKind.Background, Animatable = true, Doc = "none | color | sprite(Name) color." },
+            new AuiPropDef { Name = "background", Kind = AuiPropKind.Background, Animatable = true, Doc = "none | color | sprite(Name) color | material(Name) color | shader(Name) color. sprite() combines with material()/shader()." },
             new AuiPropDef { Name = "border", Kind = AuiPropKind.Color, Animatable = true, Doc = "Border color (none for no border)." },
-            new AuiPropDef { Name = "radius", Kind = AuiPropKind.Length, Doc = "Corner radius; picks the matching 9-slice sprite." },
+            new AuiPropDef { Name = "radius", Kind = AuiPropKind.Length, BakeOnly = true, Doc = "Corner radius; picks the matching 9-slice sprite. Bake only." },
             new AuiPropDef { Name = "opacity", Kind = AuiPropKind.Number, Animatable = true },
             new AuiPropDef { Name = "scale", Kind = AuiPropKind.Number, Animatable = true },
             new AuiPropDef { Name = "offset", Kind = AuiPropKind.Offset, Animatable = true, Doc = "x y displacement in mm, for state styles." },
             new AuiPropDef { Name = "icon-color", Kind = AuiPropKind.Color, Inherited = true, Animatable = true },
-            new AuiPropDef { Name = "font", Kind = AuiPropKind.Font, Inherited = true, Doc = "weight size, e.g. 600 18." },
-            new AuiPropDef { Name = "font-weight", Kind = AuiPropKind.FontWeight, Inherited = true },
+            new AuiPropDef { Name = "font", Kind = AuiPropKind.Font, Inherited = true, Doc = "weight size, e.g. 600 18. The weight is bake only; the size can change at runtime." },
+            new AuiPropDef { Name = "font-weight", Kind = AuiPropKind.FontWeight, Inherited = true, BakeOnly = true, Doc = "Bake only: Udon cannot swap a text's font asset." },
             new AuiPropDef { Name = "font-size", Kind = AuiPropKind.Length, Inherited = true },
             new AuiPropDef { Name = "text-align", Kind = AuiPropKind.Enum, EnumValues = new[] { "left", "center", "right" }, Inherited = true },
             new AuiPropDef { Name = "line-height", Kind = AuiPropKind.Number, Inherited = true },
             new AuiPropDef { Name = "transition", Kind = AuiPropKind.Transition, Doc = "prop duration ease, ... e.g. background 0.12s out-quad" },
-            new AuiPropDef { Name = "page-transition", Kind = AuiPropKind.Enum, EnumValues = new[] { "none", "fade", "slide-left", "slide-right", "slide-up", "slide-down", "scale" } },
-            new AuiPropDef { Name = "show", Kind = AuiPropKind.Enum, EnumValues = new[] { "none", "fade", "fade-scale", "fade-slide" }, Doc = "How the view itself enters and leaves." },
+            new AuiPropDef { Name = "page-transition", Kind = AuiPropKind.Enum, EnumValues = new[] { "none", "fade", "slide-left", "slide-right", "slide-up", "slide-down", "scale" }, BakeOnly = true },
+            new AuiPropDef { Name = "show", Kind = AuiPropKind.Enum, EnumValues = new[] { "none", "fade", "fade-scale", "fade-slide" }, BakeOnly = true, Doc = "How the view itself enters and leaves." },
         };
 
         private static Dictionary<string, AuiElementDef> _elements;

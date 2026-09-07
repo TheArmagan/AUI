@@ -327,6 +327,54 @@ before parents; a nested view takes no children of its own and cannot be a repea
 `AuiLanguagePicker` ships with the package: one chip per language, current one highlighted, tap
 to switch. Drop it anywhere.
 
+### Declared props and typed events
+
+A nested view can declare what it takes and what it raises, so the host gets completion and
+errors instead of silent defaults:
+
+```xml
+<view name="Player" width="300" height="60">
+  <prop name="nick" default="anon"/>
+  <prop name="score" type="int"/>
+  <event name="kicked" type="int"/>
+  <panel class="row"><text text="{nick}"/><text text="{score}"/><button onclick="Kick" icon="x"/></panel>
+</view>
+```
+
+```csharp
+public void Kick() { EmitInt("kicked", Score); }        // in Player.cs
+public void PlayerKicked(int score) { ... }              // in the host, for on-kicked="PlayerKicked"
+```
+
+`<Player nick="{name}" score="{pts}" on-kicked="PlayerKicked"/>`: a bound prop takes the child's
+declared type, a literal is assigned once at start, and an attribute that is not a declared
+prop is error AUI121.
+
+### Inline components
+
+Small repeated pieces do not need their own file. Declare a template once and use it as a tag;
+it is expanded at compile time, so `{prop}` works anywhere in it (class, style, icon, text, if):
+
+```xml
+<view name="Stats" width="400" height="200">
+  <component name="Stat">
+    <prop name="label"/>
+    <prop name="value"/>
+    <prop name="tone" default="muted"/>
+    <panel class="card {tone}"><text class="title">{value}</text><text class="muted">{label}</text></panel>
+  </component>
+  <panel class="row">
+    <Stat id="hp" label="Health" value="{hp}"/>
+    <Stat label="Score" value="{score}" tone="warm" class="wide"/>
+  </panel>
+</view>
+```
+
+The usage's `id`, `class`, `style` and `if` merge onto the clone's root; ids inside the template
+become `usageId_inner`. Handlers named inside a component are the view's own methods.
+Components may use other components. A `{binding}` passed as a prop value is the host's binding,
+written through as usual.
+
 ## 12. Talking to other Udon scripts
 
 Both directions are typed references, no strings, no `SetProgramVariable`.
@@ -380,6 +428,227 @@ in the way any uGUI canvas does, so rotate the instance to face the player.
 `ShowInstant()` / `HideInstant()` skip the animation; `start-hidden="true"` on `<view>` boots
 hidden. Transitions run through VRCTween, which does nothing in the editor; there they snap.
 Another script can call these on the typed reference.
+
+### Changing the layout at runtime
+
+The layout you see in the editor is solved again in-world whenever something that affects it
+changes, so a longer label pushes its neighbours, a hidden element frees its space, a list with
+three rows is three rows tall, and a language switch lays out that language's widths. Nothing
+is needed for that; every setter marks the view dirty and one solve runs on the next frame.
+
+```csharp
+SetActiveElem(E_DETAILS, false);          // display: none; siblings close the gap
+SetDisplay(E_DETAILS, DISPLAY_FLEX);      // back in the flow
+SetPosition(E_BADGE, -6f, -6f, float.NaN, float.NaN); // position: absolute at left -6, top -6
+SetSize(E_CARD, 120f, float.NaN);         // explicit width, height back to auto
+SetElemText(E_TITLE, "A longer title");   // the same call the generated setters use
+
+SetAutoRelayout(false);                   // batch: many changes, one solve
+for (int i = 0; i < 30; i++) SetItemsLabel(i, names[i]);
+Relayout();                               // or SetAutoRelayout(true)
+```
+
+`display: none` and `hidden` remove the space; use `opacity: 0` when the slot should stay.
+`position: absolute` with `top`, `right`, `bottom`, `left` (negatives allowed) pins an element
+to its parent's content box. Tick `debugLayout` on a view to log every solve with its time.
+
+### Changing classes at runtime
+
+Every class a sheet of the view defines can be added or removed in-world; the element and its
+descendants are restyled through the same cascade the compiler ran, with the element's
+`transition` for the properties that changed.
+
+```xml
+<panel id="card" class="card {tone}">...</panel>
+```
+
+```csharp
+AddClass(E_CARD, C_WARM);          // generated C_ constants, one per class
+RemoveClass(E_CARD, C_CARD);       // a static class can be removed too
+ToggleClass(E_CARD, C_SELECTED);
+Tone = "warm big";                 // the {tone} binding: any number of names
+SetClasses(E_CARD, "warm");        // replaces what AddClass added; static and bound stay
+if (HasClass(E_CARD, C_WARM)) ...
+```
+
+A class changes layout too (`padding`, `width`, `display: none`, `position: absolute`, ...) and
+the view re-solves on the next frame. `font-weight` cannot change at runtime (Udon has no font
+setter), so a class that only exists for runtime use and sets a weight gets warning AUI212.
+
+### Binding style values
+
+Any style value can be a binding, and the element re-resolves when it changes:
+
+```xml
+<panel id="bar" style="width: {barWidth}; background: {barColor}; opacity: {barAlpha}; padding: {pv} {ph}"/>
+```
+
+```csharp
+BarWidth = "50%";                 // lengths are strings: "12", "12mm", "50%", "auto"
+BarColor = new Color(1f, 0.6f, 0.2f);   // colours are UnityEngine.Color
+BarAlpha = 0.5f;                  // numbers are floats
+Pv = "4"; Ph = "12";              // each box component is its own binding
+```
+
+The type follows the property: numbers and offset components are `float`, colours are `Color`,
+lengths, box edges and enum values (`row`, `center`, `none`) are `string`. A bound value must be
+bindings only (`width: {w}mm` is error AUI213); the bake uses the property's default until the
+value arrives.
+
+### Utility classes
+
+A small built-in set of style-only classes, written with a star so they never collide with your
+own and never count toward the 64-class budget:
+
+```xml
+<panel class="card *flex-row *items-center *gap-8 *p-12">
+  <text class="*fg-muted *text-sm">hint</text>
+  <spacer/>
+  <button class="*w-64" icon="x"/>
+</panel>
+```
+
+Spacing steps are 0 1 2 4 6 8 12 16 24 32 48 64: `*gap-N`, `*p-N *px-N *py-N *pt-N *pr-N *pb-N
+*pl-N`, `*m-N` and friends, `*w-N *h-N *top-N *right-N *bottom-N *left-N`. Layout: `*flex-row
+*flex-col *wrap *nowrap *grow *grow-0 *items-start|center|end|stretch *justify-start|center|end|between
+*w-full *h-full *w-auto *h-auto *hidden *flex *absolute *static *inset-0 *center`. Visual:
+`*rounded-4|8|12|16|24 *opacity-0|25|50|75|100 *text-left|center|right *text-sm|base|lg|xl
+*font-regular|medium|semibold|bold *bg-transparent *bg-none *bg-base|nav|surface|panel|card|chip|accent
+*fg-text|muted|accent|base *scale-90|100|110`. Your own sheets override them (they sit between the
+theme and your sheets), you can define your own star classes with `.*name { ... }`, and only the
+utilities a view mentions are baked into it. To add one at runtime that the markup never uses,
+list it in `<view utilities="p-4 p-8">`; `AddClassNamed(elem, "*p-8")` then works.
+`GetElements(".*p-8")` returns nothing: star classes are for styling only.
+
+### Finding and driving elements from code
+
+The generated `E_ID` constants are element indices; the same ints come back from the selector
+helpers, so code that builds views generically does not need the constants:
+
+```csharp
+int card = GetElement("#card");            // -1 when there is no such id
+int[] chips = GetElements(".chip");        // effective runtime classes
+int[] buttons = GetElements("button");     // by tag
+
+SetText(card, "Escaped for you");          // any text, bound or literal
+SetIcon(GetElement("#close"), "check");    // icons the view uses, plus <view icons="check star">
+SetBackground(card, "Rounded16");          // sprites the sheets mention, plus <view sprites="...">
+SetOpacity(card, 0.5f); SetColor(card, Color.red); SetBackgroundColor(card, c);
+SetScale(card, 1.1f); SetFontSize(card, 22f); SetTextAlign(card, 1);
+SetStyleValue(card, PROP_GAP, new Vector4(12, 0, 0, 0));   // any cascade property by id
+
+RectTransform rt = GetRect(card);          // drive uGUI yourself
+GameObject go = GetObject(card);
+```
+
+Elements with an id get a CanvasGroup at bake so `SetOpacity` always has something to fade.
+A value set this way stays until the next class change on that element re-resolves it.
+
+### Re-theming at runtime
+
+The `:root { --name: value; }` variables of the theme and of your sheets are baked into every view
+with their values, and every declaration that reads one (`color: var(--accent)`) keeps its text.
+Setting a variable re-encodes those declarations and re-resolves the whole view through the
+cascade, so a theme swap is one call per variable and every rule, state rule and nested view
+follows, each element through its own `transition`:
+
+```csharp
+SetStyleVariable("accent", "#4FC3F7");          // "accent" or "--accent"; values are stylesheet text
+SetStyleVariableColor("base", new Color(0.06f, 0.08f, 0.1f));
+SetStyleVariableFloat("radius-scale", 1.25f);   // numbers and lengths, written without a locale
+string now = GetStyleVariable("accent");        // the current text, null when no sheet defines it
+
+lang.SetStyleVariable("accent", "#4FC3F7");     // every registered view, and every view that starts later
+```
+
+A variable exists for a view when any of its sheets (theme included) declares it; a name no sheet
+declares logs a warning. A value that does not parse for a property (`"row"` into a colour) leaves
+that declaration alone and logs which one. Anything written through `SetStyleValue` or the colour
+helpers is re-resolved by the change, like a class change would.
+
+### Creating elements at runtime
+
+Nothing is allocated in-world: a `<template>` bakes `max` parked copies of its child, and
+`CreateElement` links one under any container you name. Pools and slots are the same thing with
+less markup.
+
+```xml
+<view name="Chat" width="400" height="300" pool="text:8 panel:4">
+  <panel id="log" class="card"/>
+  <template id="line" max="32">
+    <panel class="row"><icon name="user"/><text text="{item.who}" class="muted"/><text text="{item.msg}"/></panel>
+  </template>
+  <slot id="cards" views="PlayerCard" max="8"/>
+  <button onclick="Say">Say</button>
+</view>
+```
+
+```csharp
+public void Say()
+{
+    int line = CreateLine(E_LOG);            // generated per template; -1 when all 32 are in use
+    SetLineWho(line, "you");                 // {item.x} setters take the created element
+    SetLineMsg(line, "hello");
+    int note = CreateElementByTag("text", E_LOG, "muted", 0);   // from the pool, with classes, at index 0
+    SetText(note, "(new message)");
+    AuiView card = CreateCardsPlayerCard(E_LOG);                // a parked nested view; cast to PlayerCard
+    MoveElement(line, E_LOG, 0);             // reorder or reparent
+    DestroyElement(note);                    // back to the pool
+}
+```
+
+Templates must be direct children of `<view>`; their instances can go under any container.
+Handlers inside a template get the instance row (`Pick(int row)`); `InstanceElem(T_LINE, row)`
+and `InstanceRow(T_LINE, elem)` convert. Only `panel`, `text`, `icon` and `spacer` can be pooled;
+anything with more wiring goes in a template. `SetAutoRelayout(false)` before a burst of creates
+and `Relayout()` after gives one solve for the batch.
+
+### Backgrounds with a material or shader
+
+```
+.glow       { background: sprite(Rounded8) shader(Custom/UIGlow) var(--accent); }
+.glow:hover { background: material(GlowHot); }
+```
+
+`shader(Name)` finds the shader by name and bakes one material asset for it under
+`Assets/AUI/Generated/Materials` (created on first use; tweak its properties there).
+`material(Name)` uses any Material asset of that name in the project. The element's colour is
+still the vertex tint and the sprite is still the texture, so a shader that reads `_MainTex` and
+the vertex colour behaves like the default UI shader. Materials are shared assets: a property you
+set on one is seen by every element that uses it. `SetMaterial(elem, "GlowHot")` swaps at runtime
+(names the sheets mention, plus `<view materials="...">`); `SetMaterial(elem, null)` clears it.
+
+### Modals
+
+A `<modal>` is a dialog over a dimming backdrop. It must sit directly under `<view>`, it takes
+no space in the flow, and the theme centres it (`anchor: center`); `top`/`left` or another
+anchor place it elsewhere.
+
+```xml
+<view name="Settings" width="400" height="300">
+  <button onclick="AskReset" key="settings.reset"/>
+  <modal id="confirm" enabled="{asking}" onclose="ResetCancelled">
+    <text key="settings.reset.sure"/>
+    <panel class="row">
+      <button onclick="DoReset" key="yes" class="primary"/>
+      <button onclick="CloseConfirm" key="no"/>
+    </panel>
+  </modal>
+</view>
+```
+
+```csharp
+public void AskReset() { Asking = true; }           // the binding opens it
+public void DoReset()  { ...; CloseConfirm(); }      // generated Open/Close/IsOpen per modal
+public override void ... Back();                     // closes an open select, then the top modal
+```
+
+A click on the backdrop closes the modal (and fires `onclose`) unless `dismissable="false"`.
+`show` picks the body's transition (`fade`, `fade-scale`, `fade-slide`, `none`); the backdrop
+always fades. Style the backdrop with `modal::backdrop { background: rgba(0,0,0,0.6) }`, or per
+modal with `modal.dark::backdrop`. `Hide()` keeps the modal open behind the scenes, so the view
+comes back the way it was. Later opened modals stack on top; a select's dropdown always draws
+above a modal.
 
 ## 14. Testing without a headset
 

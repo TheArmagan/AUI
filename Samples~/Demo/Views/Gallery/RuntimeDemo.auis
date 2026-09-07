@@ -1,0 +1,4 @@
+/* Classes only used at runtime (AddClass / the {tone} binding). */
+.warm { background: sprite(Rounded8) shader(UI/Default) var(--accent); color: var(--base); icon-color: var(--base); }
+.big  { padding: 20; gap: 16; }
+.tiny { font-size: 12; }

@@ -250,7 +250,8 @@ namespace Armagan.AUI.Lsp
                         AuiViewInfo child = ChildInfo(_ws, ws, c.Tag);
                         if (child != null)
                         {
-                            foreach (AuiBinding b in child.Bindings) if (seen.Add(b.Name)) ctx.Add(b.Name, CompletionItemKind.Property, "child binding (" + b.CsType + ")", editing ? b.Name : b.Name + "=\"$0\"", !editing, -1, null, "0" + b.Name);
+                            foreach (AuiBinding b in child.Bindings) if (seen.Add(b.Name)) ctx.Add(b.Name, CompletionItemKind.Property, (b.IsProp ? "child prop (" : "child binding (") + b.CsType + (b.Default != null ? ", default " + b.Default : "") + ")", editing ? b.Name : b.Name + "=\"$0\"", !editing, -1, null, (b.IsProp ? "0" : "1") + b.Name);
+                            foreach (AuiEventDecl e in child.Events) { string ev = "on-" + e.Name; if (seen.Add(ev)) ctx.Add(ev, CompletionItemKind.Event, "child event" + (e.Type != null ? " (" + e.Type + " value)" : ""), editing ? ev : ev + "=\"$0\"", !editing, -1, null, "1" + ev); }
                             foreach (AuiHandler h in child.Handlers) { string ev = "on-" + h.Name; if (seen.Add(ev)) ctx.Add(ev, CompletionItemKind.Event, "child event", editing ? ev : ev + "=\"$0\"", !editing, -1, null, "1" + ev); }
                         }
                     }
@@ -455,6 +456,7 @@ namespace Armagan.AUI.Lsp
         {
             AuiStyleSheet theme = host.Theme(ws);
             if (theme != null) yield return theme;
+            yield return AuiUtilityClasses.Sheet();   // the *utility classes, for completion and unknown-class checks
             foreach (string p in ws.StylePaths)
             {
                 string t = host.Read(p);

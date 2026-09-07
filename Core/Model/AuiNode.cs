@@ -44,6 +44,9 @@ namespace Armagan.AUI.Core
         /// <summary>Document-order index, assigned by the parser. Stable for a given source.</summary>
         public int Index;
 
+        /// <summary>For a node cloned out of an inline &lt;component&gt;: the &lt;Name/&gt; usage it was expanded from.</summary>
+        public AuiNode ExpandedFrom;
+
         /// <summary>Depth from the root (root = 0).</summary>
         public int Depth
         {
@@ -85,14 +88,33 @@ namespace Armagan.AUI.Core
             get { return Get("id"); }
         }
 
-        /// <summary>Class names in source order; empty array when none.</summary>
+        private static readonly char[] ClassSeparators = { ' ', '\t', '\n', '\r' };
+
+        /// <summary>Literal class names in source order (binding tokens like {tone} excluded); empty array when none.</summary>
         public string[] Classes
         {
             get
             {
                 string c = Get("class");
                 if (string.IsNullOrEmpty(c)) return new string[0];
-                return c.Split(new[] { ' ', '\t', '\n', '\r' }, System.StringSplitOptions.RemoveEmptyEntries);
+                var list = new List<string>();
+                foreach (string tok in c.Split(ClassSeparators, System.StringSplitOptions.RemoveEmptyEntries))
+                    if (tok[0] != '{') list.Add(tok);
+                return list.ToArray();
+            }
+        }
+
+        /// <summary>The {binding} tokens of the class attribute in source order; each gets a runtime slot.</summary>
+        public string[] ClassBindings
+        {
+            get
+            {
+                string c = Get("class");
+                if (string.IsNullOrEmpty(c)) return new string[0];
+                var list = new List<string>();
+                foreach (string tok in c.Split(ClassSeparators, System.StringSplitOptions.RemoveEmptyEntries))
+                    if (tok[0] == '{') list.Add(tok);
+                return list.ToArray();
             }
         }
 
