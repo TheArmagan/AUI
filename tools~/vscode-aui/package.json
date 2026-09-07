@@ -2,7 +2,7 @@
   "name": "aui",
   "displayName": "AUI",
   "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition, references, rename, quick fixes, colours, inlay hints, generated code preview.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "armagan",
   "license": "MIT",
   "engines": {
@@ -47,7 +47,7 @@
         "scopeName": "text.xml.aui",
         "path": "./syntaxes/aui.tmLanguage.json",
         "embeddedLanguages": {
-          "source.css.auis": "auis",
+          "meta.embedded.block.auis": "auis",
           "meta.embedded.line.auis": "auis"
         }
       },

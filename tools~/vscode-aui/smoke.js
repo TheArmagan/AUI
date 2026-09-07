@@ -78,7 +78,7 @@ const td = (file) => ({ textDocument: { uri: uri(file) } });
 const items = (comp) => (comp.result && (comp.result.items || comp.result)) || [];
 
 (async () => {
-    await send("initialize", { processId: process.pid, rootUri: uri(root), capabilities: { textDocument: { rename: { prepareSupport: true } }, workspace: { workspaceEdit: { documentChanges: true, resourceOperations: ["create"] } } } });
+    await send("initialize", { processId: process.pid, rootUri: uri(root), capabilities: { textDocument: { rename: { prepareSupport: true }, semanticTokens: { requests: { full: true, range: true }, tokenTypes: [], tokenModifiers: [], formats: ["relative"] } }, workspace: { workspaceEdit: { documentChanges: true, resourceOperations: ["create"] } } } });
     await send("initialized", {}, true);
 
     // ---- 1. a typo in the view is an AUI100 with a quick fix
@@ -156,6 +156,12 @@ const items = (comp) => (comp.result && (comp.result.items || comp.result)) || [
     check("colours: presentations hex and rgba", (pres.result || []).length === 2 && pres.result[0].label === "#FF0000", (pres.result || []).map((p) => p.label).join(", "));
     const ssym = await send("textDocument/documentSymbol", td(sheet));
     check("symbols: sheet rules", (ssym.result || []).some((s) => s.name === ".card"), (ssym.result || []).map((s) => s.name).join(", "));
+    // semantic tokens: the sheet's first token is the .card class; the view's <style> body and style="" values get tokens too
+    const sem = await send("textDocument/semanticTokens/full", td(sheet));
+    const semData = (sem.result && sem.result.data) || [];
+    check("semantic tokens: sheet starts with a class token", semData.length >= 5 && semData[0] === 0 && semData[1] === 0 && semData[2] === 5, semData.slice(0, 10).join(","));
+    const vsem = await send("textDocument/semanticTokens/full", td(view));
+    check("semantic tokens: view style values", !!vsem.result && vsem.result.data.length > 0, vsem.result && vsem.result.data.length + " ints");
     const vh = await send("textDocument/hover", { ...td(sheet), position: pos(sheetText, "var(--text)", 6) });
     check("hover: variable value", !!vh.result && /--text/.test(vh.result.contents.value), vh.result && vh.result.contents.value.split("\n")[0]);
     await send("textDocument/didClose", { textDocument: { uri: uri(sheet) } }, true);

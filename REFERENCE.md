@@ -730,7 +730,10 @@ ids in the view, plus the C# method declaration), code actions ("did you mean" r
 insert `;`, create a key in the default or every language, add a key to the languages lacking it
 with or without the default text, create a missing view or sheet file, create a handler method,
 remove an unused rule; the `aui.reveal` client command lands the caret on what was created),
-document colours and presentations, inlay hints (default-language text after `key=`), document
+document colours and presentations, semantic tokens for every piece of stylesheet text (`.auis`
+files, `<style>` bodies, `style=""` values; `SemanticTokens.cs`, a forgiving lexer independent of
+the parser, so the embedded stylesheet is coloured by the server whatever grammar the client has),
+inlay hints (default-language text after `key=`), document
 links (`href`, `src`), document symbols for views (with details) and sheets, workspace symbols
 (views, classes, keys), watched files (`.aui`, `.auis`, language JSON, `.svg`; created and deleted
 files invalidate the scan and re-check dependents), and the custom request `aui/generated` that
