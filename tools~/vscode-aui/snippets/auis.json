@@ -1,0 +1,42 @@
+{
+  "Rule": {
+    "prefix": "rule",
+    "body": [".${1:name} {", "\t$0", "}"],
+    "description": "A class rule"
+  },
+  "State rule": {
+    "prefix": "state",
+    "body": [".${1:name}:${2|hover,pressed,selected,disabled|} {", "\t$0", "}"],
+    "description": "How a class looks in a pointer state (animatable properties only)"
+  },
+  "Variables": {
+    "prefix": "root",
+    "body": [":root {", "\t--${1:name}: ${2:#FFFFFF};", "}"],
+    "description": "Variables, used as var(--name)"
+  },
+  "Row layout": {
+    "prefix": "row",
+    "body": ["flex-direction: row;", "align: center;", "gap: ${1:8};"],
+    "description": "Children side by side, vertically centred"
+  },
+  "Column layout": {
+    "prefix": "column",
+    "body": ["flex-direction: column;", "gap: ${1:8};"],
+    "description": "Children stacked"
+  },
+  "Background sprite": {
+    "prefix": "background",
+    "body": ["background: sprite(${1|Rounded4,Rounded8,Rounded12,Rounded16,Rounded24,Square|}) ${2:var(--card)};"],
+    "description": "A 9-slice sprite tinted with a colour"
+  },
+  "Font": {
+    "prefix": "font",
+    "body": ["font: ${1|400,500,600,700|} ${2:18};"],
+    "description": "weight size"
+  },
+  "Transition": {
+    "prefix": "transition",
+    "body": ["transition: ${1|background,color,icon-color,border,opacity,scale,offset,all|} ${2:0.15s} ${3|out-quad,linear,in-quad,in-out-quad,out-cubic,out-back,out-bounce,out-elastic|};"],
+    "description": "What tweens between states"
+  }
+}

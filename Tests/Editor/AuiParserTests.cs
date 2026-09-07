@@ -90,6 +90,15 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void NodeIndexMatchesListPositionAfterLifting()
+        {
+            // Every consumer indexes Styles/Layout by node.Index; a lifted <link> or <style> must leave no gap.
+            var d = Parse("<view name=\"F\">\n<link href=\"F.auis\"/>\n<style>.a { color: red; }</style>\n<panel><text/></panel>\n<Child/>\n</view>");
+            for (int i = 0; i < d.Nodes.Count; i++) Assert.AreEqual(i, d.Nodes[i].Index, d.Nodes[i].Tag);
+            Assert.AreEqual(4, d.Nodes.Count);
+        }
+
+        [Test]
         public void StyleContentIsRaw()
         {
             var d = Parse("<view name=\"F\"><style>a > b { x: 1 } /* <not a tag> */</style></view>");

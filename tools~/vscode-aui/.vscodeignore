@@ -3,6 +3,7 @@ src/**
 tsconfig.json
 node_modules/**
 **/*.map
+**/*.vsix
 smoke.js
 install.ps1
 install.sh

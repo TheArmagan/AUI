@@ -14,6 +14,8 @@ namespace Armagan.AUI.Core
         public struct Pos
         {
             public int Line, Column;
+            /// <summary>The file the value sits in; differs from the table's file after a merge (package keys under project keys).</summary>
+            public string File;
         }
 
         public sealed class Result
@@ -28,7 +30,7 @@ namespace Armagan.AUI.Core
         public static Result Flatten(string text, string file)
         {
             var r = new Result { Diagnostics = new AuiDiagnosticBag(file) };
-            var s = new State(text ?? "", r);
+            var s = new State(text ?? "", r, file);
             s.Run();
             return r;
         }
@@ -38,14 +40,16 @@ namespace Armagan.AUI.Core
             private readonly string _s;
             private readonly Result _r;
             private readonly AuiDiagnosticBag _d;
+            private readonly string _file;
             private int _i;
             private int _line = 1, _col = 1;
 
-            public State(string s, Result r)
+            public State(string s, Result r, string file)
             {
                 _s = s;
                 _r = r;
                 _d = r.Diagnostics;
+                _file = file;
             }
 
             private bool Eof { get { return _i >= _s.Length; } }
@@ -126,7 +130,7 @@ namespace Armagan.AUI.Core
                     }
                     _r.Order.Add(full);
                     _r.Values[full] = value;
-                    _r.Positions[full] = new Pos { Line = vl, Column = vc };
+                    _r.Positions[full] = new Pos { Line = vl, Column = vc, File = _file };
                 }
             }
 

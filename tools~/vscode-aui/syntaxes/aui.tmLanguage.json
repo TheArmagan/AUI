@@ -31,20 +31,32 @@
     },
     "tag": {
       "name": "meta.tag.aui",
-      "begin": "(</?)([A-Z][A-Za-z0-9_]*|[a-z][a-z0-9-]*)",
+      "begin": "(</?)([A-Za-z_][A-Za-z0-9_.-]*)",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.aui" },
         "2": {
           "patterns": [
-            { "match": "[A-Z][A-Za-z0-9_]*", "name": "entity.name.type.component.aui" },
-            { "match": "view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|link", "name": "entity.name.tag.aui" },
-            { "match": "[a-z][a-z0-9-]*", "name": "invalid.illegal.unknown-tag.aui" }
+            { "match": "^[A-Z][A-Za-z0-9_]*$", "name": "entity.name.type.component.aui" },
+            { "match": "^(view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|link|style)$", "name": "entity.name.tag.aui" },
+            { "match": ".+", "name": "invalid.illegal.unknown-tag.aui" }
           ]
         }
       },
       "end": "(/?>)",
       "endCaptures": { "1": { "name": "punctuation.definition.tag.end.aui" } },
       "patterns": [
+        {
+          "begin": "\\b(style)\\s*(=)\\s*(\")",
+          "beginCaptures": {
+            "1": { "name": "entity.other.attribute-name.aui" },
+            "2": { "name": "punctuation.separator.key-value.aui" },
+            "3": { "name": "punctuation.definition.string.begin.aui" }
+          },
+          "end": "\"",
+          "endCaptures": { "0": { "name": "punctuation.definition.string.end.aui" } },
+          "contentName": "meta.embedded.line.auis",
+          "patterns": [{ "include": "source.css.auis#declarations" }]
+        },
         {
           "match": "\\b(on[a-z-]+)\\s*(=)",
           "captures": { "1": { "name": "entity.other.attribute-name.event.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
@@ -57,7 +69,7 @@
           "match": "\\b([a-z][a-z0-9-]*)\\s*(=)",
           "captures": { "1": { "name": "entity.other.attribute-name.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
         },
-        { "match": "\\b(hidden|wrap|ellipsis|runtime)\\b", "name": "entity.other.attribute-name.flag.aui" },
+        { "match": "\\b(hidden|wrap|ellipsis|runtime|start-hidden)\\b", "name": "entity.other.attribute-name.flag.aui" },
         { "include": "#string" }
       ]
     },
@@ -78,7 +90,7 @@
       ]
     },
     "binding": {
-      "match": "(\\{)(item\\.)?([A-Za-z_][A-Za-z0-9_]*)(\\})",
+      "match": "(\\{)\\s*(item\\.)?([A-Za-z_][A-Za-z0-9_]*)\\s*(\\})",
       "captures": {
         "1": { "name": "punctuation.definition.binding.aui" },
         "2": { "name": "keyword.other.item.aui" },

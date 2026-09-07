@@ -1,0 +1,111 @@
+{
+  "View": {
+    "prefix": "view",
+    "body": ["<view name=\"${TM_FILENAME_BASE}\" width=\"${1:300}\" height=\"${2:200}\">", "\t$0", "</view>"],
+    "description": "Root of a view file; the name is the file stem"
+  },
+  "Panel": {
+    "prefix": "panel",
+    "body": ["<panel class=\"${1:row}\">", "\t$0", "</panel>"],
+    "description": "A container; direction, gap and padding come from its classes"
+  },
+  "Text (translated)": {
+    "prefix": "text",
+    "body": ["<text key=\"${1:section.key}\"/>"],
+    "description": "A translated label"
+  },
+  "Text (bound)": {
+    "prefix": "textb",
+    "body": ["<text text=\"{${1:name}}\"/>"],
+    "description": "A label showing a runtime string"
+  },
+  "Button": {
+    "prefix": "button",
+    "body": ["<button onclick=\"${1:Handler}\" key=\"${2:section.key}\"${3: icon=\"${4:check}\"}/>"],
+    "description": "A clickable; onclick names a method on the view"
+  },
+  "Toggle": {
+    "prefix": "toggle",
+    "body": ["<toggle bind=\"{${1:flag}}\" key=\"${2:section.key}\" onchange=\"${3:Handler}\"/>"],
+    "description": "A two-state button bound to a bool"
+  },
+  "Slider": {
+    "prefix": "slider",
+    "body": ["<slider bind=\"{${1:value}}\" min=\"${2:0}\" max=\"${3:100}\" step=\"${4:1}\" onchange=\"${5:Handler}\"/>"],
+    "description": "A horizontal slider bound to a float"
+  },
+  "Input": {
+    "prefix": "input",
+    "body": ["<input bind=\"{${1:value}}\" placeholder-key=\"${2:section.hint}\" onsubmit=\"${3:Handler}\"/>"],
+    "description": "A text box; onsubmit gets the string"
+  },
+  "Select": {
+    "prefix": "select",
+    "body": [
+      "<select bind=\"{${1:index}}\" onchange=\"${2:Handler}\">",
+      "\t<option value=\"${3:a}\" key=\"${4:section.a}\"/>",
+      "\t<option value=\"${5:b}\" key=\"${6:section.b}\"/>",
+      "</select>"
+    ],
+    "description": "A dropdown of options bound to an int"
+  },
+  "Tabs and pages": {
+    "prefix": "tabs",
+    "body": [
+      "<tabs>",
+      "\t<tab page=\"${1:first}\" key=\"${2:section.first}\"/>",
+      "\t<tab page=\"${3:second}\" key=\"${4:section.second}\"/>",
+      "</tabs>",
+      "<pages>",
+      "\t<page id=\"${1:first}\">",
+      "\t\t$0",
+      "\t</page>",
+      "\t<page id=\"${3:second}\">",
+      "\t</page>",
+      "</pages>"
+    ],
+    "description": "A tab strip and the page group it switches"
+  },
+  "Repeat": {
+    "prefix": "repeat",
+    "body": [
+      "<repeat id=\"${1:rows}\" max=\"${2:8}\" onselect=\"${3:RowSelected}\">",
+      "\t<panel class=\"row\">",
+      "\t\t<text text=\"{item.${4:label}}\"/>",
+      "\t</panel>",
+      "\t<empty><text key=\"${5:section.empty}\"/></empty>",
+      "</repeat>"
+    ],
+    "description": "Baked rows from one template; {item.x} bindings become SetIdX(row, value)"
+  },
+  "Icon": {
+    "prefix": "icon",
+    "body": ["<icon name=\"${1:check}\"/>"],
+    "description": "A Lucide icon"
+  },
+  "Image": {
+    "prefix": "image",
+    "body": ["<image src=\"${1:../Art/logo.png}\" mode=\"${2|simple,sliced,fit|}\"/>"],
+    "description": "A sprite, path relative to the view"
+  },
+  "Spacer": {
+    "prefix": "spacer",
+    "body": ["<spacer/>"],
+    "description": "Flexible space"
+  },
+  "Link stylesheet": {
+    "prefix": "link",
+    "body": ["<link href=\"${1:Shared}.auis\"/>"],
+    "description": "Use a stylesheet instead of the sibling .auis"
+  },
+  "Inline style": {
+    "prefix": "style",
+    "body": ["<style>", "\t$0", "</style>"],
+    "description": "Rules that apply to this view only"
+  },
+  "Nested view": {
+    "prefix": "nested",
+    "body": ["<${1:ViewName}${2: id=\"${3:child}\"}/>"],
+    "description": "Another view placed here; its bindings become attributes"
+  }
+}

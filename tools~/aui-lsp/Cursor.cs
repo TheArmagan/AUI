@@ -1,5 +1,7 @@
 using System;
-using System.Text;
+using System.Collections.Generic;
+using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
 namespace Armagan.AUI.Lsp
 {
@@ -26,8 +28,14 @@ namespace Armagan.AUI.Lsp
         public string Attribute;   // attribute being completed (markup)
         public string Prefix;      // text typed so far for the current token
         public string Property;    // style property (stylesheet)
-        public int TokenStart;     // offset of the token start within the line
+        public int TokenStart;     // offset of the token start
+        public int ValueStart;     // offset of the first character inside the quotes (attribute values)
         public bool InsideStyleBlock;
+        public bool InsideStyleAttribute;
+        /// <summary>Attributes already written on the tag before the caret.</summary>
+        public readonly List<string> UsedAttributes = new List<string>();
+
+        // ---------------------------------------------------------------- positions
 
         public static int Offset(string text, int line, int character)
         {
@@ -37,8 +45,78 @@ namespace Armagan.AUI.Lsp
                 if (text[i] == '\n') l++;
                 i++;
             }
-            return Math.Min(text.Length, i + character);
+            int lineEnd = i;
+            while (lineEnd < text.Length && text[lineEnd] != '\n' && text[lineEnd] != '\r') lineEnd++;
+            return Math.Min(lineEnd, i + character);
         }
+
+        public static Position PositionOf(string text, int offset)
+        {
+            int line = 0, col = 0;
+            for (int i = 0; i < offset && i < text.Length; i++)
+            {
+                if (text[i] == '\n') { line++; col = 0; }
+                else if (text[i] != '\r') col++;
+            }
+            return new Position(line, col);
+        }
+
+        public static Range RangeOf(string text, int start, int end)
+        {
+            return new Range(PositionOf(text, start), PositionOf(text, end));
+        }
+
+        /// <summary>A range from 1-based parser coordinates and a length.</summary>
+        public static Range RangeAt(int line, int column, int length)
+        {
+            int l = Math.Max(0, line - 1), c = Math.Max(0, column - 1);
+            return new Range(new Position(l, c), new Position(l, c + Math.Max(0, length)));
+        }
+
+        public static bool Contains(Range r, Position p)
+        {
+            if (p.Line < r.Start.Line || p.Line > r.End.Line) return false;
+            if (p.Line == r.Start.Line && p.Character < r.Start.Character) return false;
+            if (p.Line == r.End.Line && p.Character > r.End.Character) return false;
+            return true;
+        }
+
+        public static int LineLength(string text, int line)
+        {
+            int start = Offset(text, line, 0);
+            int end = start;
+            while (end < text.Length && text[end] != '\n' && text[end] != '\r') end++;
+            return end - start;
+        }
+
+        public static int FirstNonSpace(string text, int line)
+        {
+            int start = Offset(text, line, 0);
+            int i = start;
+            while (i < text.Length && (text[i] == ' ' || text[i] == '\t')) i++;
+            return i - start;
+        }
+
+        public static string LineText(string text, int line)
+        {
+            int start = Offset(text, line, 0);
+            return text.Substring(start, LineLength(text, line));
+        }
+
+        /// <summary>Next non-blank character at or after the offset on the same line, or '\0'.</summary>
+        public static char AfterCaret(string text, int offset)
+        {
+            for (int i = offset; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == ' ' || c == '\t') continue;
+                if (c == '\n' || c == '\r') return '\0';
+                return c;
+            }
+            return '\0';
+        }
+
+        // ---------------------------------------------------------------- markup
 
         private static bool IsIdent(char c)
         {
@@ -49,6 +127,9 @@ namespace Armagan.AUI.Lsp
         {
             var c = new Cursor { Where = Kind.None };
             if (offset > text.Length) offset = text.Length;
+            // Inside a comment? Nothing to complete.
+            int commentOpen = text.LastIndexOf("<!--", offset, StringComparison.Ordinal);
+            if (commentOpen >= 0 && text.LastIndexOf("-->", offset, StringComparison.Ordinal) < commentOpen) return c;
             // Inside a <style> block? Then the stylesheet rules apply.
             int styleOpen = text.LastIndexOf("<style", offset, StringComparison.OrdinalIgnoreCase);
             if (styleOpen >= 0)
@@ -67,7 +148,7 @@ namespace Armagan.AUI.Lsp
             }
             int lt = text.LastIndexOf('<', Math.Max(0, offset - 1));
             if (lt < 0) return c;
-            int gt = text.LastIndexOf('>', Math.Max(0, offset - 1));
+            int gt = LastCloseOutsideQuotes(text, lt, offset);
             if (gt > lt) return c; // caret is in content, not in a tag
             // Read the tag name
             int p = lt + 1;
@@ -104,16 +185,27 @@ namespace Armagan.AUI.Lsp
                         while (p < offset && text[p] != q) p++;
                         if (p >= offset)
                         {
+                            if (attr == "style")
+                            {
+                                Cursor s = Style(text, offset, vStart, true);
+                                s.InsideStyleAttribute = true;
+                                s.Tag = c.Tag;
+                                s.ValueStart = vStart;
+                                return s;
+                            }
                             c.Where = Kind.AttributeValue;
                             c.Attribute = attr;
                             c.Prefix = text.Substring(vStart, offset - vStart);
                             c.TokenStart = vStart;
+                            c.ValueStart = vStart;
                             return c;
                         }
                         p++; // closing quote
+                        c.UsedAttributes.Add(attr);
                         continue;
                     }
                 }
+                c.UsedAttributes.Add(attr);
                 if (p < offset && (text[p] == '/' || text[p] == '>')) return c;
             }
             c.Where = Kind.AttributeName;
@@ -122,12 +214,30 @@ namespace Armagan.AUI.Lsp
             return c;
         }
 
-        public static Cursor Style(string text, int offset, int from = 0)
+        /// <summary>The last '>' between from and offset that is not inside an attribute value.</summary>
+        private static int LastCloseOutsideQuotes(string text, int from, int offset)
+        {
+            int last = -1;
+            char quote = '\0';
+            for (int i = from; i < offset && i < text.Length; i++)
+            {
+                char ch = text[i];
+                if (quote != '\0') { if (ch == quote) quote = '\0'; continue; }
+                if (ch == '"' || ch == '\'') { quote = ch; continue; }
+                if (ch == '>') last = i;
+            }
+            return last;
+        }
+
+        // ---------------------------------------------------------------- stylesheet
+
+        /// <param name="inBlock">True for a style="" attribute: declarations only, no selector level.</param>
+        public static Cursor Style(string text, int offset, int from = 0, bool inBlock = false)
         {
             var c = new Cursor { Where = Kind.StyleSelector };
-            int open = text.LastIndexOf('{', Math.Max(from, offset - 1));
-            int close = text.LastIndexOf('}', Math.Max(from, offset - 1));
-            if (open < from || close > open)
+            int open = inBlock ? from - 1 : text.LastIndexOf('{', Math.Max(from, offset - 1));
+            int close = inBlock ? -1 : text.LastIndexOf('}', Math.Max(from, offset - 1));
+            if (!inBlock && (open < from || close > open))
             {
                 // rule level: selector
                 int s = offset;
@@ -137,7 +247,7 @@ namespace Armagan.AUI.Lsp
                 return c;
             }
             // inside a declaration block: find the current declaration
-            int declStart = Math.Max(open + 1, Math.Max(text.LastIndexOf(';', Math.Max(0, offset - 1)), text.LastIndexOf('\n', Math.Max(0, offset - 1)) ));
+            int declStart = Math.Max(open + 1, Math.Max(text.LastIndexOf(';', Math.Max(0, offset - 1)), text.LastIndexOf('\n', Math.Max(0, offset - 1))));
             if (declStart < open + 1) declStart = open + 1;
             string decl = text.Substring(declStart, offset - declStart);
             int colon = decl.IndexOf(':');
@@ -159,7 +269,9 @@ namespace Armagan.AUI.Lsp
             return c;
         }
 
-        /// <summary>The word (identifier characters plus dots) under an offset, and its start.</summary>
+        // ---------------------------------------------------------------- words
+
+        /// <summary>The word (identifier characters plus dots and dashes) under an offset, and its start.</summary>
         public static string WordAt(string text, int offset, out int start, out int end)
         {
             start = Math.Min(offset, text.Length);
@@ -172,6 +284,20 @@ namespace Armagan.AUI.Lsp
         private static bool IsWordChar(char c)
         {
             return char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.';
+        }
+
+        /// <summary>The {binding} token around an offset inside an attribute value, or null.</summary>
+        public static string BindingAt(string value, int index, out int start, out int end)
+        {
+            start = end = -1;
+            if (value == null) return null;
+            int open = value.LastIndexOf('{', Math.Min(index, value.Length - 1));
+            if (open < 0) return null;
+            int close = value.IndexOf('}', open);
+            if (close < 0 || close < index) return null;
+            start = open;
+            end = close + 1;
+            return value.Substring(open, close - open + 1);
         }
     }
 }

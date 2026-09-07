@@ -181,6 +181,10 @@ namespace Armagan.AUI.Core
                 {
                     _d.Error(AuiCodes.EmptyDocument, "The file has no root element. Expected '<view name=\"...\">'.", 0, 0, 0);
                 }
+
+                // Lifting <link> and <style> out of Nodes leaves gaps in the numbering; every
+                // consumer indexes arrays by node.Index, so it must equal the list position.
+                for (int i = 0; i < Doc.Nodes.Count; i++) Doc.Nodes[i].Index = i;
             }
 
             private void SkipProlog()

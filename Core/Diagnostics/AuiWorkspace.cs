@@ -50,13 +50,25 @@ namespace Armagan.AUI.Core
         {
             string name = Path.GetFileName(dir);
             if (name.EndsWith("~") || name == "Library" || name == "obj" || name == "node_modules" || name == ".git") return;
+            Include(dir, packageViewsOnly);
+        }
+
+        /// <summary>
+        /// Adds a folder tree without the skip rule for the folder itself, so a host can pull in
+        /// a tree the scan would otherwise ignore (the language server does this for a view opened
+        /// under Samples~).
+        /// </summary>
+        public void Include(string dir, bool packageViewsOnly = false)
+        {
+            if (!Directory.Exists(dir)) return;
+            bool isLang = string.Equals(Path.GetFileName(dir), "lang", System.StringComparison.OrdinalIgnoreCase);
             foreach (string f in Directory.GetFiles(dir))
             {
                 string ext = Path.GetExtension(f).ToLowerInvariant();
                 if (ext == ".aui") Views[Path.GetFileNameWithoutExtension(f)] = f;
                 else if (packageViewsOnly) continue;
                 else if (ext == ".auis") StylePaths.Add(f);
-                else if (ext == ".json" && Path.GetFileName(dir) == "lang" && LangFolder == null) LangPaths.Add(f);
+                else if (ext == ".json" && isLang && LangFolder == null) LangPaths.Add(f);
                 else if (ext == ".svg") IconPaths.Add(f);
             }
             foreach (string d in Directory.GetDirectories(dir)) Walk(d, packageViewsOnly);

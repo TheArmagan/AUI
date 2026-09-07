@@ -346,7 +346,7 @@ namespace Armagan.AUI.Editor
                 foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.hideFlags = HideFlags.DontSave;
                 ApplyPicking();
                 Canvas.ForceUpdateCanvases();
-                SceneView.RepaintAll();
+                RepaintSceneViews();
             }
             catch (System.Exception e)
             {
@@ -441,6 +441,32 @@ namespace Armagan.AUI.Editor
             if (Root == null) return;
             var vis = SceneVisibilityManager.instance;
             if (Pickable) vis.EnablePicking(Root, true); else vis.DisablePicking(Root, true);
+        }
+
+        private static System.Reflection.MethodInfo _repaintImmediately;
+
+        /// <summary>
+        /// Repaint every scene view NOW. A queued repaint (SceneView.RepaintAll) is only honoured
+        /// when Unity is the foreground application; with the editor on a second monitor behind
+        /// the code editor, the update loop still ticks and the tree is rebuilt, but nothing is
+        /// drawn until the user clicks into Unity. EditorWindow.RepaintImmediately is internal
+        /// and draws synchronously, background or not.
+        /// </summary>
+        private static void RepaintSceneViews()
+        {
+            if (_repaintImmediately == null)
+                _repaintImmediately = typeof(EditorWindow).GetMethod("RepaintImmediately", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            foreach (SceneView sv in SceneView.sceneViews)
+            {
+                if (sv == null) continue;
+                try
+                {
+                    if (_repaintImmediately != null) _repaintImmediately.Invoke(sv, null);
+                    else sv.Repaint();
+                }
+                catch (System.Exception) { sv.Repaint(); }
+            }
+            UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
         }
 
         /// <summary>Move the scene view to the preview.</summary>

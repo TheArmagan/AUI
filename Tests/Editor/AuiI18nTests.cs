@@ -18,6 +18,21 @@ namespace Armagan.AUI.Tests
             CollectionAssert.AreEqual(new[] { "_name", "settings.title", "settings.audio.mute", "n", "b" }, r.Order);
             Assert.AreEqual(3, r.Positions["settings.title"].Line);
             Assert.AreEqual(26, r.Positions["settings.title"].Column);
+            Assert.AreEqual("en.json", r.Positions["settings.title"].File);
+        }
+
+        [Test]
+        public void MergedTableKeepsEachKeysOwnFile()
+        {
+            // The package's en.json is merged under the project's; go-to-definition must land in the file that holds the key.
+            var ws = new AuiWorkspace();
+            ws.PackageLangPaths.Add("pkg/en.json");
+            ws.LangPaths.Add("proj/en.json");
+            var t = ws.LoadLanguageTable("en", null, p => p == "pkg/en.json" ? "{ \"aui\": { \"pick\": \"Language\" } }" : "{\n  \"demo\": { \"title\": \"Settings\" }\n}");
+            Assert.AreEqual(1, t.LanguageCount);
+            Assert.AreEqual("proj/en.json", t.Languages[0].Data.Positions["demo.title"].File);
+            Assert.AreEqual(2, t.Languages[0].Data.Positions["demo.title"].Line);
+            Assert.AreEqual("pkg/en.json", t.Languages[0].Data.Positions["aui.pick"].File);
         }
 
         [Test]

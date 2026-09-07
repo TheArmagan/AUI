@@ -1,13 +1,13 @@
 {
   "name": "aui",
   "displayName": "AUI",
-  "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition.",
-  "version": "0.1.0",
+  "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition, references, rename, quick fixes, colours, inlay hints, generated code preview.",
+  "version": "0.2.0",
   "publisher": "armagan",
   "license": "MIT",
   "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:aui", "onLanguage:auis"],
+  "categories": ["Programming Languages", "Snippets"],
+  "activationEvents": ["onLanguage:aui", "onLanguage:auis", "workspaceContains:**/*.aui"],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -15,9 +15,25 @@
       { "id": "auis", "aliases": ["AUI stylesheet"], "extensions": [".auis"], "configuration": "./language-configuration-auis.json" }
     ],
     "grammars": [
-      { "language": "aui", "scopeName": "text.xml.aui", "path": "./syntaxes/aui.tmLanguage.json", "embeddedLanguages": { "source.css.auis": "auis" } },
+      { "language": "aui", "scopeName": "text.xml.aui", "path": "./syntaxes/aui.tmLanguage.json", "embeddedLanguages": { "source.css.auis": "auis", "meta.embedded.line.auis": "auis" } },
       { "language": "auis", "scopeName": "source.css.auis", "path": "./syntaxes/auis.tmLanguage.json" }
     ],
+    "snippets": [
+      { "language": "aui", "path": "./snippets/aui.json" },
+      { "language": "auis", "path": "./snippets/auis.json" }
+    ],
+    "commands": [
+      { "command": "aui.showGenerated", "title": "Show Generated C#", "category": "AUI", "icon": "$(code)" },
+      { "command": "aui.restartServer", "title": "Restart Language Server", "category": "AUI" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "aui.showGenerated", "when": "resourceLangId == aui", "group": "navigation" }
+      ],
+      "commandPalette": [
+        { "command": "aui.showGenerated", "when": "resourceLangId == aui" }
+      ]
+    },
     "configuration": {
       "title": "AUI",
       "properties": {
@@ -30,6 +46,16 @@
           "type": "string",
           "default": "dotnet",
           "description": "The dotnet host used to run aui-lsp.dll (needs the .NET 8 runtime or newer)."
+        },
+        "aui.autoClosingTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Insert the closing tag when '>' finishes an opening tag, and complete '</' with the innermost open tag."
+        },
+        "aui.inlayHints.translations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the default-language text after key=\"...\" attributes."
         },
         "aui.trace.server": {
           "type": "string",
@@ -44,7 +70,8 @@
     "compile": "tsc -p ./ --noEmit && esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js",
     "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js --watch",
     "server": "dotnet publish ../aui-lsp/AuiLsp.csproj -c Release -o ./server",
-    "package": "npm run server && npm run compile && vsce package --no-dependencies"
+    "smoke": "node smoke.js",
+    "package": "npm run server && npm run compile && vsce package --no-dependencies --allow-missing-repository"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

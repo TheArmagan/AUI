@@ -547,21 +547,47 @@ pair costs 1).
 
 `tools~/aui-lsp` is a .NET 8 console app (OmniSharp.Extensions.LanguageServer 0.19) that compiles
 `Core/**/*.cs` directly, so its diagnostics are the importer's. `Workspace` finds the package root
-(the folder itself, or `Packages/rest.armagan.aui`, or any package under `Packages/` named
-`rest.armagan.aui`), uses `Assets/AUI/lang` when present, keeps open-document overlays, compiles
-with the approximate measurer, and publishes diagnostics grouped by file. Handlers: text sync
-(full), completion (tags and nested view names, attributes per tag, attribute values: keys,
-classes, icons, page ids, enums, bindings; stylesheet properties, values, variables, selectors),
-hover (key with every translation, class declarations, variable value, element and property docs),
-definition (key to each language file, class to its rule, nested view to its file), document
-symbols, watched-file changes for `lang/*.json`, `.auis` and `.aui`. `Cursor.cs` decides the
-context from raw text so completion works in a broken file.
+(the folder itself, `Packages/rest.armagan.aui`, any package under `Packages/` named
+`rest.armagan.aui`, then the same from each parent folder), reads `Assets/AUI/AuiSettings.asset`
+for `langFolder`, `defaultLanguage`, `componentFolders` and `iconFolders` (else `Assets/AUI/Lang`
+in any case), keeps open-document overlays, and caches the scan, the parsed theme and the language
+table until a watched file appears or disappears or their text changes. A view opened outside
+the scanned tree pulls its nearest `~` folder in (`AuiWorkspace.Include`). Compiles run 150 ms
+after the last keystroke; a save or a request that needs the result runs at once
+(`EnsureCompiled`). Diagnostics are aggregated per file across every view that touched it, so
+shared sheets and language files show the union; `AUI206` (unused class) on a linked sheet only
+survives when every view linking the sheet reports it. A sheet no view links is parsed on its own.
 
-`tools~/vscode-aui` contributes the `aui` and `auis` languages, two TextMate grammars, and a
-client that runs `dotnet server/aui-lsp.dll` (settings `aui.serverPath`, `aui.dotnetPath`,
-`aui.trace.server`). The client is bundled with esbuild into `out/extension.js` because
-`node_modules` is not packaged. `install.ps1` / `install.sh` build the server, package the
-`.vsix` and install it; `smoke.js` drives the server without VS Code.
+Handlers (`Handlers.cs`, `Features.cs`), all over `**/*.aui`, `**/*.auis` and
+`**/{lang,Lang}/*.json`: text sync (full), completion with explicit replace ranges (tags, nested
+views, `</` closing, attributes minus the ones present, keys, classes with their sheet, icons,
+page ids, enums, flags, bindings scoped to the enclosing repeat, handlers from the view and from
+`public void` methods in its `.cs`, `href` paths, selectors by segment, properties, values,
+variables, sprites, eases), hover, definition, references, prepare/rename (classes and variables
+workspace-wide, keys in views and every language file keeping the nesting, bindings, handlers and
+ids in the view, plus the C# method declaration), code actions ("did you mean" replacements,
+insert `;`, create a key in the default or every language, add a key to the languages lacking it
+with or without the default text, create a missing view or sheet file, create a handler method,
+remove an unused rule; the `aui.reveal` client command lands the caret on what was created),
+document colours and presentations, inlay hints (default-language text after `key=`), document
+links (`href`, `src`), document symbols for views (with details) and sheets, workspace symbols
+(views, classes, keys), watched files (`.aui`, `.auis`, language JSON, `.svg`; created and deleted
+files invalidate the scan and re-check dependents), and the custom request `aui/generated` that
+returns the generated C# of a view. `Occurrences.cs` decides what a position names (`Target`) and
+finds every occurrence; `LangJson.cs` inserts a key into a language file keeping its formatting and
+tells which key a JSON position is on; `Cursor.cs` decides the completion context from raw text so
+it works in a broken file.
+
+`tools~/vscode-aui` contributes the `aui` and `auis` languages, two TextMate grammars (the
+`style=""` attribute embeds the sheet grammar), snippets, language configurations with
+Enter-between-tags indentation, and a client that runs `dotnet server/aui-lsp.dll` (settings
+`aui.serverPath`, `aui.dotnetPath`, `aui.autoClosingTags`, `aui.inlayHints.translations`,
+`aui.trace.server`). The client adds auto-closing tags (decided from the text, as the HTML
+extension does), the `AUI: Show Generated C#` command (an `aui-generated:` document refreshed as
+the view changes), `AUI: Restart Language Server`, and the internal `aui.reveal` command. It is
+bundled with esbuild into `out/extension.js` because `node_modules` is not packaged. `install.ps1`
+/ `install.sh` build the server, package the `.vsix` and install it; `npm run smoke` (`smoke.js`)
+drives the server without VS Code and checks every capability against the package's samples.
 
 ## 14. Tests
 
