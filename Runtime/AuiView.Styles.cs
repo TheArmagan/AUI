@@ -643,8 +643,15 @@ namespace Armagan.AUI
             if (prop == PROP_BG || prop == PROP_COLOR || prop == PROP_ICON || prop == PROP_BORDER)
             {
                 Graphic g = prop == PROP_BG ? (Graphic)elemBg[e] : prop == PROP_COLOR ? (Graphic)elemText[e] : prop == PROP_ICON ? (Graphic)elemIcon[e] : (Graphic)elemBorder[e];
-                if (g == null) return none;
                 Color c = new Color(v.x, v.y, v.z, v.w);
+                // A slider's fill is its "color" too (the value label may not exist). Set, not tweened:
+                // one channel per property, and the fill has no channel of its own.
+                if (prop == PROP_COLOR && elemSliders[e] != null && elemSliders[e].fillRect != null)
+                {
+                    Image fill = elemSliders[e].fillRect.GetComponent<Image>();
+                    if (fill != null) fill.color = c;
+                }
+                if (g == null) return none;
                 if (dur <= 0f) { g.color = c; return none; }
                 return VRCTween.TweenColor(g, c, dur, ease);
             }

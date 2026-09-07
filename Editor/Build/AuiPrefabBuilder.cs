@@ -42,7 +42,7 @@ namespace Armagan.AUI.Editor
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
         // 12: runtime layout tables; every element placed with a centre pivot (no text widen/fitter hacks).
         // 13: cascade tables replace the per-signal style rows.
-        public const int BuilderVersion = 14;
+        public const int BuilderVersion = 15;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -919,7 +919,10 @@ namespace Armagan.AUI.Editor
             var handleImg = handleRt.gameObject.AddComponent<Image>();
             // A dot: the unsliced circle sprite drawn square, never the 9-slice (its corners exceed a 20 mm box).
             handleImg.sprite = PackageSprite("Circle");
-            handleImg.type = Image.Type.Simple; handleImg.preserveAspect = true; handleImg.color = fill; handleImg.raycastTarget = true;
+            // The handle is the slider's "icon": icon-color when the sheet sets one, else the fill colour.
+            AuiColor handleCol;
+            handleImg.type = Image.Type.Simple; handleImg.preserveAspect = true; handleImg.raycastTarget = true;
+            handleImg.color = s.Color("icon-color", out handleCol) && !handleCol.IsTransparent ? ToColor(handleCol) : fill;
             c.Icon[e] = handleImg; // icon-color rows tint the handle
 
             slider.fillRect = fillRt;

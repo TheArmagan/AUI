@@ -668,7 +668,10 @@ constants in `AuiView`.
 - Every Selectable gets `Navigation.Mode.None` and `transition = None`. Pointer EventTriggers are
   added only where a state rule or pointer handler needs them.
 - Toggles are Buttons with a selected state, not uGUI Toggles. Sliders are built by hand (track,
-  fill, circle handle from `Circle.png`, optional value label). Inputs are Buttons with a label and
+  fill, circle handle from `Circle.png`, optional value label): `background` is the track
+  (`elemBg`), `color` the fill and the value label (`elemText`; the runtime tints the fill through
+  `Slider.fillRect`, which has no table of its own), `icon-color` the handle (`elemIcon`, falling
+  back to the fill colour at bake). Inputs are Buttons with a label and
   an optional placeholder key. Selects are a header button plus a popup (nested Canvas, sorting
   order 100, own GraphicRaycaster, 1 mm toward the viewer) containing a scrim and the options.
 - Style rows: for each signal, the properties any state touches get a normal-state baseline row

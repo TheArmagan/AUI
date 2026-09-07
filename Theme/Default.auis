@@ -96,7 +96,8 @@ tab:selected { color: var(--accent); icon-color: var(--accent); background: spri
 pages { grow: 1; }
 page  { anchor: fill; flex-direction: column; gap: 8; page-transition: fade; }
 
-slider { width: 160; height: 24; background: var(--chip); color: var(--accent); }
+/* background is the track, color the fill and the value label, icon-color the handle. */
+slider { width: 160; height: 24; background: var(--chip); color: var(--accent); icon-color: var(--accent); }
 slider:disabled { opacity: 0.4; }
 
 input {
