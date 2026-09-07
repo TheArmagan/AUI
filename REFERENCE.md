@@ -90,6 +90,7 @@ Editor/                       asmdef Armagan.AUI.Editor
   Build/AuiInputPanelBuilder.cs     authors the scene's AuiInputPanel
   Build/AuiSpriteGenerator.cs       Rounded/Border/Circle/Square PNGs, imported at 100 PPU
   Build/AuiMenu.cs            the AUI menu
+  Build/AuiCreateMenu.cs      Project window Create/AUI items (.aui with name = typed stem, .auis)
   Fonts/AuiFontBaker.cs       charset collection + static atlas baking + fallbacks
   Resolve/AuiTextMeasurer.cs  TMP-backed IAuiTextMeasurer
   Model/AuiViewAsset.cs, AuiStyleSheetAsset.cs
@@ -105,7 +106,7 @@ tools~/aui-lsp/               .NET 8 language server; compiles Core/**/*.cs by <
 tools~/vscode-aui/            VS Code extension; install.ps1 / install.sh build and install it
 ```
 
-Consumer side (a world): `Assets/AUI/AuiSettings.asset`, `Assets/AUI/lang/*.json`,
+Consumer side (a world): `Assets/AUI/AuiSettings.asset`, `Assets/AUI/Lang/*.json`,
 `Assets/AUI/Fonts/` (baked), views anywhere under `Assets/` (`Name.aui`, `Name.auis`, `Name.cs`,
 generated `Name.g.cs`, `Name.asset`, `Name.prefab`), plus two scene objects named
 `AUI Language Service` and `AUI Input Panel`.
@@ -284,7 +285,7 @@ text without an explicit width gets a horizontal `ContentSizeFitter` so runtime 
 
 ## 7. Languages and fonts
 
-Files: `Assets/AUI/lang/<code>.json`, nested objects flattened to dotted keys, `_name` is the
+Files: `Assets/AUI/Lang/<code>.json`, nested objects flattened to dotted keys, `_name` is the
 native display name. Arrays and nulls are errors; numbers and booleans become their text. The
 languages a project ships are exactly its files; the package's `lang/` contributes `aui.lang.*`
 only for those codes (or all of its languages when the project has none).

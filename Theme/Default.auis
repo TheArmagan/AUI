@@ -124,10 +124,11 @@ select {
 }
 select:hover    { border: var(--accent); }
 select:disabled { opacity: 0.4; }
+/* Options sit 4 mm inside the Rounded8 popup, so a 4 mm radius keeps the hover chip concentric with it. */
 option {
   padding: 8 12;
   min-height: 32;
-  background: none;
+  background: sprite(Rounded4) transparent;
   transition: background 0.1s out-quad;
 }
 option:hover    { background: var(--chip); }

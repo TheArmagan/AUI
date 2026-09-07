@@ -25,8 +25,8 @@ the editor).
 
 Then, in the editor:
 
-1. `AUI/Create Settings` makes `Assets/AUI/AuiSettings.asset` and `Assets/AUI/lang/`.
-2. Put one `<code>.json` per language in `Assets/AUI/lang/` (see *Languages*).
+1. `AUI/Create Settings` makes `Assets/AUI/AuiSettings.asset` and `Assets/AUI/Lang/`.
+2. Put one `<code>.json` per language in `Assets/AUI/Lang/` (see *Languages*).
 3. `AUI/Bake Fonts` builds the font atlases for exactly the characters those files use.
 4. `AUI/Rebuild Language Table` and `AUI/Rebuild Input Panel` create the two scene services.
 
@@ -127,7 +127,7 @@ generating it.
 
 ## Languages
 
-`Assets/AUI/lang/en.json`:
+`Assets/AUI/Lang/en.json`:
 
 ```json
 {
@@ -215,6 +215,10 @@ and generated field is hidden; they are outputs of the `.aui` and `.auis` files,
 | `AUI/Bake Fonts` | builds the atlases and rebuilds views |
 | `AUI/Validate` | compiles every view and prints all diagnostics |
 | `AUI/Create Settings`, `Create missing program assets`, `Generate Sprites`, `Reimport Icons` | housekeeping |
+
+Right-click in the Project window: `Create/AUI/View`, `View with Stylesheet` and `Stylesheet` make
+a `.aui` (with the `name` attribute set to the file name you type), its sibling `.auis`, or a
+`.auis` alone.
 
 ## How the build works
 

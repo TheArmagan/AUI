@@ -27,8 +27,8 @@ Contents
 
 The package sits at `Packages/rest.armagan.aui` (a folder or a junction). Then in Unity:
 
-1. `AUI/Create Settings` creates `Assets/AUI/AuiSettings.asset` and `Assets/AUI/lang/`.
-2. Drop at least `Assets/AUI/lang/en.json` in (see 7). The default language code is on the
+1. `AUI/Create Settings` creates `Assets/AUI/AuiSettings.asset` and `Assets/AUI/Lang/`.
+2. Drop at least `Assets/AUI/Lang/en.json` in (see 7). The default language code is on the
    settings asset (`defaultLanguage`, `en` by default).
 3. `AUI/Bake Fonts`. This reads every language file, bakes atlases with exactly those glyphs
    into `Assets/AUI/Fonts/`, and assigns `AuiFontSet.asset` to the settings. Re-run it whenever
@@ -41,7 +41,9 @@ hover and go-to-definition for `.aui` and `.auis` files in VS Code.
 
 ## 2. Your first view
 
-Create `Assets/UI/Hello.aui`:
+Right-click `Assets/UI` in the Project window, `Create > AUI > View`, and type `Hello`. That
+writes `Hello.aui` with the `name` attribute filled in (`View with Stylesheet` adds `Hello.auis`
+next to it). Then make it:
 
 ```xml
 <view name="Hello" width="300" height="140">
@@ -54,7 +56,7 @@ Create `Assets/UI/Hello.aui`:
 </view>
 ```
 
-Add the keys to `Assets/AUI/lang/en.json`:
+Add the keys to `Assets/AUI/Lang/en.json`:
 
 ```json
 {
@@ -209,7 +211,7 @@ heavy, debounce it with `SendCustomEventDelayedSeconds`.
 
 ## 7. Languages
 
-One file per language in `Assets/AUI/lang/`, named by code (`en`, `tr`, `ja`, `pt-BR`), nested
+One file per language in `Assets/AUI/Lang/`, named by code (`en`, `tr`, `ja`, `pt-BR`), nested
 objects flattened with dots, `_name` shown by the picker:
 
 ```json

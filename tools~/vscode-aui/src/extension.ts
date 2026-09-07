@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
         ],
         synchronize: {
             fileEvents: [
-                vscode.workspace.createFileSystemWatcher("**/lang/*.json"),
+                vscode.workspace.createFileSystemWatcher("**/Lang/*.json"),
                 vscode.workspace.createFileSystemWatcher("**/*.auis"),
                 vscode.workspace.createFileSystemWatcher("**/*.aui"),
             ],

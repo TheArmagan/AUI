@@ -822,9 +822,12 @@ namespace Armagan.AUI.Editor
             var pg = popup.AddComponent<CanvasGroup>();
             c.Groups[pe] = pg;
             var pimg = popup.AddComponent<Image>();
-            pimg.sprite = RoundedSprite(c, s.Radius, false);
-            pimg.type = Image.Type.Sliced;
             AuiBackground bg = s.Background;
+            // Same corners as the header: the theme shapes a select with sprite(Rounded8), not radius,
+            // so a popup shaped by radius alone came out square.
+            pimg.sprite = bg.Sprite != null ? NamedSprite(c, bg.Sprite) : RoundedSprite(c, s.Radius, false);
+            pimg.type = Image.Type.Sliced;
+            pimg.pixelsPerUnitMultiplier = 1f;
             pimg.color = bg.IsNone ? new Color(0.1f, 0.1f, 0.1f, 1f) : ToColor(bg.Color);
             pimg.raycastTarget = true;
             c.Bg[pe] = pimg;

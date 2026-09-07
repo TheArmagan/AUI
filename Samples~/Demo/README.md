@@ -13,7 +13,7 @@ Two things:
   example of connecting views together.
 
 Import the sample from the Package Manager, or copy `Views/` to `Assets/AUI/Demo/` and `lang/`
-to `Assets/AUI/lang/`. Then:
+to `Assets/AUI/Lang/`. Then:
 
 1. `AUI/Create Settings` if the project has none.
 2. `AUI/Bake Fonts`.

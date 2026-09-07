@@ -100,7 +100,7 @@ namespace Armagan.AUI.Lsp
             return new DidChangeWatchedFilesRegistrationOptions
             {
                 Watchers = new Container<OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher>(
-                    new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/lang/*.json" },
+                    new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/Lang/*.json" },
                     new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.auis" },
                     new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.aui" }),
             };
@@ -163,21 +163,21 @@ namespace Armagan.AUI.Lsp
                     foreach (string v in ws.Views.Keys) if (v != Path.GetFileNameWithoutExtension(path)) items.Add(Item(v, CompletionItemKind.Module, "nested view " + v + ".aui"));
                     break;
                 case Cursor.Kind.AttributeName:
-                {
-                    AuiElementDef def = AuiSchema.FindElement(c.Tag);
-                    if (def != null)
                     {
-                        foreach (string a in def.Attributes) items.Add(Item(a, CompletionItemKind.Property, null, a + "=\"$0\""));
-                        foreach (string ev in def.Events) items.Add(Item(ev, CompletionItemKind.Event, "handler method on the view", ev + "=\"$0\""));
+                        AuiElementDef def = AuiSchema.FindElement(c.Tag);
+                        if (def != null)
+                        {
+                            foreach (string a in def.Attributes) items.Add(Item(a, CompletionItemKind.Property, null, a + "=\"$0\""));
+                            foreach (string ev in def.Events) items.Add(Item(ev, CompletionItemKind.Event, "handler method on the view", ev + "=\"$0\""));
+                        }
+                        else if (c.Tag.Length > 0 && char.IsUpper(c.Tag[0]))
+                        {
+                            AuiViewInfo child = ChildInfo(ws, c.Tag);
+                            if (child != null) foreach (AuiBinding b in child.Bindings) items.Add(Item(b.Name, CompletionItemKind.Property, "child binding (" + b.CsType + ")", b.Name + "=\"$0\""));
+                        }
+                        foreach (string a in AuiSchema.CommonAttributes) items.Add(Item(a, CompletionItemKind.Property, null, a + "=\"$0\""));
+                        break;
                     }
-                    else if (c.Tag.Length > 0 && char.IsUpper(c.Tag[0]))
-                    {
-                        AuiViewInfo child = ChildInfo(ws, c.Tag);
-                        if (child != null) foreach (AuiBinding b in child.Bindings) items.Add(Item(b.Name, CompletionItemKind.Property, "child binding (" + b.CsType + ")", b.Name + "=\"$0\""));
-                    }
-                    foreach (string a in AuiSchema.CommonAttributes) items.Add(Item(a, CompletionItemKind.Property, null, a + "=\"$0\""));
-                    break;
-                }
                 case Cursor.Kind.AttributeValue:
                     AttributeValues(c, r, ws, items);
                     break;
@@ -191,26 +191,26 @@ namespace Armagan.AUI.Lsp
                     foreach (AuiPropDef p in AuiSchema.Props) items.Add(Item(p.Name, CompletionItemKind.Property, p.Doc ?? p.Kind.ToString(), p.Name + ": $0;"));
                     break;
                 case Cursor.Kind.StyleValue:
-                {
-                    AuiPropDef p = AuiSchema.FindProp(c.Property);
-                    if (p != null && p.EnumValues != null) foreach (string v in p.EnumValues) items.Add(Item(v, CompletionItemKind.EnumMember, null));
-                    if (p != null && (p.Kind == AuiPropKind.Color || p.Kind == AuiPropKind.Background))
                     {
-                        AuiStyleSheet theme = ws.LoadTheme(_ws.Read);
-                        if (theme != null) foreach (AuiVariable v in theme.Variables) items.Add(Item("var(" + v.Name + ")", CompletionItemKind.Variable, v.Value));
-                        if (p.Kind == AuiPropKind.Background)
+                        AuiPropDef p = AuiSchema.FindProp(c.Property);
+                        if (p != null && p.EnumValues != null) foreach (string v in p.EnumValues) items.Add(Item(v, CompletionItemKind.EnumMember, null));
+                        if (p != null && (p.Kind == AuiPropKind.Color || p.Kind == AuiPropKind.Background))
                         {
-                            items.Add(Item("none", CompletionItemKind.EnumMember, null));
-                            foreach (string s in new[] { "Rounded4", "Rounded8", "Rounded12", "Rounded16", "Rounded24", "Square" }) items.Add(Item("sprite(" + s + ")", CompletionItemKind.Value, "9-slice sprite"));
+                            AuiStyleSheet theme = ws.LoadTheme(_ws.Read);
+                            if (theme != null) foreach (AuiVariable v in theme.Variables) items.Add(Item("var(" + v.Name + ")", CompletionItemKind.Variable, v.Value));
+                            if (p.Kind == AuiPropKind.Background)
+                            {
+                                items.Add(Item("none", CompletionItemKind.EnumMember, null));
+                                foreach (string s in new[] { "Rounded4", "Rounded8", "Rounded12", "Rounded16", "Rounded24", "Square" }) items.Add(Item("sprite(" + s + ")", CompletionItemKind.Value, "9-slice sprite"));
+                            }
                         }
+                        if (p != null && p.Kind == AuiPropKind.Transition)
+                        {
+                            foreach (AuiPropDef a in AuiSchema.Props) if (a.Animatable) items.Add(Item(a.Name, CompletionItemKind.Property, "animatable"));
+                            foreach (string e in AuiSchema.Eases) items.Add(Item(e, CompletionItemKind.EnumMember, "ease"));
+                        }
+                        break;
                     }
-                    if (p != null && p.Kind == AuiPropKind.Transition)
-                    {
-                        foreach (AuiPropDef a in AuiSchema.Props) if (a.Animatable) items.Add(Item(a.Name, CompletionItemKind.Property, "animatable"));
-                        foreach (string e in AuiSchema.Eases) items.Add(Item(e, CompletionItemKind.EnumMember, "ease"));
-                    }
-                    break;
-                }
             }
             return Task.FromResult(new CompletionList(items));
         }
@@ -222,11 +222,11 @@ namespace Armagan.AUI.Lsp
                 case "key":
                 case "placeholder-key":
                 case "format-key":
-                {
-                    AuiLanguageTable t = ws.LoadLanguageTable("en", null, _ws.Read);
-                    foreach (string k in t.Keys) items.Add(Item(k, CompletionItemKind.Text, t.GetWithFallback(t.DefaultLanguage, k)));
-                    break;
-                }
+                    {
+                        AuiLanguageTable t = ws.LoadLanguageTable("en", null, _ws.Read);
+                        foreach (string k in t.Keys) items.Add(Item(k, CompletionItemKind.Text, t.GetWithFallback(t.DefaultLanguage, k)));
+                        break;
+                    }
                 case "class":
                     foreach (string cls in AllClasses(ws)) items.Add(Item(cls, CompletionItemKind.Field, null));
                     break;
