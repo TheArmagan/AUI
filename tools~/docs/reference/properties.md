@@ -1,3 +1,7 @@
+---
+description: The 37 properties a stylesheet may set, with their values, theme defaults, and which ones inherit, animate in a state rule, or apply only at bake.
+---
+
 # Style properties
 
 The 37 properties a `.auis` rule or a `style=""` attribute may set. The source of truth is

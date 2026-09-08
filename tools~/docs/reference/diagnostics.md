@@ -1,3 +1,7 @@
+---
+description: Every diagnostic code AUI can emit, from markup syntax to fonts, each with what it means and how to fix it.
+---
+
 # Diagnostics
 
 Every message AUI can produce. Codes are stable: one is never renumbered or reused.

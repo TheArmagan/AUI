@@ -1,3 +1,7 @@
+---
+description: The mutation API - showing and hiding elements, text and icons, classes, style values, position, templates and pools, and modals.
+---
+
 # Changing a view at runtime
 
 A view carries its layout and its stylesheet as integer tables and re-runs them in Udon. That is

@@ -1,3 +1,7 @@
+---
+description: Requirements, importing the unitypackage, and the four one-time setup steps that give a project settings, languages, fonts and its scene services.
+---
+
 # Installation
 
 AUI is a paid product. Access, downloads and support all go through the

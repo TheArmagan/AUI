@@ -1,31 +1,68 @@
 import { defineConfig } from 'vitepress'
 
+const site = 'https://auidocs.thearmagan.workers.dev'
+const ogImage = `${site}/og-image.png`
+const description =
+  'A UI engine for VRChat worlds. Write a view in an HTML-like file and a small stylesheet; the editor compiles them into a uGUI prefab with generated UdonSharp wiring.'
+
 // Shiki has no grammar for .aui / .auis. The view syntax is XML-shaped and the stylesheet is
 // CSS-shaped, which is exactly what the two TextMate grammars in the VS Code extension derive
 // from, so the aliases under markdown.languageAlias colour every snippet correctly without
 // shipping a grammar here.
 export default defineConfig({
   title: 'AUI',
-  description:
-    'Baked, i18n-first UI engine for UdonSharp worlds. HTML-like markup and a small stylesheet compile in the editor to a plain uGUI hierarchy with generated UdonSharp wiring.',
+  description,
   lang: 'en-US',
   cleanUrls: true,
   lastUpdated: true,
   appearance: 'dark',
+  sitemap: { hostname: site },
 
+  // Site-wide defaults. transformPageData below overrides title, description and url per page,
+  // so an embed of a deep link describes that page rather than the home page.
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#E0A86A' }],
+    ['meta', { name: 'author', content: 'Armagan' }],
+
     ['meta', { property: 'og:type', content: 'website' }],
-    ['meta', { property: 'og:title', content: 'AUI' }],
+    ['meta', { property: 'og:site_name', content: 'AUI' }],
+    ['meta', { property: 'og:locale', content: 'en_US' }],
+    ['meta', { property: 'og:image', content: ogImage }],
+    ['meta', { property: 'og:image:type', content: 'image/png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
     [
       'meta',
       {
-        property: 'og:description',
-        content: 'A UI engine for VRChat worlds written in UdonSharp.',
+        property: 'og:image:alt',
+        content: 'An AUI panel in a VRChat world, showing sliders, dropdowns, a text input and buttons.',
       },
     ],
+
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:image', content: ogImage }],
   ],
+
+  transformPageData(pageData) {
+    const isHome = pageData.relativePath === 'index.md'
+    const title = isHome ? 'AUI' : `${pageData.title ?? 'AUI'} | AUI`
+    const desc = pageData.description || pageData.frontmatter.description || description
+    const url = `${site}/${pageData.relativePath
+      .replace(/\/index\.md$/, '/')
+      .replace(/\.md$/, '')
+      .replace(/^index$/, '')}`
+
+    pageData.frontmatter.head ??= []
+    pageData.frontmatter.head.push(
+      ['meta', { property: 'og:title', content: title }],
+      ['meta', { property: 'og:description', content: desc }],
+      ['meta', { property: 'og:url', content: url }],
+      ['meta', { name: 'twitter:title', content: title }],
+      ['meta', { name: 'twitter:description', content: desc }],
+      ['link', { rel: 'canonical', href: url }],
+    )
+  },
 
   markdown: {
     languageAlias: {

@@ -1,3 +1,7 @@
+---
+description: A greeting panel end to end - the markup, the translation keys, the files the build produces, and the code that drives it.
+---
+
 # Your first view
 
 A greeting panel with a button, end to end. It assumes you have done the

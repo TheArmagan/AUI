@@ -1,3 +1,7 @@
+---
+description: What AUI does, the two ideas behind it, what it deliberately is not, and whether it suits your world.
+---
+
 # What AUI is
 
 AUI turns an HTML-like view file and a CSS-like stylesheet into a Unity uGUI prefab with

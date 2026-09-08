@@ -1,3 +1,7 @@
+---
+description: Every tag AUI understands, with its attributes, events, allowed children and an example - view, panel, text, button, toggle, slider, input, select, tabs, pages, repeat, template, modal and the rest.
+---
+
 # Elements
 
 Every tag AUI understands. The source of truth is `Core/Schema/AuiSchema.cs`; this page mirrors it.

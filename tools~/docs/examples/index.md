@@ -1,3 +1,7 @@
+---
+description: The Demo sample - a settings panel and a ten-page gallery that doubles as the runtime test suite.
+---
+
 # Examples
 
 The package ships a **Demo** sample with two things in it: a settings panel, and a ten-page gallery

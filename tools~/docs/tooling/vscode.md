@@ -1,3 +1,7 @@
+---
+description: Diagnostics, completion for keys, classes and icons, go to definition, rename across views and language files, quick fixes, and a live preview of the generated C#.
+---
+
 # The VS Code extension
 
 Language support for `.aui` and `.auis`, backed by **the same compiler the Unity importer runs**.

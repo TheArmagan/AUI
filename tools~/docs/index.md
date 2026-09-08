@@ -1,5 +1,6 @@
 ---
 layout: home
+description: A UI engine for VRChat worlds. Write a view in an HTML-like file and a small stylesheet; the editor compiles them into a uGUI prefab with generated UdonSharp wiring, and every string is a translation key.
 
 hero:
   name: AUI

@@ -77,7 +77,15 @@ now include the docs page, so that section stays the single place to look.
 Site rules: every snippet must compile against the current schema (the gallery under
 `Samples~/Demo` is the reference for what real markup looks like); never document behaviour that is
 not implemented; no marketing language, no badges, no emoji as UI icons (use the Lucide set in
-`Icons/`). Build before committing a docs change:
+`Icons/`); no claim that AUI is open source and no link to a source repository.
+
+Screenshots under `tools~/docs/public/img/` and the social card `public/og-image.png` are rendered
+from the demo gallery **in play mode** (so bindings show real values, not `{placeholder}`), with an
+orthographic camera on the canvas plane and near/far clips that exclude the rest of the scene. If
+the theme or the gallery changes enough that the shots look stale, recapture them the same way and
+leave the scene unsaved.
+
+Build before committing a docs change:
 
 ```
 cd tools~/docs && npm run build     # fails on dead links

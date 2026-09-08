@@ -1,3 +1,7 @@
+---
+description: The AuiView surface your code calls - lifecycle hooks, elements, text, classes, style values, layout, pages, repeats, selects, modals and runtime creation.
+---
+
 # View API
 
 What `AuiView`, the base class of every view, offers your code. Most of it takes an **element

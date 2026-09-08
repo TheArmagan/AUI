@@ -1,3 +1,7 @@
+---
+description: Stylesheet tiers, selectors, the four states, transitions, variables and inheritance - and what can only be applied at bake.
+---
+
 # Styling
 
 A stylesheet is a `.auis` file. It looks like CSS with a smaller vocabulary, and it is resolved in
