@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="AUI">
-  <!-- The wordmark on the theme's --base tile, so the tab icon carries the package's colours. -->
-  <rect width="32" height="32" rx="7" fill="#150F0B"/>
-  <g transform="translate(1.6 2.2) scale(0.9)" fill="#E0A86A" fill-rule="evenodd">
+  <!-- The full AUI wordmark is illegible at 16 px, so the tab icon is the logo's own A glyph
+       alone. Amber tile with the dark letter: the two theme colours, and it holds its edge on
+       both light and dark browser chrome. -->
+  <rect width="32" height="32" rx="7" fill="#E0A86A"/>
+  <g transform="translate(4.43 -6.16) scale(1.385)" fill="#150F0B" fill-rule="evenodd">
     <path d="M3.3 22.5 L7.55 9.5 L9.15 9.5 L13.4 22.5 L10.5 22.5 L10.09 20.8 L6.61 20.8 L6.2 22.5 Z
              M7.13 18.6 L9.57 18.6 L8.35 13.5 Z"/>
-    <path d="M14.8 9.5 V17.55 A4.95 4.95 0 0 0 24.7 17.55 V9.5 H22 V17.55 A2.25 2.25 0 0 1 17.5 17.55 V9.5 Z"/>
-    <path d="M26.1 9.5 H28.8 V22.5 H26.1 Z"/>
   </g>
 </svg>

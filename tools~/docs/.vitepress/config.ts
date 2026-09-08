@@ -21,7 +21,15 @@ export default defineConfig({
   // Site-wide defaults. transformPageData below overrides title, description and url per page,
   // so an embed of a deep link describes that page rather than the home page.
   head: [
+    // SVG first for browsers that take it, then the PNGs, then favicon.ico as the last resort
+    // for bare /favicon.ico requests from crawlers and older clients.
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16.png' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
+    ['link', { rel: 'manifest', href: '/site.webmanifest' }],
+    ['link', { rel: 'mask-icon', href: '/favicon.svg', color: '#E0A86A' }],
+
     ['meta', { name: 'theme-color', content: '#E0A86A' }],
     ['meta', { name: 'author', content: 'Armagan' }],
 

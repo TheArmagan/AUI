@@ -85,6 +85,11 @@ orthographic camera on the canvas plane and near/far clips that exclude the rest
 the theme or the gallery changes enough that the shots look stale, recapture them the same way and
 leave the scene unsaved.
 
+The favicon set (`favicon.ico`, `favicon-{16,32,48}.png`, `icon-{192,512}.png`,
+`apple-touch-icon.png`) is generated, not hand-drawn: `npm run icons` rasterises the logo's own A
+glyph from `scripts/gen-icons.mjs`. Edit the colours or the path there and re-run it; do not touch
+the PNGs by hand. `public/favicon.svg` carries the same artwork as vector and is edited alongside.
+
 Build before committing a docs change:
 
 ```
