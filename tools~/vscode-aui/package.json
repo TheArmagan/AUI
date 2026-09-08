@@ -2,7 +2,7 @@
   "name": "aui",
   "displayName": "AUI",
   "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition, references, rename, quick fixes, colours, inlay hints, generated code preview.",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "publisher": "armagan",
   "license": "MIT",
   "engines": {
@@ -28,7 +28,11 @@
         "extensions": [
           ".aui"
         ],
-        "configuration": "./language-configuration-aui.json"
+        "configuration": "./language-configuration-aui.json",
+        "icon": {
+          "light": "./icons/aui.svg",
+          "dark": "./icons/aui.svg"
+        }
       },
       {
         "id": "auis",
@@ -38,7 +42,11 @@
         "extensions": [
           ".auis"
         ],
-        "configuration": "./language-configuration-auis.json"
+        "configuration": "./language-configuration-auis.json",
+        "icon": {
+          "light": "./icons/auis.svg",
+          "dark": "./icons/auis.svg"
+        }
       }
     ],
     "grammars": [

@@ -31,6 +31,9 @@ What it does:
   `repeat`, `rule`, `state`, ...).
 - `AUI: Show Generated C#` (editor title button) previews the class the view generates, refreshed
   as you type. `AUI: Restart Language Server` when something is off.
+- File icons for `.aui` and `.auis` in the explorer and tabs (`icons/aui.svg`, `icons/auis.svg`).
+  File icon themes that define their own association for an extension win, so the icons show with
+  Seti and with any theme that leaves these extensions unmapped.
 
 Requires the .NET 8 runtime (or newer) on the PATH as `dotnet`, or `aui.dotnetPath` set.
 
