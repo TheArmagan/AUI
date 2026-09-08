@@ -20,6 +20,10 @@ namespace Armagan.AUI.Core
 
         public static void Expand(AuiMarkupDocument doc, AuiDiagnosticBag d)
         {
+            // Reserved <select> rows are real elements too, and expanding them here means the
+            // cascade, the analyzer, the index map, the layout solver and the builder all keep
+            // seeing nothing but ordinary <option>s.
+            if (doc.Root != null && ExpandSelectRows(doc)) Reindex(doc);
             if (doc.Root == null || doc.Components.Count == 0) { return; }
             for (int pass = 0; pass < MaxPasses; pass++)
             {
@@ -173,6 +177,71 @@ namespace Armagan.AUI.Core
         }
 
         /// <summary>Rebuild the document-order node list after expansion (Index == position).</summary>
+        /// <summary>
+        /// Gives a &lt;select max="N"&gt; its N rows.
+        ///
+        /// `max` is documented as reserving rows the view fills at runtime with
+        /// SetSelectOptionCount / SetSelectOptionLabel, and the analyzer has always parsed and
+        /// range-checked it — but nothing ever baked those rows. The index map walks a select's
+        /// authored children and only those, so a select with one &lt;option&gt; and max="20" got
+        /// exactly one row, and SetSelectOptionLabel then dropped every index past 0 in silence
+        /// (its `index >= selectOptionCount` guard). Measured on a four-filter panel: each popup
+        /// showed one row and the other nineteen writes went nowhere.
+        ///
+        /// A reserved row is a copy of the last authored option carrying only its class and
+        /// style, so it MEASURES like its siblings, plus an empty literal text so the builder
+        /// gives it a label to write into — without one, `hasLabel` is false, no TMP is created
+        /// and SetSelectOptionLabel silently writes to a null.
+        /// </summary>
+        private static bool ExpandSelectRows(AuiMarkupDocument doc)
+        {
+            bool any = false;
+            foreach (AuiNode n in doc.Nodes.ToArray())
+            {
+                if (n.Tag != "select") continue;
+                AuiAttribute ma = n.FindAttribute("max");
+                if (ma == null) continue;
+                int max;
+                // A malformed or out-of-range max is the analyzer's error to report, not ours.
+                if (!int.TryParse(ma.Value, out max) || max < 1 || max > 32) continue;
+
+                var options = new List<AuiNode>();
+                foreach (AuiNode c in n.Children) if (c.Tag == "option") options.Add(c);
+                if (options.Count == 0 || options.Count >= max) continue;
+
+                AuiNode last = options[options.Count - 1];
+                n.ReservedFrom = options.Count;
+                for (int i = options.Count; i < max; i++)
+                {
+                    var row = new AuiNode
+                    {
+                        Tag = "option",
+                        Text = "",
+                        SelfClosing = true,
+                        Line = last.Line, Column = last.Column,
+                        EndLine = last.EndLine, EndColumn = last.EndColumn,
+                        ExpandedFrom = last,
+                        Parent = n,
+                    };
+                    // Class and style only. Never the key, the text, the value or the id: a
+                    // reserved row has no content of its own and two elements may not share an id.
+                    foreach (AuiAttribute a in last.Attributes)
+                    {
+                        if (a.Name != "class" && a.Name != "style") continue;
+                        row.Attributes.Add(new AuiAttribute
+                        {
+                            Name = a.Name, Value = a.Value,
+                            Line = a.Line, Column = a.Column,
+                            ValueLine = a.ValueLine, ValueColumn = a.ValueColumn,
+                        });
+                    }
+                    n.Children.Add(row);
+                    any = true;
+                }
+            }
+            return any;
+        }
+
         public static void Reindex(AuiMarkupDocument doc)
         {
             doc.Nodes.Clear();

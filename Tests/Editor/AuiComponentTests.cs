@@ -105,5 +105,50 @@ namespace Armagan.AUI.Tests
             StringAssert.Contains("eventName == \"picked\") { Picked(child.emitI); return; }", r.GeneratedSource);
             StringAssert.Contains("eventName == \"done\") { Done(); return; }", r.GeneratedSource);
         }
+
+        /// <summary>
+        /// `max` on a select used to reserve nothing. The row count came from the authored
+        /// options, so SetSelectOptionLabel refused every index past the last one written in the
+        /// markup and said nothing about it.
+        /// </summary>
+        [Test]
+        public void SelectMaxReservesRealOptionRows()
+        {
+            AuiCompileResult r = Compile(
+                "<view name=\"V\" width=\"300\" height=\"200\">" +
+                "<select id=\"s\" bind=\"{q}\" max=\"6\"><option value=\"a\" key=\"q.a\"/></select>" +
+                "</view>");
+
+            Assert.AreEqual(0, r.Diagnostics.Items.Count(x => x.Severity == AuiSeverity.Error),
+                string.Join("\n", r.Diagnostics.Items));
+
+            AuiSelectInfo sel = r.Info.Selects.Single();
+            Assert.AreEqual(6, sel.Options.Count, "max=\"6\" must bake six rows, not the one that was authored");
+            Assert.AreEqual(1, sel.Authored, "only the first row came from the markup");
+
+            // Every reserved row is an element of its own, or they would all be the same object.
+            for (int i = 1; i < 6; i++)
+                Assert.AreNotEqual(r.Map.Elem(sel.Options[0], 0), r.Map.Elem(sel.Options[i], 0),
+                    "reserved row " + i + " must have an element of its own");
+
+            // A reserved row carries an empty label so the builder gives it a TMP to write into,
+            // and an empty literal must not be reported as untranslated text.
+            Assert.AreEqual("", sel.Options[1].Text);
+            Assert.IsFalse(r.Diagnostics.Items.Any(x => x.Code == AuiCodes.LiteralTextInTranslatedView),
+                "an empty label is not a translatable string");
+        }
+
+        /// <summary>A select with no max keeps exactly the rows it authored.</summary>
+        [Test]
+        public void SelectWithoutMaxIsUnchanged()
+        {
+            AuiCompileResult r = Compile(
+                "<view name=\"V\" width=\"300\" height=\"200\">" +
+                "<select bind=\"{q}\"><option value=\"a\" key=\"q.a\"/><option value=\"b\" key=\"q.b\"/></select>" +
+                "</view>");
+            AuiSelectInfo sel = r.Info.Selects.Single();
+            Assert.AreEqual(2, sel.Options.Count);
+            Assert.AreEqual(2, sel.Authored);
+        }
     }
 }

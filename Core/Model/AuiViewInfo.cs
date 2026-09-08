@@ -143,6 +143,17 @@ namespace Armagan.AUI.Core
         public readonly List<AuiNode> Options = new List<AuiNode>();
         public int Max;
         public AuiBinding Binding;
+
+        /// <summary>
+        /// How many of <see cref="Options"/> the author actually wrote; the rest are rows
+        /// reserved by <c>max</c> and expanded by AuiTemplateExpander. They are baked inactive
+        /// and do not count toward the popup's resting height, so a select at rest is as tall as
+        /// the options it really has.
+        /// </summary>
+        public int Authored
+        {
+            get { return Node != null && Node.ReservedFrom >= 0 ? Node.ReservedFrom : Options.Count; }
+        }
     }
 
     public sealed class AuiModalInfo

@@ -100,8 +100,16 @@ namespace Armagan.AUI
         [HideInInspector] public int[] selectElem;       // header element (button)
         [HideInInspector] public int[] selectPopupElem;  // popup root element (has CanvasGroup)
         [HideInInspector] public int[] selectOptionFirst;
-        [HideInInspector] public int[] selectOptionCount;
+        [HideInInspector] public int[] selectOptionCount;  // CAPACITY: authored options plus the rows `max` reserved
         [HideInInspector] public int[] selectScrimSig;
+
+        // Resizing a popup when the row count changes. selectOptionShown is how many rows were
+        // baked active, selectOptionH one row's height, and selectPopupEdge the edge that stays
+        // put as it grows — its top when it hangs below the header, its bottom when it opens up.
+        [HideInInspector] public int[] selectOptionShown;
+        [HideInInspector] public float[] selectOptionH;
+        [HideInInspector] public bool[] selectPopupUp;
+        [HideInInspector] public float[] selectPopupEdge;
 
         [Header("Written by AuiInputPanel")]
         [HideInInspector] public string inputResult;
@@ -122,6 +130,10 @@ namespace Armagan.AUI
         private int[] _pageCur, _pagePending, _pageSeq;
         private int[] _repeatCount;
         private int[] _selectValue;
+
+        /// <summary>How many of each select's rows are showing. Starts at what the builder baked
+        /// active and follows SetSelectOptionCount; the value is clamped to it, not to capacity.</summary>
+        private int[] _selectShown;
         private int _openSelect = -1;
         private int _selectSeq;
         private bool _tweensCached, _tweensOk;
@@ -178,9 +190,14 @@ namespace Armagan.AUI
 
             int selects = selectElem == null ? 0 : selectElem.Length;
             _selectValue = new int[selects];
+            _selectShown = new int[selects];
+            bool hasShown = selectOptionShown != null && selectOptionShown.Length == selects;
             for (int s = 0; s < selects; s++)
             {
                 _selectValue[s] = 0;
+                // A prefab built before the reserved-row tables existed has no selectOptionShown;
+                // every one of its rows is a real one, so capacity IS the shown count.
+                _selectShown[s] = hasShown ? selectOptionShown[s] : selectOptionCount[s];
                 if (elemObjects[selectPopupElem[s]] != null) elemObjects[selectPopupElem[s]].SetActive(false);
             }
             _AuiLayoutInit();
@@ -729,7 +746,11 @@ namespace Armagan.AUI
             if (!_started) { _auiStashI = select; _auiStashI2 = index; _AuiStart(); select = _auiStashI; index = _auiStashI2; }
             if (selectElem == null || select < 0 || select >= selectElem.Length) return;
             if (index < 0) index = 0;
-            if (index >= selectOptionCount[select]) index = selectOptionCount[select] - 1;
+            // Clamped to the rows that are SHOWING, not to capacity: a select that reserved
+            // twenty rows and was given four cannot sit on row 17, which is hidden and blank.
+            int shown = _selectShown[select];
+            if (index >= shown) index = shown - 1;
+            if (index < 0) index = 0;
             _selectValue[select] = index;
             RenderSelect(select);
         }
@@ -763,9 +784,40 @@ namespace Armagan.AUI
         {
             if (!_started) { _auiStashI = select; _auiStashI2 = count; _AuiStart(); select = _auiStashI; count = _auiStashI2; }
             if (selectElem == null || select < 0 || select >= selectElem.Length) return;
+            int cap = selectOptionCount[select];
+            if (count < 0) count = 0;
+            if (count > cap) count = cap;
             int first = selectOptionFirst[select];
-            for (int i = 0; i < selectOptionCount[select]; i++)
+            for (int i = 0; i < cap; i++)
                 if (elemObjects[first + i] != null) elemObjects[first + i].SetActive(i < count);
+            _selectShown[select] = count;
+            if (_selectValue[select] >= count) SetSelect(select, count - 1);
+
+            // Grow or shrink the popup to the rows that are actually showing. The rows never
+            // move — each is baked at its own y — so only the well behind them changes, and it
+            // keeps whichever edge it was placed against. Without this a select that reserved
+            // twenty rows for four would open a well with sixteen empty rows in it.
+            ResizeSelectPopup(select, count);
+        }
+
+        private void ResizeSelectPopup(int select, int count)
+        {
+            if (selectOptionH == null || select >= selectOptionH.Length) return;      // a prefab built before this table existed
+            float rowH = selectOptionH[select];
+            if (rowH <= 0f) return;
+            int pe = selectPopupElem[select];
+            if (elemRects == null || pe < 0 || pe >= elemRects.Length) return;
+            RectTransform prt = elemRects[pe];
+            if (prt == null) return;
+
+            float h = count * rowH + 8f;
+            float top = selectPopupUp[select] ? selectPopupEdge[select] - h : selectPopupEdge[select];
+            prt.sizeDelta = new Vector2(prt.sizeDelta.x, h);
+            Vector2 at = new Vector2(prt.anchoredPosition.x, -(top + h * 0.5f));
+            prt.anchoredPosition = at;
+            // The transitions tween from the resting position, so it has to move with the popup
+            // or an opened dropdown snaps back to where it used to be.
+            elemBasePos[pe] = at;
         }
 
         private void ToggleSelect(int headerElem)

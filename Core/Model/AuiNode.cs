@@ -47,6 +47,14 @@ namespace Armagan.AUI.Core
         /// <summary>For a node cloned out of an inline &lt;component&gt;: the &lt;Name/&gt; usage it was expanded from.</summary>
         public AuiNode ExpandedFrom;
 
+        /// <summary>
+        /// On a &lt;select&gt; whose <c>max</c> reserved rows: the number of options the AUTHOR wrote,
+        /// so everything from that index on is a reserved row the view fills at runtime. -1 when
+        /// nothing was reserved. The builder needs it because a reserved row is baked inactive and
+        /// does not count toward the popup's resting height.
+        /// </summary>
+        public int ReservedFrom = -1;
+
         /// <summary>Depth from the root (root = 0).</summary>
         public int Depth
         {

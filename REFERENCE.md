@@ -223,7 +223,7 @@ binding; the binding defaults to true), `hidden` (baked inactive).
 | `toggle` | `bind="{b}"`, `key`, `icon`, `disabled`; events `onchange` + pointer | any | a Button with a selected state; the icon is the "on" mark |
 | `slider` | `bind="{f}"`, `min`, `max`, `step` (>=1 means whole numbers), `format-key`, `decimals`, `disabled`; `onchange` | none | `format-key` text contains `{value}` |
 | `input` | `bind="{s}"`, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel |
-| `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` reserves rows for runtime-filled options |
+| `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` bakes that many rows, the ones past the authored options starting inactive and empty for `SetSelectOptionLabel` to fill. The popup resizes to the rows that are showing |
 | `option` | `value`, `key` or literal | none | must be under `select` |
 | `tabs` | `bind="{i}"`, `for` (pages id); `onchange` | `tab` | `for` is required when a view has more than one `pages` |
 | `tab` | `page` (a page id), `key`, `icon` | any | must be under `tabs` |
@@ -538,7 +538,10 @@ All `[UdonBehaviourSyncMode(BehaviourSyncMode.None)]`. Nothing runs in `Update` 
 transition `showKind`, `showDur`, `hideDur`, `slideFrom`, `scaleFrom`, `startHidden`; pages
 `pageGroupStart/Count/Mode/Default`, `pageElem`, `pageTabSig`, `pageKind`, `pageDur`; repeats
 `repeatFirst`, `repeatStride`, `repeatMax`, `repeatEmpty`; selects `selectElem`,
-`selectPopupElem`, `selectOptionFirst`, `selectOptionCount`, `selectScrimSig`; `inputResult`,
+`selectPopupElem`, `selectOptionFirst`, `selectOptionCount` (capacity: the authored options plus
+the rows `max` reserved), `selectOptionShown` (how many were baked active), `selectOptionH`,
+`selectPopupUp`, `selectPopupEdge` (one row's height and the edge a popup keeps while it
+resizes), `selectScrimSig`; `inputResult`,
 `inputResultId` (written by AuiInputPanel); `parentView`.
 
 Public API: `Show()`, `Hide()`, `ShowInstant()`, `HideInstant()`, `Toggle()`, `IsVisible()`;
@@ -858,6 +861,19 @@ after touching any of them.
 - SVG icons must be imported as Textured Sprite (`SVGImporter.SvgType`); the default Vector Sprite
   has no texture and draws nothing in an Image. The preprocessor sets it, and `AUI/Reimport
   Icons` fixes files imported before the package compiled.
+- **`<select max="N">` reserved nothing at all until BuilderVersion 16, and said nothing about
+  it.** The analyzer parsed and range-checked `max`, the schema and this document both described
+  it as reserving runtime-filled rows, and `ControlsDemo` shipped using it — but the index map
+  walks a select's authored children and only those, and the builder wrote `selectOptionCount`
+  from `Options.Count`. A select with one `<option>` and `max="20"` therefore had exactly one
+  row, and `SetSelectOptionLabel` dropped every index past 0 through its `index >=
+  selectOptionCount` guard without a log line. Measured on a four-filter panel: each popup showed
+  one option and 19 of every 20 writes went nowhere. The rows are now expanded into real
+  `<option>` nodes in `AuiTemplateExpander`, before the cascade, so nothing downstream needs a
+  special case. Two things that expansion has to get right: a reserved row carries an empty
+  literal text, because `BuildClickableContent` only makes a label when there is a `key` or text
+  and `SetSelectOptionLabel` would otherwise write into a null; and `SetSelectOptionCount`
+  resizes the popup, because a well baked for twenty rows showing four is as wrong as the bug.
 
 ## 16. Workflows for common changes
 

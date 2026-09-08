@@ -190,6 +190,14 @@ void CloseSelect();
 
 Generated: `SetQualityOptionLabel(int, string)`, `SetQualityOptionCount(int)`.
 
+**Set the count before the labels.** `SetSelectOptionLabel` ignores any index at or past the
+select's current count, so filling labels first writes only the rows that were already showing and
+silently drops the rest. `SetSelectOptionCount` also resizes the popup to the rows it just
+revealed, and re-clamps the selected index if it fell outside them.
+
+A select can only ever hold as many rows as were baked: its authored `<option>`s plus whatever
+`max="N"` reserved. Anything past that is refused.
+
 ## Modals
 
 ```csharp

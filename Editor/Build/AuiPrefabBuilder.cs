@@ -42,7 +42,9 @@ namespace Armagan.AUI.Editor
         // 8: rebuilds inside the existing prefab contents so scene overrides survive.
         // 12: runtime layout tables; every element placed with a centre pivot (no text widen/fitter hacks).
         // 13: cascade tables replace the per-signal style rows.
-        public const int BuilderVersion = 15;
+        // 16: <select max="N"> finally bakes its reserved rows, and a popup resizes to the rows
+        //     that are showing (selectOptionShown / selectOptionH / selectPopupUp / selectPopupEdge).
+        public const int BuilderVersion = 16;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -75,6 +77,13 @@ namespace Armagan.AUI.Editor
             public Transform Content;
             public RectTransform ContentRect;
             public List<GameObject> Popups = new List<GameObject>();
+
+            // Per SELECT NODE index, so SetSelectOptionCount can resize a popup at runtime:
+            // one option row's height, whether the popup opens upward, and the edge that stays
+            // put while it grows (its top when it hangs below the header, its bottom when up).
+            public float[] SelectRowH;
+            public bool[] SelectUp;
+            public float[] SelectEdge;
 
             // PREVIEW MODE: the same tree with nothing that needs UdonSharp. No view component,
             // no signals, no tables, no prefab; nested views are compiled from source and built
@@ -268,6 +277,12 @@ namespace Armagan.AUI.Editor
             c.Kind = new int[n];
             c.ChildView = new AuiView[n];
             for (int i = 0; i < n; i++) { c.Signal[i] = c.R.Map.SignalOf[i]; c.Key[i] = -1; c.Kind[i] = c.R.Map.KindOf[i]; }
+            // Indexed by DOC NODE, not element: BuildSelect fills them and the table pass reads
+            // them back per select.
+            int nodes = c.R.Doc.Nodes.Count;
+            c.SelectRowH = new float[nodes];
+            c.SelectUp = new bool[nodes];
+            c.SelectEdge = new float[nodes];
             c.Signals = new AuiSignal[c.R.Map.SignalCount];
             c.SigElem = new int[c.R.Map.SignalCount];
             for (int e = 0; e < n; e++) if (c.Signal[e] >= 0) c.SigElem[c.Signal[e]] = e;
@@ -991,8 +1006,19 @@ namespace Armagan.AUI.Editor
             int pe = c.R.Map.PopupElem[n.Index];
             int se = c.R.Map.ScrimElem[n.Index];
             AuiLayoutNode hl = c.R.Layout[n.Index];
-            float optH = 0f;
-            foreach (AuiNode o in n.Children) optH += c.R.Layout[o.Index].Local.H;
+
+            // The RESTING height is the author's own options. Rows reserved by `max` are baked
+            // inactive and the popup grows to them when SetSelectOptionCount says so — sizing it
+            // for max here would leave a four-option filter standing in a twenty-row well.
+            int authored = n.ReservedFrom >= 0 ? n.ReservedFrom : n.Children.Count;
+            float optH = 0f, rowH = 0f;
+            int counted = 0;
+            foreach (AuiNode o in n.Children)
+            {
+                float h = c.R.Layout[o.Index].Local.H;
+                if (h > rowH) rowH = h;          // every option resolves the same style, so this is THE row height
+                if (counted++ < authored) optH += h;
+            }
             var popup = new GameObject(Name(n) + " popup", typeof(RectTransform));
             popup.transform.SetParent(c.Content, false);
             var prt = (RectTransform)popup.transform;
@@ -1002,8 +1028,14 @@ namespace Armagan.AUI.Editor
             float popupH = optH + 8f;
             float viewW = c.R.Info.Width, viewH = c.R.Info.Height;
             float py = hl.Absolute.Y + hl.Absolute.H + 4f;
-            if (py + popupH > viewH - 4f) py = hl.Absolute.Y - 4f - popupH;
+            // Which EDGE stays put when the row count changes: the top when the popup hangs below
+            // the header, the bottom when it had to open upward. The runtime re-derives y from it.
+            bool openUp = false;
+            if (py + popupH > viewH - 4f) { py = hl.Absolute.Y - 4f - popupH; openUp = true; }
             if (py < 4f) py = 4f;
+            c.SelectRowH[n.Index] = rowH;
+            c.SelectUp[n.Index] = openUp;
+            c.SelectEdge[n.Index] = openUp ? py + popupH : py;
             float px = Mathf.Clamp(hl.Absolute.X, 4f, Mathf.Max(4f, viewW - hl.Absolute.W - 4f));
             var popupRect = new AuiRect(px, py, hl.Absolute.W, popupH);
             Place(prt, popupRect, false, viewW, viewH);
@@ -1056,6 +1088,7 @@ namespace Armagan.AUI.Editor
 
             // options
             float y = 4f;
+            int built = 0;
             foreach (AuiNode o in n.Children)
             {
                 int oe = c.R.Map.Elem(o, row);
@@ -1069,6 +1102,10 @@ namespace Armagan.AUI.Editor
                 ApplyBackground(c, o, oe, ogo.transform, true);
                 BuildClickableContent(c, o, oe, ogo, os, new AuiRect(0, 0, popupRect.W - 8f, ol.Local.H));
                 if (c.Signal[oe] >= 0) AddSignal(c, o, oe, ogo, os, true);
+                // A reserved row is placed like the rest — its y never moves — but starts
+                // inactive, so a select shows only the options it actually has until the view
+                // calls SetSelectOptionCount.
+                if (built++ >= authored) ogo.SetActive(false);
                 y += ol.Local.H;
             }
             if (!(c.Preview && c.Opt.OpenSelects.Contains(c.R.ViewName + "/" + n.Index))) popup.SetActive(false);
@@ -1361,15 +1398,24 @@ namespace Armagan.AUI.Editor
 
             // ---- selects
             var sElem = new List<int>(); var sPopup = new List<int>(); var sFirst = new List<int>(); var sCount = new List<int>(); var sScrim = new List<int>();
+            var sShown = new List<int>(); var sRowH = new List<float>(); var sUp = new List<bool>(); var sEdge = new List<float>();
             foreach (AuiSelectInfo sel in r.Info.Selects)
             {
                 sElem.Add(r.Map.Elem(sel.Node, 0));
                 sPopup.Add(r.Map.PopupElem[sel.Node.Index]);
                 sFirst.Add(sel.Options.Count > 0 ? r.Map.Elem(sel.Options[0], 0) : 0);
+                // CAPACITY, not the resting count: every row `max` reserved is baked, and
+                // SetSelectOptionLabel refuses any index past this. The resting count is
+                // selectOptionShown below.
                 sCount.Add(sel.Options.Count);
+                sShown.Add(sel.Authored);
+                sRowH.Add(c.SelectRowH[sel.Node.Index]);
+                sUp.Add(c.SelectUp[sel.Node.Index]);
+                sEdge.Add(c.SelectEdge[sel.Node.Index]);
                 sScrim.Add(c.Signal[r.Map.ScrimElem[sel.Node.Index]]);
             }
             v.selectElem = sElem.ToArray(); v.selectPopupElem = sPopup.ToArray(); v.selectOptionFirst = sFirst.ToArray(); v.selectOptionCount = sCount.ToArray(); v.selectScrimSig = sScrim.ToArray();
+            v.selectOptionShown = sShown.ToArray(); v.selectOptionH = sRowH.ToArray(); v.selectPopupUp = sUp.ToArray(); v.selectPopupEdge = sEdge.ToArray();
 
             // ---- modals
             var mElem = new List<int>(); var mScrim = new List<int>(); var mSig = new List<int>(); var mKind = new List<int>(); var mDis = new List<bool>(); var mOpen = new List<bool>();

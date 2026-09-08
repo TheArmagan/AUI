@@ -217,7 +217,7 @@ A dropdown. Its options bake as a popup that stays inside the view and always dr
 | `select` attribute | Meaning |
 |---|---|
 | `bind` | `{int}` index, two-way |
-| `max` | reserve this many options for filling at runtime |
+| `max` | bake this many option rows (1..32). The ones past the authored `<option>`s start inactive and empty, for `SetSelectOptionLabel` to fill; the popup resizes to the rows that are showing |
 | `disabled` | `{binding}` |
 
 | Event | Signature |
@@ -234,7 +234,8 @@ A dropdown. Its options bake as a popup that stays inside the view and always dr
 </select>
 ```
 
-Filling one at runtime:
+Filling one at runtime. **The count goes first**: a label at or past the current count is
+ignored, so filling labels first writes only the rows that were already showing.
 
 ```csharp
 SetQualityOptionCount(3);
