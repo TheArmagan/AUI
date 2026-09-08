@@ -227,7 +227,9 @@ objects.
 | `Name` | a nested `Name.aui`; attributes are its props (`{binding}` or literal); `on-<event>` | `void H()` or `void H(T value)` for a typed event |
 
 Common attributes: `id`, `class` (literals and `{bindings}`, `*utility` classes), `style`
-(values may be `{bindings}`), `if="{b}"` (active), `hidden`. `view` also takes `icons`,
+(values may be `{bindings}`), `if="{b}"` (active), `hidden` (never on an element with `icon=` or
+`key=` — a hidden subtree is not laid out and an icon's offset is baked once, so the glyph stays
+outside the button; bake it live and push the binding false instead). `view` also takes `icons`,
 `sprites`, `materials`, `utilities` (preloads for `SetIcon` / `SetBackground` / `SetMaterial` /
 `AddClass`) and `pool="text:16 panel:8"`. Pointer handlers `onhover`, `onleave`, `onpress`,
 `onrelease` on anything clickable. Inside a repeat or template, bindings are `{item.name}`.

@@ -210,7 +210,9 @@ Root: `<view name="Foo" width="440" height="330" show="fade-scale" start-hidden=
 
 Common attributes on every element: `id` (identifier; becomes `E_ID` / `S_ID` constants),
 `class` (space separated), `style` (inline declarations), `if="{bool}"` (SetActive from a
-binding; the binding defaults to true), `hidden` (baked inactive).
+binding; the binding defaults to true), `hidden` (baked inactive — **not** on an element with an
+`icon=` or a `key=`; the baker does not lay out a hidden subtree and an icon's offset is written
+once, so the glyph is stuck outside the button forever, see §15).
 
 | Tag | Attributes | Children | Notes |
 |---|---|---|---|
@@ -448,7 +450,8 @@ positions on the cross axis (stretch fills unless the child has an explicit size
 text and content-sized children shrink proportionally (floor 24 mm) before a warning AUI400 is
 raised. `wrap: true` rows break into lines. Out-of-flow children (`display: none`, `hidden`,
 `position: absolute`, `anchor`) take no space; `display: none` and `hidden` are not laid out at
-all, the others go through one placement routine (`LayoutAbsolute`): an explicit size wins, two
+all — and neither is anything inside them, which is what makes a baked-hidden icon permanent
+(§15) — the others go through one placement routine (`LayoutAbsolute`): an explicit size wins, two
 opposite edges stretch, otherwise the intrinsic size; a set edge pins that side, otherwise the
 anchor centres. `pages` children fill. A repeat lays out instance 0 and records `Instances[]`
 offsets for the clones; a column repeat stretches rows to its width; with zero rows the box is
@@ -487,7 +490,9 @@ RectTransform (TMP's own `GetPreferredValues` is not exposed to Udon; `TextMeshP
 (`max-width` / `width`, else the width of the last solve) and rebuilt with
 `LayoutRebuilder.ForceRebuildLayoutImmediate`. An inactive text (on a hidden page) keeps its dirty
 bit and is measured on the solve that follows its activation. Untouched text uses the baked size
-of the current language, so a view with no runtime text never measures anything.
+of the current language, so a view with no runtime text never measures anything. A *keyed* label
+inside an element baked `hidden` is the case that does not recover on its own until something
+wakes it: it is measured at zero and the clickable around it collapses to its padding (§15).
 
 Nested views: the host reserves the child's declared `<view width height>` (the bake's size),
 writes the solved rect and calls `_AuiSetLayoutSize` on the child, which re-solves its own tree
@@ -874,6 +879,27 @@ after touching any of them.
   literal text, because `BuildClickableContent` only makes a label when there is a `key` or text
   and `SetSelectOptionLabel` would otherwise write into a null; and `SetSelectOptionCount`
   resizes the popup, because a well baked for twenty rows showing four is as wrong as the bug.
+- **`hidden` on an element that carries an icon bakes the icon at the wrong offset, permanently.**
+  A clickable's icon and label are not layout elements: `BuildClickableContent` anchors the icon
+  left-middle (pivot 0, anchor 0/0.5) and writes its offset once, and `ApplyLayout` only touches
+  elements the solver owns — it forces anchor (0,1) and pivot (0.5,0.5), which is not what an
+  icon carries — so nothing moves an icon after the bake, ever. `Place()` returns before
+  descending into a hidden element, so a button baked hidden is 0 x 0 when its glyph is placed,
+  and a centred single child of a zero-wide content box lands at `(0 - 18) / 2 = -9`. Showing it
+  later resizes the button and leaves the glyph nine millimetres outside its own left edge; no
+  relayout can put it back, because the icon is not something a relayout writes. Measured in
+  avtr.zip: all three arrows on all four pagers, plus every icon-only stepper on four screens.
+  Two things narrow it. Only **icon-only** clickables break this way — one with a label as well
+  puts its icon at the padding, which does not depend on the width. And a **keyed** clickable
+  baked hidden fails differently and recoverably: TMP measures nothing on an inactive object, so
+  the label solves at zero width and the button collapses to its own padding (a blank accent
+  square where "Search these" should be), which `_AuiWake` re-measures when the page enters.
+  Until the baker places the subtree of a hidden element, the authoring rule is: **do not bake
+  `hidden` on anything with an `icon=` or a `key=`.** Bake it live and let the model push the
+  binding false — a host pushes its child's props from `_AfterStart` anyway, so `hidden` is
+  usually buying one frame that something else was already paying for.
+  To audit a built prefab: walk it for `RectTransform`s named `Icon` whose parent has exactly one
+  child, and flag any with `anchoredPosition.x < 0`.
 
 ## 16. Workflows for common changes
 

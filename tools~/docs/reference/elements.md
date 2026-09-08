@@ -14,7 +14,24 @@ Every tag AUI understands. The source of truth is `Core/Schema/AuiSchema.cs`; th
 | `class` | string | space-separated class names. May contain bindings: `class="card {tone}"` |
 | `style` | declarations | inline style, `prop: value; prop: value`. May contain bindings |
 | `if` | `{binding}` | shows or hides the element and frees its space. Starts `true` |
-| `hidden` | flag | hidden at bake, statically |
+| `hidden` | flag | hidden at bake, statically. **Never on an element with `icon=` or `key=`** — see below |
+
+::: warning `hidden` breaks icons permanently
+A hidden element's subtree is not laid out, at bake time included, and a clickable's icon is
+positioned by the builder exactly once (the runtime solver never writes an icon's rect). An
+icon-only button baked `hidden` therefore has its glyph placed against a zero-wide box and ends
+up hanging outside the button's left edge, where it stays no matter what is shown or relaid out
+later. A keyed one collapses to its own padding instead, because TMP measures nothing on an
+inactive object.
+
+Bake it live and let the binding switch it off on the first frame:
+
+```xml
+<button onclick="Next" icon="chevron-right" if="{hasNext}"/>
+```
+
+`hidden` remains correct on a plain `panel` or `text`, which the solver owns and re-places.
+:::
 
 ## Structure
 
