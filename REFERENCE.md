@@ -709,10 +709,12 @@ root not view, 105 repeat template count, 106 tab without page, 107 nested view 
 binding type conflict, 109 handler not identifier, 110 missing required attribute, 111 bad value,
 112 element not allowed here, 113 nested cycle, 114 tabs without pages, 115 text and key both, 116
 bad binding syntax, 117 literal text info, 118 item binding outside repeat, 119 unknown icon, 120
-repeat max); 2xx stylesheet (200 syntax, 201 unknown property, 202 bad value, 203 undefined
+repeat max, 121 unknown component prop, 122 bad prop declaration); 2xx stylesheet (200 syntax,
+201 unknown property, 202 bad value, 203 undefined
 variable, 204 unknown state, 205 bad selector, 206 unused class, 207 unknown class, 208 sheet not
 found, 209 bad transition, 210 non-animatable in a state, 211 more than 64 classes, 212 bake-only
-font weight on a runtime-only class); 3xx languages (300 missing translation,
+font weight on a runtime-only class, 213 bad bound value, 214 more than 256 star classes);
+3xx languages (300 missing translation,
 301 missing default, 302 file syntax, 303 unknown key, 304 placeholder not bound, 305 no
 languages, 306 duplicate key, 307 placeholder mismatch); 4xx layout (400 overflow, 401 negative
 size, 402 absolute without edges, 403 edge conflict, 404 edge on a non-absolute element, 405
@@ -880,10 +882,18 @@ Add an element type: `AuiSchema.Elements` (attributes, events, children rules), 
 (attribute semantics, binding types, handler signature), `AuiIndexMap.KindOfTag` and the runtime
 `KIND_*` if it is clickable, `AuiLayoutSolver.Measure` for its intrinsic size, `AuiPrefabBuilder`
 for its objects, `AuiCodegen` for its setters and dispatch, `AuiView` for its runtime behaviour,
-the theme for its default look, the grammars for highlighting, tests, README table.
+the theme for its default look, the grammars for highlighting, tests, README table,
+`tools~/docs/reference/elements.md`.
 
 Add a style property: `AuiSchema.Props` (kind, inherited, animatable), `AuiResolvedStyle` getter,
-the builder's use of it (and `PropId`/`RowValue`/`ApplyProp` if animatable), the grammar list.
+the builder's use of it (and `PropId`/`RowValue`/`ApplyProp` if animatable), the grammar list,
+`tools~/docs/reference/properties.md` (including the theme default column).
+
+Add a diagnostic code: `AuiCodes.cs` (append to its block, never fill a gap), the raiser, section 12
+above, `tools~/docs/reference/diagnostics.md` with a cause and a fix.
+
+Change the public `AuiView` API: `tools~/docs/reference/view-api.md`, and
+`tools~/docs/reference/generated-code.md` if codegen emits it.
 
 Change the builder's output without changing markup: bump `BuilderVersion`; `AUI/Rebuild All Views`.
 

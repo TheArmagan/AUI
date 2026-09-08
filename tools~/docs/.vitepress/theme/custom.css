@@ -1,0 +1,237 @@
+/* The palette is the package's own theme, Theme/Default.auis, so the site and the UI it
+   documents are the same colours. --accent there is #E0A86A, which is also the logo fill. */
+
+:root {
+  --aui-base: #150f0b;
+  --aui-nav: #17120d;
+  --aui-surface: #1e1610;
+  --aui-panel: #291e17;
+  --aui-card: #241b14;
+  --aui-border: #2b231c;
+  --aui-chip: #3e3126;
+  --aui-accent: #e0a86a;
+  --aui-text: #eee1d2;
+  --aui-muted: #a38c76;
+
+  --vp-c-brand-1: #a86a28;
+  --vp-c-brand-2: #935c22;
+  --vp-c-brand-3: #7d4e1d;
+  --vp-c-brand-soft: rgba(224, 168, 106, 0.16);
+
+  --vp-font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+}
+
+.dark {
+  --vp-c-brand-1: var(--aui-accent);
+  --vp-c-brand-2: #eab97f;
+  --vp-c-brand-3: #c9925a;
+
+  --vp-c-bg: var(--aui-base);
+  --vp-c-bg-alt: var(--aui-nav);
+  --vp-c-bg-soft: var(--aui-surface);
+  --vp-c-bg-elv: var(--aui-panel);
+
+  --vp-c-divider: var(--aui-border);
+  --vp-c-border: var(--aui-border);
+  --vp-c-gutter: var(--aui-border);
+
+  --vp-c-text-1: var(--aui-text);
+  --vp-c-text-2: var(--aui-muted);
+  --vp-c-text-3: #7a6653;
+
+  --vp-code-block-bg: var(--aui-surface);
+  --vp-code-bg: rgba(224, 168, 106, 0.1);
+  --vp-code-color: var(--aui-accent);
+}
+
+/* ---- Scrollbars -------------------------------------------------------- */
+/* Firefox and anything else honouring the standard properties. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--aui-chip) transparent;
+}
+
+.dark * {
+  scrollbar-color: var(--aui-chip) transparent;
+}
+
+/* WebKit and Chromium. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(163, 140, 118, 0.35);
+  border-radius: 8px;
+  /* The border is transparent and clipped to the content box, so the thumb reads
+     as a slim pill with breathing room instead of filling the gutter. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(224, 168, 106, 0.65);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--aui-accent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(163, 140, 118, 0.3);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(224, 168, 106, 0.6);
+}
+
+/* Code blocks and wide tables scroll horizontally; keep their bars unobtrusive. */
+.vp-doc div[class*='language-']::-webkit-scrollbar,
+.vp-doc .table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+/* Home hero: the logo is a wordmark, so it carries the page rather than a gradient. */
+.dark .VPHero .name {
+  color: var(--aui-accent);
+  background: none;
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: currentColor;
+}
+
+.VPHero .VPImage {
+  width: 180px;
+  height: auto;
+}
+
+/* Feature cards read as the package's own cards. */
+.dark .VPFeature {
+  background-color: var(--aui-card);
+  border-color: var(--aui-border);
+}
+
+.dark .VPFeature:hover {
+  border-color: var(--aui-accent);
+}
+
+.VPFeature .icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: var(--vp-c-brand-1);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dark .VPFeature .icon {
+  background-color: transparent;
+}
+
+/* Reference tables are wide and dense; keep them readable rather than centred. */
+.vp-doc table {
+  display: table;
+  width: 100%;
+  font-size: 14px;
+}
+
+.vp-doc th,
+.vp-doc td {
+  vertical-align: top;
+}
+
+.vp-doc td code {
+  white-space: nowrap;
+  font-size: 0.9em;
+}
+
+/* The icon grid on reference/icons. */
+.aui-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.aui-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 6px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+  text-align: center;
+}
+
+.aui-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: var(--vp-c-text-1);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aui-icon span {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  color: var(--vp-c-text-2);
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+/* A swatch row for the theme variables. */
+.aui-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.aui-swatch {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.aui-swatch .chip {
+  height: 46px;
+}
+
+.aui-swatch .label {
+  padding: 7px 9px;
+  font-family: var(--vp-font-family-mono);
+  background: var(--vp-c-bg-soft);
+  line-height: 1.5;
+}
+
+.aui-swatch .label b {
+  display: block;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.aui-swatch .label span {
+  color: var(--vp-c-text-2);
+}
+
+/* Screenshots of in-world panels sit on the world's own dark ground. */
+.vp-doc img.shot {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--aui-base);
+}

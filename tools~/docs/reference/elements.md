@@ -1,0 +1,436 @@
+# Elements
+
+Every tag AUI understands. The source of truth is `Core/Schema/AuiSchema.cs`; this page mirrors it.
+
+## Attributes every element accepts
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | identifier | names the element. Generates `E_<ID>` (and `S_<ID>` if clickable). Must be unique in the view (AUI102) |
+| `class` | string | space-separated class names. May contain bindings: `class="card {tone}"` |
+| `style` | declarations | inline style, `prop: value; prop: value`. May contain bindings |
+| `if` | `{binding}` | shows or hides the element and frees its space. Starts `true` |
+| `hidden` | flag | hidden at bake, statically |
+
+## Structure
+
+### `<view>`
+
+The root of every `.aui` file. Exactly one per file (AUI004), and it must be the root (AUI104).
+
+| Attribute | Values | Meaning |
+|---|---|---|
+| `name` | identifier | **required**; must equal the file stem (AUI103) |
+| `width`, `height` | number | panel size in millimetres |
+| `show` | `none`, `fade`, `fade-scale`, `fade-slide` | enter/leave transition; overrides the `show` style property |
+| `start-hidden` | flag | the view starts hidden |
+| `icons` | names | preload icons for `SetIcon` |
+| `sprites` | names | preload sprites for `SetBackground` |
+| `materials` | names | preload materials for `SetMaterial` |
+| `utilities` | names | preload star classes for `AddClass` |
+| `pool` | `tag:count ...` | bake spare elements for `CreateElementByTag`, e.g. `text:16 panel:8` |
+
+```aui
+<view name="Chat" width="400" height="300"
+      pool="text:8 panel:4" icons="check x" utilities="p-4 opacity-50">
+  ...
+</view>
+```
+
+The four preload attributes exist because only baked asset references can be swapped in-world.
+
+### `<panel>` and `<div>`
+
+A container. Aliases of each other, and a `panel` selector matches a `div` and vice versa.
+Direction, gap and padding come from the stylesheet; the default is a column.
+
+```aui
+<panel class="row">
+  <text key="a"/>
+  <spacer/>
+  <button onclick="Go" key="go"/>
+</panel>
+```
+
+### `<spacer>`
+
+Flexible space. Grows to fill what is left, which is how you push things apart.
+
+| Attribute | Meaning |
+|---|---|
+| `size` | a fixed gap in mm instead of growing |
+
+```aui
+<spacer/>          <!-- grow: 1 -->
+<spacer size="8"/> <!-- a fixed 8 mm gap -->
+```
+
+## Content
+
+### `<text>`
+
+| Attribute | Values | Meaning |
+|---|---|---|
+| `key` | key | a translation key |
+| `text` | `{binding}` | a runtime string, escaped when set |
+| `args` | `{a} {b}` | bindings filling the key's `{placeholder}`s, by name |
+| `wrap` | `true`, `false` | wrap onto more lines |
+| `max-lines` | number | cap the line count |
+| `ellipsis` | `true`, `false` | show `...` when truncated |
+| `runtime` | flag | measured as runtime text rather than by its key |
+
+`key` and `text` are mutually exclusive (AUI115). Literal content is allowed and reported as info
+AUI117, since it will never be translated.
+
+```aui
+<text key="shop.title" class="title"/>
+<text text="{status}"/>
+<text key="shop.owned" args="{count} {itemName}"/>
+<text wrap="true" max-lines="3" ellipsis="true" key="shop.blurb" style="max-width: 300"/>
+<text>Debug build</text>
+```
+
+### `<icon>`
+
+A bundled Lucide icon, tinted by the `icon-color` style property.
+
+| Attribute | Meaning |
+|---|---|
+| `name` | the icon file name, without `.svg` (AUI119 if unknown) |
+| `size` | size in mm |
+
+```aui
+<icon name="sliders-horizontal" size="22" class="accent"/>
+```
+
+See [icons](/reference/icons) for the full set.
+
+### `<image>`
+
+A sprite asset, by path relative to the `.aui`.
+
+| Attribute | Values |
+|---|---|
+| `src` | path to a sprite asset |
+| `mode` | `simple`, `sliced`, `fit` |
+
+```aui
+<image src="../Art/logo.png" mode="fit"/>
+```
+
+## Controls
+
+### `<button>`
+
+| Attribute | Meaning |
+|---|---|
+| `key` | label translation key |
+| `icon` | an icon name shown beside the label |
+| `disabled` | `{binding}` to grey it out and stop clicks |
+| `selected` | `{binding}` driving the `:selected` state |
+
+| Event | Signature |
+|---|---|
+| `onclick` | `void Name()` |
+| `onhover`, `onleave`, `onpress`, `onrelease` | `void Name()` |
+
+Takes children, so a button can be a whole row.
+
+```aui
+<button onclick="Buy" key="shop.buy" icon="shopping-cart"/>
+<button onclick="Close" icon="x" class="ghost"/>
+<button onclick="Buy" key="shop.buy" disabled="{soldOut}"/>
+<button onclick="Pick" onhover="Preview" onleave="Unpreview" key="shop.pick"/>
+```
+
+### `<toggle>`
+
+A two-state button. With only an icon it is a square; with a `key` it becomes a labelled switch.
+
+| Attribute | Meaning |
+|---|---|
+| `bind` | `{bool}`, two-way |
+| `key` | label |
+| `icon` | the "on" mark; hidden while off |
+| `disabled` | `{binding}` |
+
+| Event | Signature |
+|---|---|
+| `onchange` | `void Name(bool value)` |
+| `onhover`, `onleave`, `onpress`, `onrelease` | `void Name()` |
+
+```aui
+<toggle bind="{mute}" icon="check" onchange="MuteChanged"/>
+<toggle bind="{mute}" key="audio.mute" onchange="MuteChanged"/>
+```
+
+### `<slider>`
+
+| Attribute | Meaning |
+|---|---|
+| `bind` | `{float}`, two-way |
+| `min`, `max` | range |
+| `step` | increment |
+| `format-key` | a key containing `{value}`, e.g. `"{value}%"` |
+| `decimals` | digits in the formatted value (0 by default) |
+| `disabled` | `{binding}` |
+
+| Event | Signature |
+|---|---|
+| `onchange` | `void Name(float value)` |
+
+```aui
+<slider bind="{volume}" min="0" max="100" step="1"
+        format-key="audio.percent" onchange="VolumeChanged"/>
+```
+
+In the theme, `background` is the track, `color` the fill and the label, `icon-color` the handle.
+
+### `<input>`
+
+A text box. Clicking parks an invisible target in front of the player; the second click opens
+VRChat's keyboard. Needs an `AUI Input Panel` in the scene.
+
+| Attribute | Meaning |
+|---|---|
+| `bind` | `{string}`, two-way |
+| `placeholder-key` | translation key shown while empty |
+| `maxlength` | character limit |
+| `disabled` | `{binding}` |
+
+| Event | Signature |
+|---|---|
+| `onsubmit` | `void Name(string value)` |
+
+```aui
+<input bind="{nick}" placeholder-key="profile.nickHint" maxlength="24" onsubmit="NickSubmitted"/>
+```
+
+### `<select>` and `<option>`
+
+A dropdown. Its options bake as a popup that stays inside the view and always draws above modals.
+
+| `select` attribute | Meaning |
+|---|---|
+| `bind` | `{int}` index, two-way |
+| `max` | reserve this many options for filling at runtime |
+| `disabled` | `{binding}` |
+
+| Event | Signature |
+|---|---|
+| `onchange` | `void Name(int index)` |
+
+`<option>` takes `value` and `key`, and must sit directly inside a `<select>`.
+
+```aui
+<select bind="{quality}" onchange="QualityChanged">
+  <option value="low" key="quality.low"/>
+  <option value="medium" key="quality.medium"/>
+  <option value="high" key="quality.high"/>
+</select>
+```
+
+Filling one at runtime:
+
+```csharp
+SetQualityOptionCount(3);
+SetQualityOptionLabel(0, "Low");
+```
+
+## Navigation
+
+### `<tabs>` and `<tab>`
+
+| `tabs` attribute | Meaning |
+|---|---|
+| `bind` | `{int}` page index, two-way |
+| `for` | the id of the `pages` it drives, when there is more than one group |
+
+| Event | Signature |
+|---|---|
+| `onchange` | `void Name(int page)` |
+
+`<tab>` takes `page` (the id of the page it shows), `key` and `icon`, and must sit inside `<tabs>`.
+
+### `<pages>` and `<page>`
+
+| `pages` attribute | Values |
+|---|---|
+| `mode` | `crossfade`, `sequential` |
+| `default` | id of the page shown at start |
+
+`<page>` needs an `id` and must sit inside `<pages>`.
+
+```aui
+<tabs bind="{page}" onchange="PageChanged">
+  <tab page="general" key="settings.general" icon="monitor"/>
+  <tab page="audio"   key="settings.audio"   icon="headset"/>
+</tabs>
+<pages id="main" mode="crossfade">
+  <page id="general"> ... </page>
+  <page id="audio">   ... </page>
+</pages>
+```
+
+See [pages and tabs](/guide/pages-and-tabs).
+
+## Lists and creation
+
+### `<repeat>` and `<empty>`
+
+Bakes `max` copies of its single template child.
+
+| Attribute | Meaning |
+|---|---|
+| `max` | 1 to 64 (AUI120) |
+
+| Event | Signature |
+|---|---|
+| `onselect` | `void Name(int row)` |
+
+Exactly one template child plus an optional `<empty>` (AUI105). `<empty>` shows when the count is
+0.
+
+```aui
+<repeat id="board" max="5" onselect="Pick">
+  <button class="line"><text text="{item.name}"/></button>
+  <empty><text key="board.empty" class="hint"/></empty>
+</repeat>
+```
+
+See [lists](/guide/lists).
+
+### `<template>`
+
+Bakes `max` parked copies you link in at runtime with `CreateElement`. Must be a direct child of
+`<view>`.
+
+| Attribute | Meaning |
+|---|---|
+| `max` | how many parked copies |
+| `pool` | mark it as a tag pool |
+| `slot` | the slot id this template serves |
+| `view` | the nested view this template holds |
+
+```aui
+<template id="line" max="32">
+  <panel class="row"><text text="{item.msg}"/></panel>
+</template>
+```
+
+### `<slot>`
+
+Bakes parked instances of whole views.
+
+| Attribute | Meaning |
+|---|---|
+| `views` | the view names to park |
+| `max` | how many of each |
+
+```aui
+<slot id="cards" views="PlayerCard" max="8"/>
+```
+
+```csharp
+AuiView card = CreateCardsPlayerCard(E_LOG);
+```
+
+See [creating elements](/guide/runtime#creating-elements).
+
+## Composition
+
+### `<component>` and `<prop>`
+
+An inline template expanded at compile time, in the same file.
+
+```aui
+<component name="Stat">
+  <prop name="label"/>
+  <prop name="value"/>
+  <prop name="tone" default="accent"/>
+  <panel class="kpi {tone}">
+    <text key="{label}" class="hint"/>
+    <text text="{value}"/>
+  </panel>
+</component>
+
+<Stat label="stats.hp" value="{hp}"/>
+```
+
+`<prop>` takes `name`, `type` (`string`, `int`, `float`, `bool`) and `default`. It is also valid
+directly under `<view>`, where it declares a prop of that view for its host.
+
+### `<event>`
+
+Declares an event this view raises. Directly under `<view>`.
+
+```aui
+<event name="kicked" type="int"/>
+```
+
+```csharp
+EmitInt("kicked", Score);
+```
+
+`type` is the payload type, or absent for none. See [components](/guide/components#typed-events).
+
+### Nested views
+
+Any other `.aui` is used by its name as a tag. It takes no children.
+
+```aui
+<PlayerCard nick="{name}" score="{pts}" on-kicked="PlayerKicked"/>
+<AuiLanguagePicker/>
+```
+
+## Dialogs
+
+### `<modal>`
+
+A dialog over a dimming backdrop. Directly under `<view>`; takes no space in the flow.
+
+| Attribute | Meaning |
+|---|---|
+| `enabled` | `{bool}` that opens and closes it |
+| `dismissable` | `false` to stop a backdrop click closing it |
+| `show` | body transition: `none`, `fade`, `fade-scale`, `fade-slide` |
+
+| Event | Signature |
+|---|---|
+| `onopen`, `onclose` | `void Name()` |
+
+```aui
+<modal id="confirm" enabled="{asking}" onclose="ResetCancelled">
+  <text key="settings.reset.sure"/>
+  <panel class="row">
+    <button onclick="DoReset" key="yes" class="primary"/>
+    <button onclick="CloseConfirm" key="no"/>
+  </panel>
+</modal>
+```
+
+```auis
+modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+```
+
+## Where each element may go
+
+Most elements go anywhere. These do not (AUI112 otherwise):
+
+| Element | Must sit directly inside |
+|---|---|
+| `option` | `select` |
+| `tab` | `tabs` |
+| `page` | `pages` |
+| `empty` | `repeat` |
+| `prop` | `view` or `component` |
+| `event` | `view` |
+| `component` | `view` |
+| `modal` | `view` |
+| `template` | `view` |
+
+## Next
+
+- [Style properties](/reference/properties) for what a stylesheet can set.
+- [Diagnostics](/reference/diagnostics) for every code named above.
+- [View API](/reference/view-api) for driving these from code.

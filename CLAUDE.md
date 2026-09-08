@@ -45,6 +45,45 @@ deliberate and kept current: `README.md` (overview), `USAGE.md` (author recipes)
 index-map contract, measured platform facts and change workflows). Read the relevant REFERENCE
 section before changing a subsystem, and update the docs when behaviour changes.
 
+AUI is a **private-source, paid subscription** product, distributed to subscribers as a
+`.unitypackage` (plus the `.vsix` for the editor extension) through the Discord,
+`discord.gg/armagan`. Nothing in the repo or on the docs site may describe it as open source, link
+to a public source repository, or claim an open licence.
+
+## Keep the docs site in sync with the code
+
+`tools~/docs/` is the user-facing documentation site (VitePress, deployed to Cloudflare as
+`auidocs`). `README.md`, `USAGE.md` and `REFERENCE.md` stay in the repo and remain authoritative
+for package internals; the site is authoritative for everything a world creator reads.
+
+**A change to the language surface updates the site in the same commit.** The mapping:
+
+| Change in | Update |
+|---|---|
+| `Core/Schema/AuiSchema.cs` (element, attribute) | `tools~/docs/reference/elements.md` |
+| `Core/Schema/AuiSchema.cs` (style property) | `tools~/docs/reference/properties.md` |
+| `Core/Schema/AuiUtilityClasses.cs` | `tools~/docs/reference/utilities.md` |
+| `Core/Diagnostics/AuiCodes.cs` | `tools~/docs/reference/diagnostics.md` |
+| `Theme/Default.auis` | the defaults column in `reference/properties.md`, and `guide/theming.md` |
+| public `AuiView` API (`Runtime/AuiView*.cs`) | `tools~/docs/reference/view-api.md` |
+| `AuiCodegen` output shape | `tools~/docs/reference/generated-code.md` |
+| `AuiSettings`, `AuiLanguageService`, `AuiFontSet`, `AuiInputPanel` | `tools~/docs/reference/services.md` |
+| a menu item, a window, an importer-visible workflow | `tools~/docs/reference/menu.md` |
+| `Icons/` or `Sprites/` contents | `reference/icons.md` / `reference/sprites.md` |
+
+`REFERENCE.md` section 16 lists every file an element or property addition touches; its checklists
+now include the docs page, so that section stays the single place to look.
+
+Site rules: every snippet must compile against the current schema (the gallery under
+`Samples~/Demo` is the reference for what real markup looks like); never document behaviour that is
+not implemented; no marketing language, no badges, no emoji as UI icons (use the Lucide set in
+`Icons/`). Build before committing a docs change:
+
+```
+cd tools~/docs && npm run build     # fails on dead links
+npm run deploy                      # vitepress build && wrangler deploy
+```
+
 ## Where it runs and how to check work
 
 The package is junctioned into the world project `C:\Users\armagan\ALCOM\Projects\AVTRZIP2` as

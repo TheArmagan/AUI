@@ -47,7 +47,7 @@ sh install.sh          # macOS / Linux
 
 Both build the server into `./server`, compile the client, package `aui-<version>.vsix` and run
 `code --install-extension` on it. The manual steps are `npm install`, `npm run package`,
-`code --install-extension aui-0.2.0.vsix`.
+`code --install-extension aui-<version>.vsix`.
 
 Open the world project folder (the one containing `Assets/` and `Packages/rest.armagan.aui`) or
 the package repository itself. The server reads `Assets/AUI/AuiSettings.asset` for the language

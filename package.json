@@ -7,7 +7,7 @@
   "author": {
     "name": "Armagan"
   },
-  "license": "MIT",
+  "license": "UNLICENSED",
   "vpmDependencies": {
     "com.vrchat.worlds": "^3.10.4"
   },

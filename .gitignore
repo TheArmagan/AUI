@@ -7,6 +7,12 @@ tools~/vscode-aui/out/
 tools~/vscode-aui/server/
 tools~/vscode-aui/*.vsix
 
+# Documentation site (tools~/docs)
+tools~/docs/node_modules/
+tools~/docs/.vitepress/cache/
+tools~/docs/.vitepress/dist/
+tools~/docs/.wrangler/
+
 # OS / IDE
 .DS_Store
 Thumbs.db

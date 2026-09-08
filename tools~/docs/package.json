@@ -1,0 +1,17 @@
+{
+  "name": "aui-docs",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Documentation site for AUI, the baked i18n-first UI engine for UdonSharp worlds.",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "deploy": "vitepress build && wrangler deploy"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3",
+    "wrangler": "^4.129.1"
+  }
+}
