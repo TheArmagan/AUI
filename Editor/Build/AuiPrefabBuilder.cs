@@ -28,7 +28,7 @@ namespace Armagan.AUI.Editor
     /// constants and the baked arrays can only agree.
     ///
     /// A PREFAB CANNOT REFERENCE SCENE OBJECTS: lang and inputPanel stay null here and are found
-    /// by name at runtime (AuiView._AuiStart) or wired by AUI/Wire Scene Views.
+    /// by name at runtime (AuiView._AuiStart).
     /// </summary>
     public static class AuiPrefabBuilder
     {
@@ -46,7 +46,9 @@ namespace Armagan.AUI.Editor
         //     that are showing (selectOptionShown / selectOptionH / selectPopupUp / selectPopupEdge).
         // 17: every select row is baked at the tallest row's height, so the well the runtime
         //     resizes to count * selectOptionH ends where the last row does.
-        public const int BuilderVersion = 17;
+        // 18: <text max-lines>, <text runtime>, <input maxlength> (elemInputMax) finally do something;
+        //     the compile hash covers the rule table and the per-language widths.
+        public const int BuilderVersion = 18;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -143,7 +145,7 @@ namespace Armagan.AUI.Editor
             if (type == null || !typeof(AuiView).IsAssignableFrom(type))
             {
                 // Not compiled yet (first pass after the source was written) or a compile error in the author's file.
-                AuiLog.Warn(r.ViewName + ": class not available yet (" + cs + "); will retry after the next compile.");
+                AuiLog.Warn(AuiCodes.GeneratedClassMissing + " " + r.ViewName + ": class not available yet (" + cs + "); will retry after the next compile.");
                 return false;
             }
             // The queue creates program assets and runs UdonSharp once for every view in a drain;
@@ -155,7 +157,7 @@ namespace Armagan.AUI.Editor
             program = AuiProgramAssets.Find(cs);
             if (program == null || program.SerializedProgramAsset == null || program.SerializedProgramAsset.RetrieveProgram() == null)
             {
-                AuiLog.Error(r.ViewName + ": UdonSharp did not produce a program for " + cs + ". Fix the U# errors above.");
+                AuiLog.Error(AuiCodes.ProgramAssetMissing + " " + r.ViewName + ": UdonSharp did not produce a program for " + cs + ". Fix the U# errors above (a missing handler method is the usual cause).");
                 return false;
             }
 
@@ -198,7 +200,7 @@ namespace Armagan.AUI.Editor
             }
             catch (System.Exception e)
             {
-                AuiLog.Error(r.ViewName + ": build failed: " + e);
+                AuiLog.Error(AuiCodes.PrefabBuildFailed + " " + r.ViewName + ": build failed: " + e);
                 return false;
             }
             finally
@@ -799,6 +801,9 @@ namespace Armagan.AUI.Editor
             t.richText = false;
             t.raycastTarget = false;
             if (s.LineHeight > 0) t.lineSpacing = (s.LineHeight - 1f) * 100f;
+            // max-lines: a wrapped label stops after this many lines (TMP's own cap; with Ellipsis it ends in "...").
+            int maxLines;
+            if (wrap && int.TryParse(n.Get("max-lines") ?? "", out maxLines) && maxLines > 0) t.maxVisibleLines = maxLines;
             t.text = initial ?? "";
             c.Text[e] = t;
             c.Key[e] = KeyIndex(c, key);
@@ -1272,31 +1277,6 @@ namespace Armagan.AUI.Editor
 
         // ================================================================ tables
 
-        private static int PropId(string prop)
-        {
-            switch (prop)
-            {
-                case "background": return AuiView.PROP_BG;
-                case "color": return AuiView.PROP_COLOR;
-                case "icon-color": return AuiView.PROP_ICON;
-                case "border": return AuiView.PROP_BORDER;
-                case "opacity": return AuiView.PROP_OPACITY;
-                case "scale": return AuiView.PROP_SCALE;
-                case "offset": return AuiView.PROP_OFFSET;
-            }
-            return -1;
-        }
-
-        private static int EaseId(string ease)
-        {
-            string name = "";
-            foreach (string part in ease.Split('-')) if (part.Length > 0) name += char.ToUpperInvariant(part[0]) + part.Substring(1);
-            try { return (int)System.Enum.Parse(typeof(VRCTweenEase), name); }
-            catch { return (int)VRCTweenEase.OutQuad; }
-        }
-
-        private static readonly string[] StateNames = { "normal", "hover", "pressed", "selected", "disabled" };
-
         private static void FillTables(Ctx c)
         {
             AuiView v = c.View;
@@ -1306,6 +1286,17 @@ namespace Armagan.AUI.Editor
             v.elemSignal = c.Signal; v.elemKey = c.Key; v.elemKind = c.Kind;
             v.sigElem = c.SigElem; v.signals = c.Signals;
             v.auiBakeHash = BakeStamp(r);
+
+            // ---- <input maxlength>: -1 (no limit) for everything else. Indexed like every elem* table.
+            var inputMax = new int[c.N];
+            for (int e = 0; e < c.N; e++)
+            {
+                inputMax[e] = -1;
+                AuiNode node = e < r.Map.NodeOf.Length ? r.Map.NodeOf[e] : null;
+                int ml;
+                if (node != null && node.Tag == "input" && int.TryParse(node.Get("maxlength") ?? "", out ml) && ml > 0) inputMax[e] = ml;
+            }
+            v.elemInputMax = inputMax;
 
             // ---- view transition
             AuiResolvedStyle rs = r.Styles[r.Doc.Root.Index];
@@ -1460,50 +1451,6 @@ namespace Armagan.AUI.Editor
             }
         }
 
-        private static bool RowValue(Ctx c, string prop, string raw, AuiResolvedStyle s, out Vector4 vec, out Sprite sprite)
-        {
-            vec = Vector4.zero;
-            sprite = null;
-            switch (prop)
-            {
-                case "background":
-                {
-                    AuiBackground bg;
-                    if (!AuiBackground.TryParse(raw, out bg)) return false;
-                    Color col = bg.IsNone ? new Color(0, 0, 0, 0) : ToColor(bg.Color);
-                    vec = new Vector4(col.r, col.g, col.b, col.a);
-                    if (bg.Sprite != null) sprite = NamedSprite(c, bg.Sprite);
-                    return true;
-                }
-                case "color":
-                case "icon-color":
-                case "border":
-                {
-                    AuiColor col;
-                    if (!AuiColor.TryParse(raw, out col)) return false;
-                    vec = new Vector4(col.R, col.G, col.B, col.A);
-                    return true;
-                }
-                case "opacity":
-                case "scale":
-                {
-                    float f;
-                    if (!AuiNum.TryParse(raw, out f)) return false;
-                    vec = new Vector4(f, 0, 0, 0);
-                    return true;
-                }
-                case "offset":
-                {
-                    string[] parts = raw.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
-                    float x, y;
-                    if (parts.Length != 2 || !AuiNum.TryParse(parts[0], out x) || !AuiNum.TryParse(parts[1], out y)) return false;
-                    vec = new Vector4(x, y, 0, 0);
-                    return true;
-                }
-            }
-            return false;
-        }
-
         /// <summary>A destroyed or script-less component in the tree makes the prefab save throw from inside Odin; name it first.</summary>
         private static void AuditComponents(GameObject root)
         {
@@ -1553,13 +1500,13 @@ namespace Armagan.AUI.Editor
             var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(v);
             object probe;
             if (ub == null || !ub.publicVariables.TryGetVariableValue("elemObjects", out probe))
-                AuiLog.Error(c.R.ViewName + ": element tables did not reach the Udon heap (CopyProxyToUdon failed?).");
+                AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": element tables did not reach the Udon heap (CopyProxyToUdon failed?).");
             var program = ub != null ? ub.programSource as UdonSharpProgramAsset : null;
             if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
             {
                 var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
                 foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate" })
-                    if (!exports.Contains(must)) AuiLog.Error(c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
+                    if (!exports.Contains(must)) AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }
         }
     }

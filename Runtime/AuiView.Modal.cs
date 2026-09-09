@@ -30,12 +30,15 @@ namespace Armagan.AUI
         private int[] _modalStack;
         private int _modalDepth;
         private int _modalSeq;
+        /// <summary>When the snap trailing each modal's latest open/close is due (see _PageSnap for the same guard).</summary>
+        private float[] _modalSnapAt;
 
         private void _AuiModalsInit()
         {
             int count = modalElem == null ? 0 : modalElem.Length;
             _modalOpen = new bool[count];
             _modalStack = new int[count];
+            _modalSnapAt = new float[count];
             _modalDepth = 0;
             for (int m = 0; m < count; m++)
             {
@@ -100,6 +103,9 @@ namespace Armagan.AUI
                 Exit(elemGroups[body], elemRects[body], modalKind[modal], modalDur, new Vector2(0f, -16f), 0.94f, elemBasePos[body], ref a, ref b, ref c);
                 ResetPointerStatesUnder(body);
             }
+            // Per-modal due time: an open followed by a close inside modalDur used to have the
+            // open's snap kill the exit tween and deactivate the body mid-animation.
+            _modalSnapAt[modal] = Time.time + modalDur + 0.02f;
             SendCustomEventDelayedSeconds(nameof(_ModalSnap), modalDur + 0.02f);
             if (notify) _OnModalChanged(modal, open);
         }
@@ -114,9 +120,10 @@ namespace Armagan.AUI
         /// <summary>Trails every open/close: closed modals are deactivated once their exit tween is over.</summary>
         public void _ModalSnap()
         {
-            if (_modalOpen == null) return;
+            if (_modalOpen == null || _modalSnapAt == null) return;
             for (int m = 0; m < _modalOpen.Length; m++)
             {
+                if (Time.time + 0.005f < _modalSnapAt[m]) continue;   // a newer open/close is still animating
                 int body = modalElem[m], scrim = modalScrimElem[m];
                 if (_modalOpen[m])
                 {
@@ -161,6 +168,8 @@ namespace Armagan.AUI
         public bool Back()
         {
             EnsureStarted();
+            // An armed keyboard panel is invisible and eats the next click aimed through it.
+            if (inputPanel != null && inputPanel.IsOpen()) { inputPanel.Cancel(); return true; }
             if (_openSelect >= 0) { CloseSelect(); return true; }
             for (int i = _modalDepth - 1; i >= 0; i--)
             {

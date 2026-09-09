@@ -43,17 +43,35 @@ namespace Armagan.AUI
 
         private AuiView _target;
         private int _targetId = -1;
+        private int _maxLength = -1;
         private float _armedAt = -1f;
         private bool _open;
 
         // ---------------------------------------------------------------- API
 
+        /// <summary>
+        /// OpenText with a character limit (&lt;input maxlength&gt;): the submitted text is cut to
+        /// <paramref name="maxLength"/> characters, -1 for none. Enforced here rather than through
+        /// TMP_InputField.characterLimit, whose Udon exposure is not verified.
+        /// </summary>
+        public void OpenTextMax(string initial, AuiView target, int id, int maxLength)
+        {
+            OpenText(initial, target, id);
+            _maxLength = maxLength;
+        }
+
         /// <summary>Arm the panel for one view element. Submit writes target.inputResult / inputResultId then calls target._OnInputResult().</summary>
         public void OpenText(string initial, AuiView target, int id)
         {
+            _maxLength = -1;
+            // A view still waiting on this panel (it showed a "typing" state after arming) is told
+            // that it lost the keyboard, or that state would stay stuck forever.
+            AuiView prev = _target;
+            int prevId = _targetId;
             CloseInternal(false);
             _target = target;
             _targetId = id;
+            if (prev != null && (prev != target || prevId != id)) prev._OnInputCancelled();
             if (field != null)
             {
                 field.enabled = true;
@@ -92,6 +110,8 @@ namespace Armagan.AUI
         {
             if (_target == null) return;
             string result = field != null ? field.text : "";
+            if (result == null) result = "";
+            if (_maxLength > 0 && result.Length > _maxLength) result = result.Substring(0, _maxLength);
             AuiView t = _target;
             int id = _targetId;
             ClearTarget();      // before CloseInternal: DeactivateInputField can re-raise onEndEdit

@@ -458,29 +458,44 @@ namespace Armagan.AUI.Core
         /// </summary>
         public static string Substitute(string template, string[] names, string[] values)
         {
-            if (template == null || template.IndexOf("var(", System.StringComparison.Ordinal) < 0) return template;
-            var sb = new StringBuilder();
-            int i = 0, guard = 0;
-            while (i < template.Length)
+            if (template == null) return null;
+            string v = template;
+            int guard = 0;
+            while (true)
             {
-                int at = template.IndexOf("var(", i, System.StringComparison.Ordinal);
-                if (at < 0) { sb.Append(template, i, template.Length - i); break; }
-                sb.Append(template, i, at - i);
-                int close = template.IndexOf(')', at);
+                int at = v.IndexOf("var(", System.StringComparison.Ordinal);
+                if (at < 0) break;
+                int close = MatchingParen(v, at + 3);
                 if (close < 0) break;
-                string inner = template.Substring(at + 4, close - at - 4);
+                string inner = v.Substring(at + 4, close - at - 4);
                 string name = inner, fallback = null;
                 int comma = inner.IndexOf(',');
                 if (comma >= 0) { name = inner.Substring(0, comma); fallback = inner.Substring(comma + 1).Trim(); }
                 name = name.Trim();
                 int id = -1;
                 if (names != null) for (int k = 0; k < names.Length; k++) if (names[k] == name) { id = k; break; }
-                if (id >= 0) sb.Append(values[id]);
-                else if (fallback != null) sb.Append(fallback);
-                i = close + 1;
+                string rep = id >= 0 ? values[id] : (fallback != null ? fallback : "");
+                // Splice and rescan from the start: a fallback that is itself a var() resolves on the next pass.
+                v = v.Substring(0, at) + rep + v.Substring(close + 1);
                 if (++guard > 64) break;
             }
-            return sb.ToString();
+            return v;
+        }
+
+        /// <summary>
+        /// Index of the ')' that closes the '(' at <paramref name="open"/>, counting nested parens;
+        /// -1 when unbalanced. The first ')' after "var(" is not it when the fallback is rgba(...).
+        /// </summary>
+        public static int MatchingParen(string s, int open)
+        {
+            int depth = 0;
+            for (int i = open; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c == '(') depth++;
+                else if (c == ')') { depth--; if (depth == 0) return i; }
+            }
+            return -1;
         }
 
         public static int StateId(string state)
@@ -550,6 +565,7 @@ namespace Armagan.AUI.Core
                 for (int k = ds; k < ds + dc; k++)
                 {
                     int prop = DeclProp[k];
+                    if (prop == PROP_FONT) { r.Value[PROP_FONT_SIZE] = null; r.Ref[PROP_FONT_SIZE] = -1; } // shorthand resets the longhand, as the Udon side does
                     r.Value[prop] = new[] { DeclValue[4 * k], DeclValue[4 * k + 1], DeclValue[4 * k + 2], DeclValue[4 * k + 3] };
                     r.Ref[prop] = DeclRef[k];
                 }

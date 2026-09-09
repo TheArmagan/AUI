@@ -19,11 +19,17 @@ namespace Armagan.AUI
 
         // ================================================================ selectors
 
-        /// <summary>Element index of "#id" (or "id"), or -1. Repeat rows: the row 0 element; add row * stride for others.</summary>
+        /// <summary>Element index of "#id" (or "id"), or the FIRST element matching ".class" / "tag", or -1. Repeat rows: the row 0 element; add row * stride for others.</summary>
         public int GetElement(string selector)
         {
-            if (idNames == null || string.IsNullOrEmpty(selector)) return -1;
-            string id = selector[0] == '#' ? selector.Substring(1) : selector;
+            if (string.IsNullOrEmpty(selector)) return -1;
+            if (!selector.StartsWith("#") && (selector.StartsWith(".") || TagId(selector) >= 0))
+            {
+                int[] all = GetElements(selector);
+                return all.Length > 0 ? all[0] : -1;
+            }
+            if (idNames == null) return -1;
+            string id = selector.StartsWith("#") ? selector.Substring(1) : selector;
             for (int i = 0; i < idNames.Length; i++) if (idNames[i] == id) return idElem[i];
             return -1;
         }
@@ -74,7 +80,12 @@ namespace Armagan.AUI
         /// <summary>Write a label (escaped so it can never open a rich-text tag) and re-measure it.</summary>
         public void SetText(int elem, string value)
         {
-            SetElemText(elem, Escape(value));
+            if (!_started) { _auiStashI = elem; _auiStashS = value; _AuiStart(); elem = _auiStashI; value = _auiStashS; }
+            string escaped = Escape(value);
+            // An input box shows its value through the same label; keep the value the keyboard
+            // reopens with in step, or the next click brings the previous text back.
+            if (elemKind != null && elem >= 0 && elem < elemKind.Length && elemKind[elem] == KIND_INPUT) { RenderInput(elem, escaped); return; }
+            SetElemText(elem, escaped);
         }
 
         public string GetText(int elem)

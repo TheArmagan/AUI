@@ -114,6 +114,8 @@ namespace Armagan.AUI
         [Header("Written by AuiInputPanel")]
         [HideInInspector] public string inputResult;
         [HideInInspector] public int inputResultId = -1;
+        /// <summary>&lt;input maxlength&gt; per element, -1 when unlimited (BuilderVersion 18; older prefabs have no table).</summary>
+        [HideInInspector] public int[] elemInputMax;
 
         [Header("Nesting (baked)")]
         [Tooltip("The view this one is embedded in, if any. Emit() reports to it.")]
@@ -126,10 +128,16 @@ namespace Armagan.AUI
         private bool _visible;
         /// <summary>Set at the top of _AuiStart; generated setters read it to park a pre-start write.</summary>
         protected bool _started;
+        /// <summary>Set after OnStart returned: OnRetranslate is an author hook for a language SWITCH, not for the start-up paint.</summary>
+        private bool _startDone;
         private int _signalCount;
         private int[] _pageCur, _pagePending, _pageSeq;
+        /// <summary>When the snap trailing a group's latest page change is due; an earlier snap that fires before it leaves the group alone.</summary>
+        private float[] _pageSnapAt;
         private int[] _repeatCount;
         private int[] _selectValue;
+        /// <summary>Keys already warned about once (class names, variable names) so a binding fed a typo does not log every frame.</summary>
+        private string _warnedKeys = "";
 
         /// <summary>How many of each select's rows are showing. Starts at what the builder baked
         /// active and follows SetSelectOptionCount; the value is clamped to it, not to capacity.</summary>
@@ -156,20 +164,10 @@ namespace Armagan.AUI
             int n = elemObjects == null ? 0 : elemObjects.Length;
             _signalCount = sigElem == null ? 0 : sigElem.Length;
 
-            // ARRAYS FROM THE UDON HEAP ARE EMPTY, NOT NULL. Every elem* table must be exactly
-            // n long or an index below silently reads garbage; a builder that skipped one is
-            // the only way that happens, so say so once and refuse to run.
-            if (Bad(elemRects == null ? -1 : elemRects.Length, n) || Bad(elemGroups == null ? -1 : elemGroups.Length, n) ||
-                Bad(elemBg == null ? -1 : elemBg.Length, n) || Bad(elemBorder == null ? -1 : elemBorder.Length, n) ||
-                Bad(elemIcon == null ? -1 : elemIcon.Length, n) || Bad(elemText == null ? -1 : elemText.Length, n) ||
-                Bad(elemButtons == null ? -1 : elemButtons.Length, n) || Bad(elemSliders == null ? -1 : elemSliders.Length, n) ||
-                Bad(elemBasePos == null ? -1 : elemBasePos.Length, n) || Bad(elemSignal == null ? -1 : elemSignal.Length, n) ||
-                Bad(elemKey == null ? -1 : elemKey.Length, n) || Bad(elemKind == null ? -1 : elemKind.Length, n))
-            {
-                Debug.LogError("[AUI] " + name + ": element tables are not all " + n + " long. Rebuild the view (AUI/Rebuild All Views).");
-                _broken = true;
-                return;
-            }
+            // The runtime arrays are allocated BEFORE the tables are validated. A view that
+            // failed validation used to return with every one of them null while _started was
+            // already true, so the next public call from a parent (SetEnabledElem, Hide, GetPage)
+            // indexed a null array and halted the parent's start chain along with this view.
             _inputValue = new string[n];
             for (int i = 0; i < n; i++) _inputValue[i] = "";
             _hover = new bool[_signalCount];
@@ -182,6 +180,7 @@ namespace Armagan.AUI
             _pageCur = new int[groups];
             _pagePending = new int[groups];
             _pageSeq = new int[groups];
+            _pageSnapAt = new float[groups];
             for (int g = 0; g < groups; g++) { _pageCur[g] = -1; _pagePending[g] = -1; }
 
             int repeats = repeatFirst == null ? 0 : repeatFirst.Length;
@@ -191,6 +190,26 @@ namespace Armagan.AUI
             int selects = selectElem == null ? 0 : selectElem.Length;
             _selectValue = new int[selects];
             _selectShown = new int[selects];
+
+            // ARRAYS FROM THE UDON HEAP ARE EMPTY, NOT NULL. Every elem* table must be exactly
+            // n long or an index below silently reads garbage; a builder that skipped one is
+            // the only way that happens, so say so once and refuse to run.
+            if (Bad(elemRects == null ? -1 : elemRects.Length, n) || Bad(elemGroups == null ? -1 : elemGroups.Length, n) ||
+                Bad(elemBg == null ? -1 : elemBg.Length, n) || Bad(elemBorder == null ? -1 : elemBorder.Length, n) ||
+                Bad(elemIcon == null ? -1 : elemIcon.Length, n) || Bad(elemText == null ? -1 : elemText.Length, n) ||
+                Bad(elemButtons == null ? -1 : elemButtons.Length, n) || Bad(elemSliders == null ? -1 : elemSliders.Length, n) ||
+                Bad(elemBasePos == null ? -1 : elemBasePos.Length, n) || Bad(elemSignal == null ? -1 : elemSignal.Length, n) ||
+                Bad(elemKey == null ? -1 : elemKey.Length, n) || Bad(elemKind == null ? -1 : elemKind.Length, n))
+            {
+                Debug.LogError("[AUI] " + name + ": element tables are not all " + n + " long. Rebuild the view (AUI/Rebuild All Views).");
+                _broken = true;
+                // Nothing below may run, and the per-count arrays must not be indexed either.
+                _signalCount = 0;
+                _pageCur = new int[0]; _pagePending = new int[0]; _pageSeq = new int[0]; _pageSnapAt = new float[0];
+                _repeatCount = new int[0];
+                _selectValue = new int[0]; _selectShown = new int[0];
+                return;
+            }
             bool hasShown = selectOptionShown != null && selectOptionShown.Length == selects;
             for (int s = 0; s < selects; s++)
             {
@@ -240,6 +259,7 @@ namespace Armagan.AUI
             if (startHidden) HideInstant(); else ShowInstant();
             _AfterStart();
             OnStart();
+            _startDone = true;
             // The prefab is baked for the widest translation; the first solve lays the current
             // language and the initial binding values out before the first frame is drawn.
             if (_layoutReady)
@@ -340,6 +360,7 @@ namespace Armagan.AUI
 
         public void ShowInstant()
         {
+            EnsureStarted();   // _AuiStart calls this itself with _started already true, so no re-entry
             _seq++;
             if (content == null) return;
             KillViewTweens();
@@ -353,6 +374,7 @@ namespace Armagan.AUI
 
         public void HideInstant()
         {
+            EnsureStarted();
             _seq++;
             if (content == null) return;
             KillViewTweens();
@@ -507,7 +529,10 @@ namespace Armagan.AUI
                 if (k == KIND_TOGGLE) { _toggleOn[e] = !_toggleOn[e]; SetSelected(id, _toggleOn[e]); }
                 else if (k == KIND_TAB) { ClickTab(id); }
                 else if (k == KIND_OPTION) { ClickOption(e); }
-                else if (k == KIND_INPUT) { if (inputPanel != null) inputPanel.OpenText(_inputValue[e], this, e); }
+                // The stored value is the ESCAPED one (a zero-width space after every '<'). The
+                // keyboard gets the raw text back, or every round trip through the bound setter
+                // would add one more space: "<3" became "<​3", then "<​​3".
+                else if (k == KIND_INPUT) { if (inputPanel != null) inputPanel.OpenTextMax(_inputValue[e].Replace("​", ""), this, e, InputMaxLength(e)); }
                 else if (k == KIND_SELECT) { ToggleSelect(e); }
                 else if (k == KIND_SCRIM) { CloseSelect(); }
                 else if (k == KIND_MODAL_SCRIM) { ClickModalScrim(e); }
@@ -581,6 +606,9 @@ namespace Armagan.AUI
 
         public void SetActiveElem(int elem, bool on)
         {
+            // Before the start, _AuiLayoutInit would reset _shown from the baked flags and the
+            // solver would keep reserving the space of an element the author just hid.
+            if (!_started) { _auiStashI = elem; _auiStashB = on; _AuiStart(); elem = _auiStashI; on = _auiStashB; }
             if (elemObjects == null || elem < 0 || elem >= elemObjects.Length || elemObjects[elem] == null) return;
             elemObjects[elem].SetActive(on);
             _AuiLayoutShown(elem, on);
@@ -632,13 +660,23 @@ namespace Armagan.AUI
                 PageExit(start + old);
             }
             if (pageTabSig[start + page] >= 0) SetSelected(pageTabSig[start + page], true);
+            // The snap trails the ENTER, so in sequential mode it is two durations out: the exit,
+            // then the enter. Scheduled at one duration it fired 20 ms into the enter fade and
+            // snapped the page to full alpha while the tween was still climbing from zero, a
+            // visible flash on every sequential page change in the live client.
+            float snapIn = pageDur + 0.02f;
             if (pageGroupMode[group] == PAGE_SEQUENTIAL && old >= 0 && Tweens())
             {
                 _pagePending[group] = page;
                 SendCustomEventDelayedSeconds(nameof(_PageEnterPending), pageDur);
+                snapIn += pageDur;
             }
             else PageEnter(start + page);
-            SendCustomEventDelayedSeconds(nameof(_PageSnap), pageDur + 0.02f);
+            // A delayed event carries no arguments: the due time per group is the guard. Two tab
+            // clicks 100 ms apart schedule two snaps; the first fires before the second one's due
+            // time and skips the group instead of snapping a half-run tween to its end state.
+            _pageSnapAt[group] = Time.time + snapIn;
+            SendCustomEventDelayedSeconds(nameof(_PageSnap), snapIn);
             if (notify) _OnPageChanged(group, page);
         }
 
@@ -660,9 +698,11 @@ namespace Armagan.AUI
 
         public void _PageSnap()
         {
+            if (_broken || _pageSnapAt == null) return;
             for (int g = 0; g < pageGroupStart.Length; g++)
             {
                 if (_pagePending[g] >= 0) continue; // still waiting for the sequential enter
+                if (Time.time + 0.005f < _pageSnapAt[g]) continue; // a newer change is still in flight; its own snap follows
                 int start = pageGroupStart[g];
                 for (int p = 0; p < pageGroupCount[g]; p++)
                 {
@@ -729,6 +769,9 @@ namespace Armagan.AUI
         /// <summary>Element index of a template node in a given row.</summary>
         public int RowElem(int repeat, int row, int offset)
         {
+            // -1 rather than an exception: a wrong index here used to halt the whole view for the session.
+            if (repeatFirst == null || repeat < 0 || repeat >= repeatFirst.Length) return -1;
+            if (row < 0 || row >= repeatMax[repeat] || offset < 0 || offset >= repeatStride[repeat]) return -1;
             return repeatFirst[repeat] + row * repeatStride[repeat] + offset;
         }
 
@@ -811,8 +854,12 @@ namespace Armagan.AUI
             if (prt == null) return;
 
             float h = count * rowH + 8f;
-            float top = selectPopupUp[select] ? selectPopupEdge[select] - h : selectPopupEdge[select];
             prt.sizeDelta = new Vector2(prt.sizeDelta.x, h);
+            // Once the solver has placed the header, IT owns the popup's position (PlacePopups
+            // follows the live header rect every solve). Placing from the baked edge here as well
+            // put the well back where the header was at bake time after a relayout had moved it.
+            if (_layoutReady && _solveCount > 0) { PlacePopups(); return; }
+            float top = selectPopupUp[select] ? selectPopupEdge[select] - h : selectPopupEdge[select];
             Vector2 at = new Vector2(prt.anchoredPosition.x, -(top + h * 0.5f));
             prt.anchoredPosition = at;
             // The transitions tween from the resting position, so it has to move with the popup
@@ -836,6 +883,7 @@ namespace Armagan.AUI
 
         public void CloseSelect()
         {
+            EnsureStarted();
             if (_openSelect < 0) return;
             int pe = selectPopupElem[_openSelect];
             _openSelect = -1;
@@ -880,6 +928,12 @@ namespace Armagan.AUI
 
         public virtual void _OnInputCancelled()
         {
+        }
+
+        /// <summary>The input's maxlength, or -1 (also for a prefab built before the table existed).</summary>
+        public int InputMaxLength(int elem)
+        {
+            return elemInputMax != null && elem >= 0 && elem < elemInputMax.Length ? elemInputMax[elem] : -1;
         }
 
         /// <summary>Shows a bound value in an input box, or its translated placeholder when empty.</summary>
@@ -934,7 +988,18 @@ namespace Armagan.AUI
             if (selectElem != null && _selectValue != null)
                 for (int s = 0; s < selectElem.Length; s++) RenderSelect(s);
             _AuiLayoutLanguageChanged();
-            if (_started) OnRetranslate();
+            // Only after OnStart: _started is already true INSIDE _AuiStart (it is set on the first
+            // line), so guarding on it ran the author's hook before OnStart had allocated anything.
+            if (_startDone) OnRetranslate();
+        }
+
+        /// <summary>Log a warning once per key for this view; binding-driven paths would otherwise log every frame.</summary>
+        protected void WarnOnce(string key, string message)
+        {
+            string token = "|" + key + "|";
+            if (_warnedKeys.IndexOf(token) >= 0) return;
+            _warnedKeys += token;
+            Debug.LogWarning("[AUI] " + name + ": " + message);
         }
 
         /// <summary>Insert a zero-width space after every '&lt;' so untrusted text can never open a rich-text tag.
@@ -972,12 +1037,25 @@ namespace Armagan.AUI
             return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1).Replace(n2, v2 == null ? "" : v2).Replace(n3, v3 == null ? "" : v3);
         }
 
+        /// <summary>
+        /// A number with a fixed count of decimals (0..3) and a '.' whatever the player's locale.
+        /// ToString("0.0") follows the client's culture, and "12,5" written into a style binding
+        /// fails ParseLength and is dropped without a word.
+        /// </summary>
         public string FormatNumber(float v, int decimals)
         {
             if (decimals <= 0) return Mathf.RoundToInt(v).ToString();
-            if (decimals == 1) return v.ToString("0.0");
-            if (decimals == 2) return v.ToString("0.00");
-            return v.ToString("0.000");
+            if (decimals > 3) decimals = 3;
+            bool neg = v < 0f;
+            if (neg) v = -v;
+            int scale = decimals == 1 ? 10 : decimals == 2 ? 100 : 1000;
+            int total = Mathf.RoundToInt(v * scale);
+            int whole = total / scale;
+            int frac = total - whole * scale;
+            string f = frac.ToString();
+            while (f.Length < decimals) f = "0" + f;
+            string s = whole.ToString() + "." + f;
+            return neg ? "-" + s : s;
         }
 
         private void OnDestroy()

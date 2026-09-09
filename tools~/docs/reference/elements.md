@@ -96,12 +96,13 @@ Flexible space. Grows to fill what is left, which is how you push things apart.
 | `text` | `{binding}` | a runtime string, escaped when set |
 | `args` | `{a} {b}` | bindings filling the key's `{placeholder}`s, by name |
 | `wrap` | `true`, `false` | wrap onto more lines |
-| `max-lines` | number | cap the line count |
+| `max-lines` | number | cap the line count of a wrapped text (with `ellipsis`, the last line ends in `...`) |
 | `ellipsis` | `true`, `false` | show `...` when truncated |
-| `runtime` | flag | measured as runtime text rather than by its key |
+| `runtime` | flag | measured and re-measured as runtime text (like `text=`), for a keyed label you will `SetText` from code |
 
-`key` and `text` are mutually exclusive (AUI115). Literal content is allowed and reported as info
-AUI117, since it will never be translated.
+`key`, `text` and literal content are mutually exclusive (AUI115). Literal content is reported as
+info AUI117, since it will never be translated. A `wrap="true"` text with no `width` or `max-width`
+wraps at the width its parent gives it.
 
 ```aui
 <text key="shop.title" class="title"/>
@@ -216,7 +217,7 @@ VRChat's keyboard. Needs an `AUI Input Panel` in the scene.
 |---|---|
 | `bind` | `{string}`, two-way |
 | `placeholder-key` | translation key shown while empty |
-| `maxlength` | character limit |
+| `maxlength` | character limit; a longer submission is cut to it |
 | `disabled` | `{binding}` |
 
 | Event | Signature |
@@ -241,7 +242,9 @@ A dropdown. Its options bake as a popup that stays inside the view and always dr
 |---|---|
 | `onchange` | `void Name(int index)` |
 
-`<option>` takes `value` and `key`, and must sit directly inside a `<select>`.
+`<option>` takes `key` (or literal text) and must sit directly inside a `<select>`. The select's
+value is the option's **index**; `value=` is accepted as a name for whoever reads the markup and is
+not baked or reported. A `<select>` cannot sit inside a `<repeat>` (AUI112).
 
 ```aui
 <select bind="{quality}" onchange="QualityChanged">
@@ -251,8 +254,8 @@ A dropdown. Its options bake as a popup that stays inside the view and always dr
 </select>
 ```
 
-Filling one at runtime. **The count goes first**: a label at or past the current count is
-ignored, so filling labels first writes only the rows that were already showing.
+Filling one at runtime. Labels may be set in any order up to the baked capacity; the count decides
+how many rows show and resizes the popup.
 
 ```csharp
 SetQualityOptionCount(3);

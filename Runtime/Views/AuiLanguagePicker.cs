@@ -29,6 +29,7 @@ namespace Armagan.AUI.Generated
         {
             if (lang == null) return;
             int n = lang.LanguageCount();
+            if (n > LANGS_MAX) Debug.LogWarning("[AUI] language picker shows " + LANGS_MAX + " of " + n + " languages; raise max= in AuiLanguagePicker.aui.");
             LangsCount = n;
             int current = lang.GetLanguage();
             for (int i = 0; i < n && i < LANGS_MAX; i++)

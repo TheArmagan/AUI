@@ -49,7 +49,7 @@ namespace Armagan.AUI.Editor
                 if (lang) AuiEditorEnv.InvalidateLanguages();
                 if (theme) AuiEditorEnv.InvalidateTheme();
             }
-            if (fonts) AuiTextMeasurer.InvalidateCache();
+            if (fonts) { AuiTextMeasurer.InvalidateCache(); AuiEditorEnv.ForgetAllCompiles(); }
             if (sprites) AuiPrefabBuilder.ClearSpriteCache();
 
             bool any = false;
@@ -57,6 +57,15 @@ namespace Armagan.AUI.Editor
             {
                 if (!p.EndsWith(".aui")) continue;
                 AuiBuildQueue.Enqueue(p);
+                any = true;
+            }
+            // A language file that APPEARED, went away or moved changes the key list (the sorted
+            // union across every language), so every baked key index may have shifted. No view
+            // declared the new file as a dependency (it did not exist), so nothing re-imported:
+            // queue them all. Non-forced: the hash decides what actually rebuilds.
+            if (rescan != null && rescan.EndsWith(".json"))
+            {
+                AuiBuildQueue.EnqueueAll(false);
                 any = true;
             }
             foreach (string p in deleted)
@@ -85,6 +94,7 @@ namespace Armagan.AUI.Editor
     {
         private const string QueueKey = "AUI.BuildQueue";
         private const string AttemptsKey = "AUI.BuildAttempts.";
+        private const string ReasonKey = "AUI.BuildReason.";
         private const int MaxAttempts = 4;
         private const string ForceKey = "AUI.BuildForce";
         private const string ExplicitKey = "AUI.BuildExplicit";
@@ -222,6 +232,10 @@ namespace Armagan.AUI.Editor
             int built = 0;
             long buildStart = clock.ElapsedMilliseconds;
             var remaining = new List<string>(list);
+            // Children a parent found missing during THIS drain. ChildrenBuilt used to Enqueue them
+            // straight into SessionState, which Save(remaining) then overwrote with the pre-drain
+            // list: the child never entered the queue and the parent failed four times.
+            var lateChildren = new List<string>();
             // One scene sweep for the whole drain: RevertInstanceSizeOverrides used to do one per built view.
             AuiView[] sceneViews = Object.FindObjectsOfType<AuiView>(true);
             foreach (string p in list)
@@ -232,9 +246,10 @@ namespace Armagan.AUI.Editor
                 SessionState.SetInt(AttemptsKey + p, attempts);
                 if (attempts > MaxAttempts)
                 {
-                    AuiLog.Error(p + ": giving up after " + MaxAttempts + " build attempts. Fix the errors above and save the file again.");
+                    AuiLog.Error(AuiCodes.PrefabBuildFailed + " " + p + ": giving up after " + MaxAttempts + " build attempts (last step: " + SessionState.GetString(ReasonKey + p, "unknown") + "). Fix the errors above and save the file again.");
                     remaining.Remove(p);
                     SessionState.EraseInt(AttemptsKey + p);   // the next save starts a fresh count
+                    SessionState.EraseString(ReasonKey + p);
                     continue;
                 }
                 if (r.HasErrors)
@@ -245,22 +260,35 @@ namespace Armagan.AUI.Editor
                     continue;
                 }
                 // Step A
-                if (AuiSourceWriter.Write(r, settings)) { wroteSource = true; continue; }
-                // A parent needs its children's prefabs; leave it queued until they exist.
-                if (!ChildrenBuilt(r, ws)) continue;
+                if (AuiSourceWriter.Write(r, settings)) { SessionState.SetString(ReasonKey + p, "waiting for the generated source to compile"); wroteSource = true; continue; }
+                // A parent needs its children's prefabs; leave it queued until they exist. Waiting
+                // for a child is not a failed attempt of the parent's.
+                string missingChild = MissingChild(r, ws, lateChildren);
+                if (missingChild != null)
+                {
+                    SessionState.SetString(ReasonKey + p, "waiting for the child prefab " + missingChild);
+                    SessionState.SetInt(AttemptsKey + p, attempts - 1);
+                    continue;
+                }
                 // Step B
                 if (AuiPrefabBuilder.Build(r, settings, ws, sceneViews))
                 {
                     built++;
                     remaining.Remove(p);
                     SessionState.EraseInt(AttemptsKey + p);
+                    SessionState.EraseString(ReasonKey + p);
                 }
+                else SessionState.SetString(ReasonKey + p, "prefab build failed (see the error above)");
             }
+            foreach (string cp in lateChildren) if (!remaining.Contains(cp)) remaining.Add(cp);
             Save(remaining);
             if (remaining.Count == 0) { SessionState.SetBool(ForceKey, false); SessionState.SetBool(ExplicitKey, false); }
-            // The views just built carry key indices into the CURRENT language files; the scene's
-            // service must carry the same table or every key added since the last bake shows "??".
-            if (built > 0) AuiLanguageTableBuilder.ApplyIfChanged(settings, ws);
+            // The views carry key indices into the CURRENT language files; the scene's service must
+            // carry the same table or every key added since the last bake shows "??". Checked on
+            // every drain, not only when a prefab was built: a translation edit that does not move
+            // the widest width leaves every hash alone and builds nothing, yet the service's strings
+            // are what the player reads. One string compare per cell when nothing changed.
+            AuiLanguageTableBuilder.ApplyIfChanged(settings, ws);
             long buildMs = clock.ElapsedMilliseconds - buildStart;
             AuiLog.Info("drain: " + list.Count + " view(s), " + built + " built, " + (wroteSource ? "sources written, " : "") +
                         clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + " with " + cached + " cached, udonsharp " + usharpMs + ", build " + buildMs + ")");
@@ -296,22 +324,22 @@ namespace Armagan.AUI.Editor
             return d;
         }
 
-        private static bool ChildrenBuilt(AuiCompileResult r, AuiWorkspace ws)
+        /// <summary>The first nested view whose prefab does not exist yet (its asset path is added to <paramref name="enqueue"/>), or null when every child is built.</summary>
+        private static string MissingChild(AuiCompileResult r, AuiWorkspace ws, List<string> enqueue)
         {
             foreach (AuiNestedView nv in r.Info.NestedViews)
             {
                 string cp;
-                if (!ws.Views.TryGetValue(nv.ViewName, out cp)) return false;
+                if (!ws.Views.TryGetValue(nv.ViewName, out cp)) return nv.ViewName + " (no such view)";
                 string prefab = AuiEditorEnv.AssetPath(Path.ChangeExtension(cp, ".prefab"));
                 if (prefab == null || AssetDatabase.LoadAssetAtPath<GameObject>(prefab) == null)
                 {
-                    // Not built yet: make sure it is queued.
                     string ap = AuiEditorEnv.AssetPath(cp);
-                    if (ap != null) Enqueue(ap);
-                    return false;
+                    if (ap != null && !enqueue.Contains(ap)) enqueue.Add(ap);
+                    return nv.ViewName;
                 }
             }
-            return true;
+            return null;
         }
 
         /// <summary>Force-rebuild one view even when its bake hash matches.</summary>
@@ -323,10 +351,10 @@ namespace Armagan.AUI.Editor
             Kick(true);
         }
 
-        /// <summary>Queue every .aui under Assets (and the package's own views).</summary>
-        public static void EnqueueAll()
+        /// <summary>Queue every .aui under Assets (and the package's own views). <paramref name="force"/> rebuilds prefabs whose bake hash still matches.</summary>
+        public static void EnqueueAll(bool force = true)
         {
-            SessionState.SetBool(ForceKey, true);
+            if (force) SessionState.SetBool(ForceKey, true);
             AuiWorkspace ws = AuiEditorEnv.Scan(AuiEditorEnv.FindSettings());
             foreach (string p in ws.Views.Values)
             {

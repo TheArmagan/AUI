@@ -129,7 +129,7 @@ AuiBuildQueue.Drain (delayCall / InitializeOnLoad / DrainNow)
    |  step B  AuiProgramAssets.Ensure(Name.cs) for EVERY queued view, then ONE UdonSharp CompileSync
    |          if any program asset is new or empty
    |          AuiPrefabBuilder.Build: skip when prefab's auiBakeHash == hash:BuilderVersion (unless forced)
-   |  after   AuiLanguageTableBuilder.ApplyIfChanged: rebake the scene's service when a prefab was built
+   |  after   AuiLanguageTableBuilder.ApplyIfChanged: rebake the scene's service when its table differs (every drain)
    v
 Name.prefab (root: Canvas + GraphicRaycaster + VRCUiShape + BoxCollider + the view; Content child; elements)
 ```
@@ -147,14 +147,22 @@ What is cached, and what drops it (`AuiEditorEnv`, `AuiPostprocessor`):
   `.svg` or lang `.json` is added, deleted or moved, or `AuiSettings.asset` is imported. A
   re-saved view, any `.auis`, a font: nothing. `ScanFor` rescans when a view's own stem is
   missing (the importer runs before the postprocessor, so a just-created file is not listed yet).
+  A lang `.json` that appears, goes or moves also queues EVERY view (non-forced): the key list is
+  the sorted union across languages, so every baked key index may have shifted, and no view
+  declared a file that did not exist. Two views with one stem are logged (AUI107); the scan keeps
+  the last one it walked.
 - The merged language table: dropped when a listed language file's content changes.
 - The theme: dropped when `Theme/Default.auis` is imported.
 - Compile results, per view: the result plus SHA-1 of every file that compile read (source,
-  sheets, theme, language files, nested views) and the identity of the scan, table and theme it
-  used, plus the font set's `bakedHash`. A lookup re-hashes those files; a hit returns the whole
-  result (the builder compares node references, so results are never mixed). The importer's
-  compile is what the drain uses: one compile per save instead of three. A domain reload empties
-  it, which is a miss, nothing more.
+  sheets, theme, language files, nested views, `<image src>` files) and the identity of the scan,
+  table and theme it used, plus the font set's `bakedHash`. A lookup re-hashes those files; a hit
+  returns the whole result (the builder compares node references, so results are never mixed).
+  The importer's compile is what the drain uses: one compile per save instead of three. A domain
+  reload empties it, which is a miss, nothing more. A font bake and an import under
+  `Assets/AUI/Fonts` empty it too (`ForgetAllCompiles`): a rebake with the same charset keeps the
+  stamp while the glyphs the rects were measured against are gone. A file the compile probed for
+  and did not find (the sibling `Name.auis`, an unwritten `<link href>`) is declared as a
+  dependency all the same, so creating it re-imports the view.
 - Nested-view models (`ChildInfo`): reused while the child's text is unchanged.
 - Text measurements (`AuiTextMeasurer`): one hidden TMP probe for the session and a static
   table keyed by font, size, wrap width and text. Cleared by `AUI/Bake Fonts` and when anything
@@ -186,14 +194,19 @@ scene close and quit, and rebuilt after a domain reload when live.
 
 Why two phases: an importer cannot write a source file, and adding the view component needs the
 class to exist and UdonSharp to have compiled it. Children (nested views) are built before parents;
-a parent whose child prefab is missing stays queued. A path that fails four times is dropped with
-an error. `AuiBuildQueue.Forced` is set by `AUI/Rebuild All Views` and rebuilds even when the hash
-matches. Bump `AuiPrefabBuilder.BuilderVersion` whenever the builder's output changes without the
-markup changing; it is part of the stamp.
+a parent whose child prefab is missing stays queued (not counted as an attempt) and the child is
+added to the queue at the end of the drain, after `Save`, which used to overwrite it. A path that
+fails four times is dropped with AUI503 naming the step it was stuck on. `AuiBuildQueue.Forced` is
+set by `AUI/Rebuild All Views` and rebuilds even when the hash matches. Bump
+`AuiPrefabBuilder.BuilderVersion` whenever the builder's output changes without the markup
+changing; it is part of the stamp.
 
 The prefab hash (`AuiCompiler.ComputeHash`) covers the generated source, every layout rect (and
-repeat instance rects), every resolved style value and state, the key list, and the raw node
-tree. The `.g.cs` header hash is `Sha1` of the generated text alone.
+repeat instance rects, and the per-language width and height rows), every resolved style value
+and state, the key list, the raw node tree and the whole runtime rule table. Anything the builder
+copies onto the view and the hash does not cover never reaches an existing prefab; two such holes
+shipped (a rule matching no resting element, a translation edit that did not move the widest
+width). The `.g.cs` header hash is `Sha1` of the generated text alone.
 
 ## 4. Markup reference (.aui)
 
@@ -217,16 +230,16 @@ once, so the glyph is stuck outside the button forever, see §15).
 | Tag | Attributes | Children | Notes |
 |---|---|---|---|
 | `panel`, `div` | | any | plain container |
-| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `max-lines`, `ellipsis`, `runtime` | none | exactly one of key / text / literal content; `args` only with `key` |
+| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `max-lines`, `ellipsis`, `runtime` | none | exactly one of key / text / literal content; `args` only with `key`; `max-lines` is TMP's `maxVisibleLines` on a wrapped text; `runtime` measures a keyed label like a bound one (for `SetText` from code); `wrap` with no width wraps at the available width |
 | `image` | `src` (relative to the .aui), `mode` simple/sliced/fit | none | src must import as a Sprite |
 | `icon` | `name` (Lucide file stem), `size` | none | tinted by `icon-color` |
 | `spacer` | `size` | none | grows when no size |
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"`; events `onclick onhover onleave onpress onrelease` | any | |
 | `toggle` | `bind="{b}"`, `key`, `icon`, `disabled`; events `onchange` + pointer | any | a Button with a selected state; the icon is the "on" mark |
 | `slider` | `bind="{f}"`, `min`, `max`, `step` (>=1 means whole numbers), `format-key`, `decimals`, `disabled`; `onchange` | none | `format-key` text contains `{value}` |
-| `input` | `bind="{s}"`, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel |
-| `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` bakes that many rows, the ones past the authored options starting inactive and empty for `SetSelectOptionLabel` to fill. The popup resizes to the rows that are showing |
-| `option` | `value`, `key` or literal | none | must be under `select` |
+| `input` | `bind="{s}"`, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel with the element's `maxlength` (baked in `elemInputMax`); the panel cuts a longer submission |
+| `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` bakes that many rows, the ones past the authored options starting inactive and empty for `SetSelectOptionLabel` to fill. The popup resizes to the rows that are showing. Not inside a `repeat`/`template` (nor `pages`/`tabs`): the index map adds the popup and scrim per node, not per row (AUI112) |
+| `option` | `value`, `key` or literal | none | must be under `select`; `value` is a name for the reader and is not baked (the select reports the index) |
 | `tabs` | `bind="{i}"`, `for` (pages id); `onchange` | `tab` | `for` is required when a view has more than one `pages` |
 | `tab` | `page` (a page id), `key`, `icon` | any | must be under `tabs` |
 | `pages` | `id`, `mode` crossfade/sequential, `default` (page id); `onchange` | `page` | one child visible at a time |
@@ -279,8 +292,13 @@ or unbindable value; sheet rules cannot bind.
 Cascade: tiers Theme < Utility < Linked < Inline (`<style>`) < Attribute (`style=""`); within a tier
 specificity tag 1, class 2, tag.class 3, plus 10 with a state; later declaration wins ties.
 Variables are collected from every `:root` in tier order (later wins) and substituted as
-`var(--x)` or `var(--x, fallback)`; an undefined variable is an error. Inheritance is limited to
-`color`, `font`, `font-weight`, `font-size`, `text-align`, `line-height`, `icon-color`.
+`var(--x)` or `var(--x, fallback)`; an undefined variable is an error. The closing paren is the
+MATCHING one (a fallback may be `rgba(...)` or another `var()`, which is resolved in turn); a
+`--variable` anywhere but `:root` is AUI200. Inheritance is limited to `color`, `font`,
+`font-weight`, `font-size`, `text-align`, `line-height`, `icon-color`. The `font` shorthand
+resets `font-size` and `font-weight` when it wins (as in CSS), so a later or more specific
+`font: 500 18` beats an inherited `font-size: 15`; the getters prefer a longhand only when it was
+declared after the shorthand. The Udon cascade does the same (`ResolveElem`).
 
 Sheets a view uses: the package theme; then the `<link href>` sheets in order, or when there is
 no link, the sibling `Name.auis` if it exists; then `<style>` blocks; then `style=""`.
@@ -508,6 +526,15 @@ native display name. Arrays and nulls are errors; numbers and booleans become th
 languages a project ships are exactly its files; the package's `lang/` contributes `aui.lang.*`
 only for those codes (or all of its languages when the project has none).
 
+Fonts (`AuiFontBaker`): the charset is every code point (surrogate pairs combined, so emoji and
+CJK Extension B count) of every language string, every literal text, `extraCharacters`,
+`boundTextSample` and the `unicodeRanges` (`0400-04FF`; `U+` and `0x` prefixes are stripped, a
+range that does not parse is logged and skipped). Static Inter atlases per weight fall through
+Noto JP/KR/SC, then a capped dynamic Inter atlas (`dynamicLatin`), then a capped dynamic Noto JP
+atlas (`dynamicCjk`) for runtime strings. `bakedHash` is the charset hash; the language table
+builder compares it against a fresh collection whenever it rebakes the scene's service and warns
+AUI600 once per distinct charset.
+
 `AuiLanguageTable` merges everything: sorted codes, sorted keys, `Flat()` = `values[lang * keyCount
 + key]`, `""` for missing. `Check()` raises AUI303 unknown key, AUI301 missing in the default
 language (error), AUI300 missing in some languages (warning, listing them), AUI307 placeholder
@@ -549,14 +576,31 @@ the rows `max` reserved), `selectOptionShown` (how many were baked active), `sel
 resizes), `selectScrimSig`; `inputResult`,
 `inputResultId` (written by AuiInputPanel); `parentView`.
 
+Every public entry that writes starts the view first (`EnsureStarted` or the stash prologue);
+`ShowInstant`, `HideInstant`, `SetActiveElem`, `CloseSelect` and `SetText` included, since
+`_AuiLayoutInit` would otherwise reset `_shown` from the baked flags over a pre-start write.
+`_AuiStart` allocates every runtime array before validating the tables, so a view whose tables
+are wrong (`_broken`) still answers a parent's calls instead of halting its start chain.
+`OnRetranslate` runs only after `OnStart` returned (`_startDone`), never for the start-up paint.
+
 Public API: `Show()`, `Hide()`, `ShowInstant()`, `HideInstant()`, `Toggle()`, `IsVisible()`;
 `_OnSignal(id, kind)`; `SetSelected(id, on)`, `IsSelected(id)`, `SetEnabled(id, on)`,
 `SetEnabledElem(elem, on)`, `SetActiveElem(elem, on)`; `GetToggle(elem)`, `SetToggle(elem, on)`;
 `GetPage(group)`, `SelectPage(group, page, notify)`; `GetRepeatCount(r)`, `SetRepeatCount(r, n)`,
-`RowElem(r, row, offset)`; `GetSelect(s)`, `SetSelect(s, i)`, `SetSelectOptionLabel(s, i, label)`,
-`SetSelectOptionCount(s, n)`, `CloseSelect()`; `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v,
-decimals)`; `_Retranslate()`; `SetStyleVariable(name, value)`, `SetStyleVariableColor(name, c)`,
-`SetStyleVariableFloat(name, f)`, `GetStyleVariable(name)`, `StyleVariableId(name)` (section 5).
+`RowElem(r, row, offset)` (-1 for a bad index, never an exception); `GetSelect(s)`,
+`SetSelect(s, i)`, `SetSelectOptionLabel(s, i, label)`, `SetSelectOptionCount(s, n)`,
+`CloseSelect()`; `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v, decimals)` (culture-free: a `.`
+whatever the client's locale, so it can feed a style binding), `InputMaxLength(elem)`;
+`_Retranslate()`; `SetStyleVariable(name, value)`, `SetStyleVariableColor(name, c)`,
+`SetStyleVariableFloat(name, f)`, `GetStyleVariable(name)`, `StyleVariableId(name)` (section 5);
+`WarnOnce(key, message)` for author code that would otherwise log every frame.
+
+Snaps are guarded by due time, not by sequence number: `_PageSnap` and `_ModalSnap` take no
+arguments, so `SelectPage` and `SetModal` record `Time.time + delay` per group / per modal and a
+snap that fires before that time leaves the group alone (a newer change is still animating and
+its own snap follows). In sequential page mode the snap is scheduled after BOTH durations, the
+exit and the enter; at one duration it fired 20 ms into the enter fade and snapped the page to
+full alpha over a tween still climbing from zero.
 
 Author hooks (override in your `.cs`): `OnStart()` after wiring and initial values,
 `OnRetranslate()` after a language switch, `OnShown()`, `OnHidden()`. `Emit("name")` in a nested
@@ -599,9 +643,15 @@ remembered in PlayerData `aui.lang` as the code, after `OnPlayerRestored`. `Twee
 and `ProbeDone()` come from a `VRCTween.DelayedCall` at 0.05 s raced against a plain delayed event
 at 1 s.
 
-`AuiInputPanel`: `OpenText(initial, view, elemId)`, `Cancel()`, `IsOpen()`; on submit writes
-`view.inputResult`, `view.inputResultId` and calls `view._OnInputResult()`; on timeout or cancel
-calls `_OnInputCancelled()`. Everything the world's InputPanelManager learned is kept: the field
+`AuiInputPanel`: `OpenText(initial, view, elemId)`, `OpenTextMax(initial, view, elemId, maxLength)`
+(the view calls this one, with the element's `maxlength`; a longer submission is cut in the
+panel rather than through `TMP_InputField.characterLimit`, whose Udon exposure is unverified),
+`Cancel()`, `IsOpen()`; on submit writes `view.inputResult`, `view.inputResultId` and calls
+`view._OnInputResult()`; on timeout or cancel calls `_OnInputCancelled()`, and so does arming it
+for another element while a view was still waiting (that view's waiting state would otherwise
+never clear). `AuiView.Back()` cancels an armed panel before it closes a select. The view hands
+the panel the RAW text (zero-width spaces stripped): the stored value is the escaped one, and a
+round trip through the bound setter added one more space after every `<` per edit. Everything the world's InputPanelManager learned is kept: the field
 is never on an inactive object, focus drops with `enabled = false`, `OnValueChanged` while not
 focused is the submit, the armed panel expires after `clickTimeout`, the component disables itself
 while idle.
@@ -838,8 +888,12 @@ after touching any of them.
 - A rebake copies the new font over the existing asset to keep its GUID and destroys the
   temporary; the baker must keep using the existing object, or the fallback wiring throws
   `ArgumentNullException: target` after the atlases are already written.
-- `TextMeshProUGUI.richText` and `.rectTransform` are not exposed to Udon; `string[i]` is not
-  either. Untrusted text is escaped with a zero-width space after `<`; rect transforms are baked.
+- `TextMeshProUGUI.richText` and `.rectTransform` are not exposed to Udon. Untrusted text is
+  escaped with a zero-width space after `<`; rect transforms are baked. `string[i]` DOES compile:
+  `SystemString.__get_Chars` is not in the node list, but UdonSharp lowers the indexer to
+  `ToCharArray(i, 1)[0]`, one `char[1]` allocation per access (an earlier version of this list
+  said it fails). Hot paths (`ParseColor`, `ColorToHex`, `SubstituteVars`) take one `ToCharArray`
+  per call instead.
 - `VRCPlayerApi.GetCurrentLanguage()` throws a null delegate under ClientSim until ClientSim has
   started, which is after the service's `Start`. Detection runs on the local player's join.
 - ClientSim does not raise `OnLanguageChanged`; the override exists for the live client only.
@@ -962,8 +1016,13 @@ Rebuild the editor tooling: `tools~/vscode-aui/install.ps1`, then reload VS Code
 - Only the first four `args` of a text are substituted.
 - Han unification: a character shared by JP/KR/SC renders with the Japanese glyph shape
   (`AuiFontSet.cjkRegular` order).
-- Nested views cannot sit inside a repeat template and take no children.
-- `wrap` text height is measured against `max-width` or explicit width only.
+- Nested views cannot sit inside a repeat template and take no children; nor can a `select`,
+  `pages` or `tabs` (AUI112).
+- A diagnostic raised inside an expanded `<component>` points at the component's definition,
+  once per usage, not at the usage.
+- `AUI502` is defined but not raised: a missing handler surfaces as UdonSharp's own error plus
+  `AUI501`.
+- `<option value>` is accepted and never read.
 - The bound-text sample is a guess; a very long runtime string ellipsises.
 - A scene instance rebuilt before v0.1.0's stable-id change carries dead override entries;
   Prefab > Revert All and re-set its fields once.

@@ -166,7 +166,7 @@ namespace Armagan.AUI.Core
                 {
                     if (rule.Selectors.Count > 1)
                         _d.Error(AuiCodes.BadSelector, ":root cannot be combined with other selectors.", rule.Line, rule.Column, 5);
-                    ParseDeclarationsInto(rule, true);
+                    ParseDeclarationsInto(rule, true, true);
                     // Variables are lifted; a :root rule keeps no ordinary declarations.
                     foreach (AuiDeclaration decl in rule.Declarations)
                         _d.Error(AuiCodes.StyleSyntax, "Only --variables belong in :root; '" + decl.Property + "' is not one.", decl.Line, decl.Column, decl.Property.Length);
@@ -252,6 +252,11 @@ namespace Armagan.AUI.Core
 
             public void ParseDeclarationsInto(AuiStyleRule rule, bool expectClosingBrace)
             {
+                ParseDeclarationsInto(rule, expectClosingBrace, false);
+            }
+
+            public void ParseDeclarationsInto(AuiStyleRule rule, bool expectClosingBrace, bool allowVariables)
+            {
                 while (true)
                 {
                     SkipWsAndComments();
@@ -285,7 +290,10 @@ namespace Armagan.AUI.Core
                     SkipWsAndComments();
                     int vl = _line, vc = _col;
                     var value = new StringBuilder();
-                    int depth = 0;
+                    // Parens and {binding} braces are counted apart: a '}' must never close a
+                    // depth that a '(' opened, or one unbalanced "sprite(" swallows the rest of
+                    // the sheet as this value with nothing but a "Missing '}'" to show for it.
+                    int paren = 0, brace = 0;
                     while (!Eof)
                     {
                         char ch = Cur;
@@ -297,12 +305,24 @@ namespace Armagan.AUI.Core
                             if (!Eof) { Advance(); Advance(); }
                             continue;
                         }
-                        // Parentheses and {binding} braces nest; a bare '}' closes the rule.
-                        if (ch == '(' || ch == '{') depth++;
-                        if (ch == ')' && depth > 0) depth--;
-                        if (ch == '}' && depth > 0) { depth--; value.Append(ch); Advance(); continue; }
-                        if (depth <= 0 && (ch == ';' || ch == '}')) break;
-                        if (ch == '\n' && depth <= 0)
+                        if (ch == '/' && Peek(1) == '/' && paren == 0 && brace == 0)
+                        {
+                            // A line comment ends the value text; the declaration itself ends at ';' or the line.
+                            while (!Eof && Cur != '\n') Advance();
+                            continue;
+                        }
+                        if (ch == '(') paren++;
+                        if (ch == ')' && paren > 0) paren--;
+                        if (ch == '{') brace++;
+                        if (ch == '}' && brace > 0) { brace--; value.Append(ch); Advance(); continue; }
+                        if (paren > 0 && (ch == ';' || ch == '}'))
+                        {
+                            _d.Error(AuiCodes.BadStyleValue, "Unterminated '(' in the value of '" + name + "'.", vl, vc, 1);
+                            paren = 0;
+                            break;
+                        }
+                        if (brace <= 0 && (ch == ';' || ch == '}')) break;
+                        if (ch == '\n' && paren <= 0 && brace <= 0)
                         {
                             // A newline ends a declaration that forgot its ';' only if the next
                             // token looks like "name:"; otherwise values may wrap.
@@ -328,6 +348,14 @@ namespace Armagan.AUI.Core
 
                     if (name.StartsWith("--"))
                     {
+                        // Variables are sheet-wide, so they may only be declared where that is
+                        // obvious: :root. In a class rule or a style="" attribute they would look
+                        // scoped and be nothing of the kind.
+                        if (!allowVariables)
+                        {
+                            _d.Error(AuiCodes.StyleSyntax, "Variables belong in ':root { " + name + ": ...; }', not in this rule.", pl, pc, name.Length);
+                            continue;
+                        }
                         _sheet.Variables.Add(new AuiVariable { Name = name, Value = v, Line = pl, Column = pc });
                         continue;
                     }

@@ -63,6 +63,23 @@ namespace Armagan.AUI.Editor
                 return;
             Apply(svc, table);
             AuiLog.Info("language table rebaked onto '" + svc.name + "': " + table.KeyCount + " key(s).");
+            WarnIfFontsStale(settings, ws);
+        }
+
+        private static string _staleWarnedFor = "";
+
+        /// <summary>
+        /// AUI600: the characters the language files and views use no longer match what the font
+        /// set was baked from. Run when the table changed (the only time the charset can move);
+        /// once per distinct charset, so a session does not repeat itself.
+        /// </summary>
+        public static void WarnIfFontsStale(AuiSettings settings, AuiWorkspace ws)
+        {
+            if (settings == null || settings.fontSet == null) return;
+            string now = AuiCharsetCollector.Hash(AuiCharsetCollector.Collect(settings, ws));
+            if (now == settings.fontSet.bakedHash || now == _staleWarnedFor) return;
+            _staleWarnedFor = now;
+            AuiLog.Warn(AuiCodes.FontSetStale + " the character set changed since the last font bake; characters added since render as boxes in-world. Run AUI/Bake Fonts.");
         }
 
         private static bool Same(string[] a, string[] b)

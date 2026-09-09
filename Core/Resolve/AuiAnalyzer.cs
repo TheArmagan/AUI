@@ -134,12 +134,33 @@ namespace Armagan.AUI.Core
                 foreach (AuiRepeatInfo outer in info.Repeats)
                     if (outer.Template != null && IsInside(n, outer.Template))
                         d.Error(AuiCodes.ElementNotAllowedHere, "A <repeat> or <template> cannot sit inside another one.", n.Line, n.Column, n.Tag.Length + 1);
-                if (tpl && r.Template != null)
+                if (r.Template != null)
                     foreach (AuiNode inner in doc.Nodes)
-                        if (inner != n && IsInside(inner, r.Template) && (inner.Tag == "modal" || inner.Tag == "template" || inner.Tag == "repeat"))
+                    {
+                        if (inner == n || !IsInside(inner, r.Template)) continue;
+                        if (tpl && (inner.Tag == "modal" || inner.Tag == "template" || inner.Tag == "repeat"))
                             d.Error(AuiCodes.ElementNotAllowedHere, "<" + inner.Tag + "> cannot be inside a <template>.", inner.Line, inner.Column, inner.Tag.Length + 1);
+                        // A select has a popup and scrim element per NODE (AuiIndexMap.Walk adds them
+                        // outside WalkRepeat), and select/pages/tabs each have per-node runtime tables
+                        // and one generated setter, not one per row. A select in a row compiled clean
+                        // and then threw KeyNotFoundException in the prefab builder.
+                        if (inner.Tag == "select" || inner.Tag == "pages" || inner.Tag == "tabs")
+                            d.Error(AuiCodes.ElementNotAllowedHere, "<" + inner.Tag + "> cannot be inside a <" + n.Tag + ">; its runtime tables are per element, not per row.", inner.Line, inner.Column, inner.Tag.Length + 1);
+                    }
                 info.Repeats.Add(r);
             }
+        }
+
+        /// <summary>The first node in this subtree (self included) that carries icon= / an &lt;icon&gt; / key=, or null.</summary>
+        private static AuiNode FindIconOrKey(AuiNode n)
+        {
+            if (n.Get("icon") != null || n.Get("key") != null || n.Tag == "icon") return n;
+            foreach (AuiNode c in n.Children)
+            {
+                AuiNode r = FindIconOrKey(c);
+                if (r != null) return r;
+            }
+            return null;
         }
 
         private static bool IsInside(AuiNode n, AuiNode ancestorOrSelf)
@@ -336,6 +357,22 @@ namespace Armagan.AUI.Core
                     }
                     AuiBinding childBinding = child != null ? child.FindBinding(a.Name, null) : null;
                     if (IsBindingValue(a.Value)) AddBinding(n, a, childBinding != null ? childBinding.Type : AuiBindingType.Unknown, repeat, info, d);
+                    else if (childBinding != null)
+                    {
+                        // A literal is pasted into the child's setter as C# text (`childX.Ratio = 1.5f;`),
+                        // so it has to be a literal of the child's type here, or the generated file
+                        // fails to compile with an error the author cannot place.
+                        string err = null;
+                        float fv; int iv;
+                        switch (childBinding.Type)
+                        {
+                            case AuiBindingType.Float: if (!AuiNum.TryParse(a.Value, out fv)) err = "a number"; break;
+                            case AuiBindingType.Int: if (!int.TryParse(a.Value, out iv)) err = "an integer"; break;
+                            case AuiBindingType.Bool: if (a.Value != "true" && a.Value != "false") err = "true or false"; break;
+                        }
+                        if (err != null)
+                            d.Error(AuiCodes.BadAttributeValue, "<" + n.Tag + "> prop '" + a.Name + "' takes " + err + " or a {binding}; got '" + a.Value + "'.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    }
                     // Literal values are passed to the child's setter once at Start; the type is the child's.
                 }
                 return;
@@ -389,7 +426,7 @@ namespace Armagan.AUI.Core
             switch (n.Tag)
             {
                 case "text":
-                    if (n.Get("key") != null && (n.Get("text") != null || n.Text != null))
+                    if ((n.Get("key") != null && (n.Get("text") != null || n.Text != null)) || (n.Get("text") != null && n.Text != null))
                         d.Error(AuiCodes.TextAndKeyBoth, "<text> takes key= OR text= OR literal content, not several.", n.Line, n.Column, 5);
                     else if (n.Get("key") == null && n.Get("text") == null && n.Text == null && !(n.Parent != null && n.Parent.Tag == "template" && n.Parent.Get("pool") != null))
                         d.Warning(AuiCodes.MissingRequiredAttribute, "<text> with nothing to show: give it key=, text=\"{binding}\" or literal content.", n.Line, n.Column, 5);
@@ -451,6 +488,16 @@ namespace Armagan.AUI.Core
                 case "hidden":
                     if (a.Value != "true" && a.Value != "false" && a.Value != "")
                         d.Error(AuiCodes.BadAttributeValue, "hidden is a flag: hidden=\"true\" or just hidden. For a runtime value use if=\"{flag}\".", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    else if (a.Value != "false")
+                    {
+                        // The baker does not lay out a hidden subtree (REFERENCE section 15): an
+                        // icon-only clickable bakes its glyph at -9 and nothing ever moves it, and a
+                        // keyed label measures at zero width until the page re-measures. Both were
+                        // shipped bugs; warn at authoring time instead of after a world upload.
+                        AuiNode bad = FindIconOrKey(n);
+                        if (bad != null)
+                            d.Warning(AuiCodes.BadAttributeValue, "hidden on an element with icon= or key= bakes it at the wrong size (the hidden subtree is never laid out); bake it visible and use if=\"{flag}\" instead.", a.Line, a.Column, a.Name.Length);
+                    }
                     break;
                 case "id":
                     if (!AuiSchema.IsIdentifier(AuiNaming.Identifier(a.Value)) || a.Value.Length == 0)

@@ -14,6 +14,12 @@ namespace Armagan.AUI.Core
         public string Root;
         public string PackageRoot;
         public readonly Dictionary<string, string> Views = new Dictionary<string, string>();   // stem -> path
+        /// <summary>
+        /// "stem: pathA, pathB" for every stem seen more than once. Nested views resolve by stem,
+        /// so two Card.aui in different folders would otherwise pick one by directory walk order
+        /// and nobody would be told. Hosts report these (AUI107).
+        /// </summary>
+        public readonly List<string> DuplicateViews = new List<string>();
         public readonly List<string> StylePaths = new List<string>();
         public readonly List<string> LangPaths = new List<string>();
         public readonly List<string> PackageLangPaths = new List<string>();
@@ -65,7 +71,14 @@ namespace Armagan.AUI.Core
             foreach (string f in Directory.GetFiles(dir))
             {
                 string ext = Path.GetExtension(f).ToLowerInvariant();
-                if (ext == ".aui") Views[Path.GetFileNameWithoutExtension(f)] = f;
+                if (ext == ".aui")
+                {
+                    string stem = Path.GetFileNameWithoutExtension(f);
+                    string existing;
+                    if (Views.TryGetValue(stem, out existing) && !string.Equals(existing, f, System.StringComparison.OrdinalIgnoreCase))
+                        DuplicateViews.Add(stem + ": " + existing + ", " + f);
+                    Views[stem] = f;
+                }
                 else if (packageViewsOnly) continue;
                 else if (ext == ".auis") StylePaths.Add(f);
                 else if (ext == ".json" && isLang && LangFolder == null) LangPaths.Add(f);

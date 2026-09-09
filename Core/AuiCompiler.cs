@@ -156,7 +156,14 @@ namespace Armagan.AUI.Core
             }
         }
 
-        /// <summary>Everything that shapes the prefab: generated code, layout rects, resolved styles, key indices.</summary>
+        /// <summary>
+        /// Everything that shapes the prefab: generated code, layout rects (including the
+        /// per-language rows), resolved styles, key indices, the node tree and the runtime rule
+        /// table. The builder skips a prefab whose baked hash matches, so anything it copies onto
+        /// the view and is NOT in here silently never reaches the prefab. Two such holes shipped:
+        /// a rule that matches no resting element (`.warn { color }` behind a class binding) and a
+        /// translation edit that did not change the widest language.
+        /// </summary>
         private static string ComputeHash(AuiCompileResult r, string generated)
         {
             var sb = new StringBuilder();
@@ -165,7 +172,10 @@ namespace Armagan.AUI.Core
             {
                 sb.Append(ln.Local.ToString()).Append(ln.AnchorFill ? "F" : "").Append(ln.ContentSized ? "C" : "").Append(ln.Hidden ? "H" : "").Append(ln.OutOfFlow ? "A" : "").Append('|');
                 if (ln.Instances != null) foreach (AuiRect i in ln.Instances) sb.Append(i.ToString());
+                if (ln.LangW != null) foreach (float f in ln.LangW) sb.Append(f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
+                if (ln.LangH != null) foreach (float f in ln.LangH) sb.Append(f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
             }
+            AppendRules(sb, r.Rules);
             foreach (AuiResolvedStyle s in r.Styles)
             {
                 var keys = new List<string>(s.Values.Keys);
@@ -191,6 +201,38 @@ namespace Armagan.AUI.Core
                 sb.Append('>').Append(n.Text).Append('|');
             }
             return Sha1(sb.ToString());
+        }
+
+        private static void AppendRules(StringBuilder sb, AuiRuleTable t)
+        {
+            if (t == null) return;
+            sb.Append("#rules");
+            AppendInts(sb, t.RuleTag); AppendInts(sb, t.RuleClass); AppendInts(sb, t.RuleStar); AppendInts(sb, t.RuleNode); AppendInts(sb, t.RuleState);
+            AppendInts(sb, t.RuleDeclStart); AppendInts(sb, t.RuleDeclCount);
+            AppendInts(sb, t.DeclProp); AppendInts(sb, t.DeclRef);
+            if (t.DeclValue != null) foreach (float f in t.DeclValue) sb.Append(f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
+            AppendStrings(sb, t.DeclTemplate);
+            AppendStrings(sb, t.RefNames); AppendInts(sb, t.RefKind);
+            AppendInts(sb, t.TsStart); AppendInts(sb, t.TsCount); AppendInts(sb, t.TsProp); AppendInts(sb, t.TsEase);
+            if (t.TsDur != null) foreach (float f in t.TsDur) sb.Append(f.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',');
+            AppendStrings(sb, t.VarNames); AppendStrings(sb, t.VarValues);
+            AppendStrings(sb, t.ClassNames); AppendStrings(sb, t.StarNames); AppendStrings(sb, t.TagNames);
+            AppendInts(sb, t.ElemTag); AppendInts(sb, t.ElemNode); AppendInts(sb, t.ElemClass0); AppendInts(sb, t.ElemClass1); AppendInts(sb, t.ElemClassSlots); AppendInts(sb, t.ElemStar);
+            AppendInts(sb, t.InheritedProps);
+        }
+
+        private static void AppendInts(StringBuilder sb, int[] a)
+        {
+            sb.Append('[');
+            if (a != null) foreach (int i in a) sb.Append(i).Append(',');
+            sb.Append(']');
+        }
+
+        private static void AppendStrings(StringBuilder sb, string[] a)
+        {
+            sb.Append('[');
+            if (a != null) foreach (string s in a) sb.Append(s).Append('');
+            sb.Append(']');
         }
 
         public static string Sha1(string s)

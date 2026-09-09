@@ -245,7 +245,7 @@ namespace Armagan.AUI
                 string t = toks[i].Trim();
                 if (t.Length == 0) continue;
                 int id = ClassId(t);
-                if (id < 0) { Debug.LogWarning("[AUI] " + name + ": class '" + t + "' is not known to this view (a *utility must be referenced in the markup or in <view utilities=\"...\">)."); continue; }
+                if (id < 0) { WarnOnce("class:" + t, "class '" + t + "' is not known to this view (a *utility must be referenced in the markup or in <view utilities=\"...\">)."); continue; }
                 if (id >= STAR_BASE) { int s = id - STAR_BASE; if (s < 256) star[s >> 5] |= 1 << (s & 31); continue; }
                 if (id < 32) m0 |= 1 << id; else if (id < 64) m1 |= 1 << (id - 32);
             }
@@ -320,7 +320,7 @@ namespace Armagan.AUI
             else
             {
                 int ord = EnumOrdinal(prop, value);
-                if (ord < 0) { Debug.LogWarning("[AUI] " + name + ": '" + value + "' is not a value of style property " + prop + "."); return; }
+                if (ord < 0) { WarnOnce("enum:" + prop + ":" + value, "'" + value + "' is not a value of style property " + prop + "."); return; }
                 _ovRaw[r] = ord;
                 _ovCount[elem * PROP_COUNT + prop] = 1;
             }
@@ -451,6 +451,10 @@ namespace Armagan.AUI
                 for (int k = ds; k < ds + dc; k++)
                 {
                     int prop = declProp[k];
+                    // The font shorthand resets font-size (mirrors AuiStyleResolver.ApplyRule): the
+                    // FontSize getter prefers the longhand, so an inherited or earlier font-size
+                    // would otherwise beat a later `font: 500 18` forever.
+                    if (prop == PROP_FONT) { _resolvedSet[b + PROP_FONT_SIZE] = false; _resolvedRef[b + PROP_FONT_SIZE] = -1; _resolvedSrc[b + PROP_FONT_SIZE] = SRC_NONE; }
                     _resolved[b + prop] = declValue[k]; _resolvedRef[b + prop] = declRef[k]; _resolvedSet[b + prop] = true; _resolvedSrc[b + prop] = k;
                 }
             }
@@ -635,7 +639,7 @@ namespace Armagan.AUI
             if (prop == PROP_PADDING) { layPad[4 * e] = v.x; layPad[4 * e + 1] = v.y; layPad[4 * e + 2] = v.z; layPad[4 * e + 3] = v.w; return true; }
             if (prop == PROP_MARGIN) { layMargin[4 * e] = v.x; layMargin[4 * e + 1] = v.y; layMargin[4 * e + 2] = v.z; layMargin[4 * e + 3] = v.w; return true; }
             if (prop == PROP_GAP) { layGap[e] = v.x; return true; }
-            if (prop == PROP_GROW) { layGrow[e] = v.x; return true; }
+            if (prop == PROP_GROW) { layGrow[e] = Mathf.Max(0f, v.x); return true; }   // the bake clamps too; a negative grow would starve its siblings
             if (prop == PROP_JUSTIFY) { layJustify[e] = (int)v.x; return true; }
             if (prop == PROP_ALIGN) { layAlign[e] = (int)v.x; return true; }
             if (prop == PROP_FLEX_DIRECTION) { layFlags[e] = v.x > 0.5f ? (layFlags[e] | LF_ROW) : (layFlags[e] & ~LF_ROW); return true; }

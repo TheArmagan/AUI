@@ -121,14 +121,25 @@ namespace Armagan.AUI.Tests
             string src = Generate(Demo, out bag, out map);
             string dir = Path.Combine(TestPaths.PackageRoot, "Tests/Editor/Golden");
             string path = Path.Combine(dir, "Demo.g.cs.txt");
-            if (!File.Exists(path))
+            string actualPath = Path.Combine(dir, "Demo.g.cs.actual.txt");
+            // AUI_UPDATE_GOLDEN=1 rewrites the golden in one run instead of delete, run, review, run.
+            bool update = System.Environment.GetEnvironmentVariable("AUI_UPDATE_GOLDEN") == "1";
+            if (!File.Exists(path) || update)
             {
                 Directory.CreateDirectory(dir);
                 File.WriteAllText(path, src);
+                if (File.Exists(actualPath)) File.Delete(actualPath);
                 Assert.Inconclusive("Golden file written; review it and re-run.");
             }
             string expected = File.ReadAllText(path).Replace("\r\n", "\n");
-            Assert.AreEqual(expected, src.Replace("\r\n", "\n"));
+            string actual = src.Replace("\r\n", "\n");
+            if (expected != actual)
+            {
+                // The actual output next to the golden, so the review is a file diff rather than a console dump.
+                File.WriteAllText(actualPath, src);
+                Assert.Fail("Generated code differs from Tests/Editor/Golden/Demo.g.cs.txt; the output was written to Demo.g.cs.actual.txt. Diff them, then delete the golden (or set AUI_UPDATE_GOLDEN=1) and re-run to accept.");
+            }
+            if (File.Exists(actualPath)) File.Delete(actualPath);
         }
 
         [Test]

@@ -587,7 +587,8 @@ namespace Armagan.AUI.Core
                                 bool ok = ent[1] == 'x' || ent[1] == 'X'
                                     ? int.TryParse(ent.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out code)
                                     : int.TryParse(ent.Substring(1), out code);
-                                if (ok && code >= 0 && code <= 0x10FFFF) rep = char.ConvertFromUtf32(code);
+                                // ConvertFromUtf32 throws on the surrogate range; a lone surrogate is not a character.
+                                if (ok && code >= 0 && code <= 0x10FFFF && !(code >= 0xD800 && code <= 0xDFFF)) rep = char.ConvertFromUtf32(code);
                             }
                             break;
                     }

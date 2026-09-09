@@ -16,7 +16,7 @@ For the properties and setters generated from **your** markup, see
 
 ```csharp
 protected virtual void OnStart()        // once, after wiring and initial binding values
-protected virtual void OnRetranslate()  // after a language change, once keyed text has repainted
+protected virtual void OnRetranslate()  // after a language SWITCH, once keyed text has repainted; never during start-up
 protected virtual void OnShown()        // after Show()
 protected virtual void OnHidden()       // after Hide()
 ```
@@ -41,7 +41,7 @@ The transition comes from the `show` style property or the `show` attribute on `
 ## Finding elements
 
 ```csharp
-int   GetElement(string selector);        // "#id", ".class", "tag"; -1 when not found
+int   GetElement(string selector);        // "#id", or the first ".class" / "tag" match; -1 when not found
 int[] GetElements(string selector);
 int[] GetElementsByTag(string tag);
 int   ElementCount();
@@ -53,7 +53,7 @@ Star classes are style-only, so `GetElements(".*p-8")` returns nothing.
 ## Text, icons and images
 
 ```csharp
-void   SetText(int elem, string value);   // escaped for you
+void   SetText(int elem, string value);   // escaped for you; on an <input> it is also the value the keyboard reopens with
 string GetText(int elem);
 void   SetIcon(int elem, string iconName);
 void   SetBackground(int elem, string spriteName);
@@ -142,8 +142,9 @@ float GetLayoutIntrinsicW();   float GetLayoutIntrinsicH();
 public bool debugLayout;    // logs every solve and its duration
 ```
 
-Solves are coalesced to one per frame. Wrap a burst of changes in
-`SetAutoRelayout(false)` / `SetAutoRelayout(true)`.
+Setters mark the layout dirty and the solve runs on the next frame, one per frame however many
+changed. `Relayout()` and `RelayoutNow()` both solve immediately (the first only when something is
+dirty). Wrap a burst of changes in `SetAutoRelayout(false)` / `SetAutoRelayout(true)`.
 
 ## Controls
 
@@ -173,7 +174,7 @@ Generated per group: `GetMainPage()`, `SelectMainPage(int)`, and `MAIN_COUNT` / 
 ```csharp
 int  GetRepeatCount(int repeat);
 void SetRepeatCount(int repeat, int count);   // clamped to max; toggles <empty>
-int  RowElem(int repeat, int row, int offset);
+int  RowElem(int repeat, int row, int offset);   // -1 for a bad repeat, row or offset
 ```
 
 Generated per repeat: `BoardCount`, `SetBoardX(int row, T value)`, `BOARD_MAX`.
@@ -190,10 +191,9 @@ void CloseSelect();
 
 Generated: `SetQualityOptionLabel(int, string)`, `SetQualityOptionCount(int)`.
 
-**Set the count before the labels.** `SetSelectOptionLabel` ignores any index at or past the
-select's current count, so filling labels first writes only the rows that were already showing and
-silently drops the rest. `SetSelectOptionCount` also resizes the popup to the rows it just
-revealed, and re-clamps the selected index if it fell outside them.
+`SetSelectOptionLabel` accepts any index below the baked capacity, showing or not, so labels and
+count may be set in either order. `SetSelectOptionCount` resizes the popup to the rows it just
+revealed and re-clamps the selected index if it fell outside them.
 
 A select can only ever hold as many rows as were baked: its authored `<option>`s plus whatever
 `max="N"` reserved. Anything past that is refused.

@@ -17,7 +17,16 @@ namespace Armagan.AUI.Editor
         public static void ReimportAll()
         {
             int n = 0;
-            foreach (string guid in AssetDatabase.FindAssets("t:Sprite", new[] { AuiEditorEnv.PackageAssetRoot + "/Icons" }))
+            var folders = new System.Collections.Generic.List<string> { AuiEditorEnv.PackageAssetRoot + "/Icons" };
+            // The consumer's own icon folders too: they were scanned for names but never reimported.
+            AuiSettings settings = AuiEditorEnv.FindSettings();
+            if (settings != null)
+                foreach (string f in settings.iconFolders)
+                {
+                    string ap = IconFolderAssetPath(f);
+                    if (ap != null && AssetDatabase.IsValidFolder(ap)) folders.Add(ap);
+                }
+            foreach (string guid in AssetDatabase.FindAssets("t:Sprite", folders.ToArray()))
             {
                 var imp = AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(guid)) as SVGImporter;
                 if (imp == null || imp.SvgType == SVGType.TexturedSprite) continue;
@@ -26,6 +35,14 @@ namespace Armagan.AUI.Editor
                 n++;
             }
             AuiLog.Info("icons reimported as textured sprites: " + n);
+        }
+
+        /// <summary>An icon folder from the settings as "Assets/..." whether it was written relative, absolute or with "./".</summary>
+        private static string IconFolderAssetPath(string folder)
+        {
+            if (string.IsNullOrEmpty(folder)) return null;
+            string ap = AuiEditorEnv.AssetPath(folder);
+            return ap != null ? ap.TrimEnd('/') : null;
         }
 
         private static void Apply(SVGImporter svg)
@@ -48,7 +65,10 @@ namespace Armagan.AUI.Editor
                 AuiSettings settings = AuiEditorEnv.FindSettings();
                 if (settings != null)
                     foreach (string f in settings.iconFolders)
-                        if (!string.IsNullOrEmpty(f) && p.StartsWith(f.Replace('\\', '/').TrimEnd('/') + "/")) ours = true;
+                    {
+                        string ap = IconFolderAssetPath(f);
+                        if (ap != null && p.StartsWith(ap + "/")) ours = true;
+                    }
             }
             if (!ours) return;
             if (svg.SvgType == SVGType.TexturedSprite && svg.TextureSize == 128) return;

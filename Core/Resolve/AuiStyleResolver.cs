@@ -150,8 +150,9 @@ namespace Armagan.AUI.Core
                     string v = parent.Get(p.Name);
                     if (v != null) { rs.Values[p.Name] = v; AuiDeclaration src; if (parent.Sources.TryGetValue(p.Name, out src)) rs.Sources[p.Name] = src; }
                 }
-                // "font" shorthand inherits as a unit; a child that sets only font-size must
-                // not keep the parent's shorthand size. Handled by the getters' precedence.
+                // "font" shorthand inherits as a unit; a child that sets only font-size wins over
+                // the inherited shorthand through the getters' precedence, and a child that sets
+                // the shorthand drops the inherited longhands in ApplyRule.
             }
 
             // ---- normal state
@@ -245,6 +246,15 @@ namespace Armagan.AUI.Core
                 string v = Substitute(decl, d, rule.Sheet.File);
                 if (v == null) continue;
                 if (!Validate(def, v, decl, d, rule.Sheet.File)) continue;
+                if (decl.Property == "font")
+                {
+                    // The shorthand resets the longhands, as in CSS: a later (or more specific)
+                    // `font: 500 18` must beat an earlier or inherited `font-size: 15`. The
+                    // getters prefer the longhand when both are present, so without this the
+                    // shorthand could never win. Mirrored in the Udon cascade (AuiView.Styles.cs ResolveElem).
+                    values.Remove("font-size"); sources.Remove("font-size");
+                    values.Remove("font-weight"); sources.Remove("font-weight");
+                }
                 values[decl.Property] = v;
                 sources[decl.Property] = decl;
             }
@@ -257,20 +267,22 @@ namespace Armagan.AUI.Core
             d.Items.Add(new AuiDiagnostic(AuiSeverity.Error, code, message, file, decl.Line, decl.Column, decl.Property.Length));
         }
 
-        /// <summary>Replace var(--x) and var(--x, fallback); null when a variable is undefined.</summary>
+        /// <summary>
+        /// Replace var(--x) and var(--x, fallback); null when a variable is undefined. The closing
+        /// paren is the one that MATCHES, not the first one after "var(" (a fallback such as
+        /// rgba(0,0,0,1) has its own), and the replacement is spliced back into the text and
+        /// rescanned, so a fallback that is itself a var() resolves too. Same loop as
+        /// AuiRuleTable.Substitute and the Udon SubstituteVars.
+        /// </summary>
         private string Substitute(AuiDeclaration decl, AuiDiagnosticBag d, string file)
         {
             string v = decl.Value;
-            if (v.IndexOf("var(", System.StringComparison.Ordinal) < 0) return v;
-            var sb = new StringBuilder();
-            int i = 0;
             int guard = 0;
-            while (i < v.Length)
+            while (true)
             {
-                int at = v.IndexOf("var(", i, System.StringComparison.Ordinal);
-                if (at < 0) { sb.Append(v, i, v.Length - i); break; }
-                sb.Append(v, i, at - i);
-                int close = v.IndexOf(')', at);
+                int at = v.IndexOf("var(", System.StringComparison.Ordinal);
+                if (at < 0) break;
+                int close = AuiRuleTable.MatchingParen(v, at + 3);
                 if (close < 0)
                 {
                     Report(decl, d, AuiCodes.BadStyleValue, "Unterminated var() in '" + decl.Property + "'.", file);
@@ -281,9 +293,10 @@ namespace Armagan.AUI.Core
                 int comma = inner.IndexOf(',');
                 if (comma >= 0) { name = inner.Substring(0, comma).Trim(); fallback = inner.Substring(comma + 1).Trim(); }
                 name = name.Trim();
+                string rep;
                 AuiVariable var;
-                if (_vars.TryGetValue(name, out var)) sb.Append(var.Value);
-                else if (fallback != null) sb.Append(fallback);
+                if (_vars.TryGetValue(name, out var)) rep = var.Value;
+                else if (fallback != null) rep = fallback;
                 else
                 {
                     var names = new List<string>(_vars.Keys);
@@ -291,10 +304,14 @@ namespace Armagan.AUI.Core
                     Report(decl, d, AuiCodes.UndefinedVariable, "Undefined variable '" + name + "'." + (hint != null ? " Did you mean '" + hint + "'?" : ""), file);
                     return null;
                 }
-                i = close + 1;
-                if (++guard > 64) break;
+                v = v.Substring(0, at) + rep + v.Substring(close + 1);
+                if (++guard > 64)
+                {
+                    Report(decl, d, AuiCodes.BadStyleValue, "var() in '" + decl.Property + "' does not resolve (circular or too deeply nested).", file);
+                    return null;
+                }
             }
-            return sb.ToString();
+            return v;
         }
 
         private bool Validate(AuiPropDef def, string v, AuiDeclaration decl, AuiDiagnosticBag d, string file)
@@ -324,7 +341,13 @@ namespace Armagan.AUI.Core
                     }
                     break;
                 }
-                case AuiPropKind.Number: { float f; if (!AuiNum.TryParse(v, out f)) err = "expected a number"; break; }
+                case AuiPropKind.Number:
+                {
+                    float f;
+                    if (!AuiNum.TryParse(v, out f)) err = "expected a number";
+                    else if (f < 0 && (def.Name == "grow" || def.Name == "opacity" || def.Name == "scale" || def.Name == "line-height")) err = "'" + def.Name + "' cannot be negative";
+                    break;
+                }
                 case AuiPropKind.Color:
                 {
                     AuiColor c;

@@ -150,20 +150,22 @@ SC. The result is `AuiFontSet.asset`, assigned to the settings.
 
 Re-run `AUI/Bake Fonts` whenever a language file gains characters the atlases lack. **Boxes instead
 of letters in-world is the symptom.** AUI600 warns when the charset has changed since the last
-bake.
+bake; the check runs whenever the scene's language table is rebaked.
 
 ::: tip Runtime strings need glyphs too
 Player names are not in your language files, so their characters may not be in the static atlases.
-The font set keeps a dynamic Latin atlas, and optionally a dynamic Noto JP one, for exactly this.
-Keep a CJK character in `AuiSettings.boundTextSample` so bound text boxes are measured tall enough
-for the fallback's line height.
+The font set keeps a capped dynamic Inter atlas and a capped dynamic Noto Sans JP atlas for exactly
+this. Keep a CJK character in `AuiSettings.boundTextSample` so bound text boxes are measured tall
+enough for the fallback's line height (the sample's characters are baked too).
 :::
 
 ## Adding a language later
 
 1. Add `Assets/AUI/Lang/<code>.json` with every key.
 2. Run `AUI/Bake Fonts` if it introduces new characters.
-3. Views rebuild automatically; `AUI/Rebuild Language Table` updates the scene service.
+3. Every view is queued and the ones whose key indices moved rebuild; the scene's service is rebaked
+   at the end of that drain. If the scene has no `AUI Language Service` yet, run
+   `AUI/Rebuild Language Table` once.
 
 Adding a **key** shifts key indices, so every view rebuilds. That is by design: the baked text
 elements store key indices, not strings.

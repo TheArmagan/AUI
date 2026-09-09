@@ -113,7 +113,8 @@ namespace Armagan.AUI.Lsp
                     new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = Sel.LangGlob },
                     new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.auis" },
                     new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.aui" },
-                    new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.svg" }),
+                    new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/*.svg" },
+                    new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher { GlobPattern = "**/AuiSettings.asset" }),
             };
         }
 
@@ -124,6 +125,14 @@ namespace Armagan.AUI.Lsp
             {
                 string p = Workspace.PathOf(e.Uri);
                 bool appeared = e.Type == FileChangeType.Created, gone = e.Type == FileChangeType.Deleted;
+                if (p.EndsWith("AuiSettings.asset", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Component folders, icon folders, the language folder and the default language
+                    // all live here; until now they were read once at initialize and never again.
+                    _ws.ReloadSettings();
+                    _ws.RecompileAll();
+                    continue;
+                }
                 if ((appeared || gone) && !rescanned) { _ws.InvalidateScan(); rescanned = true; }
                 if (Sel.IsView(p))
                 {
@@ -135,6 +144,9 @@ namespace Armagan.AUI.Lsp
                 {
                     if (gone) _ws.Forget(p);
                     if (!_ws.IsOpen(p) || gone) _ws.RecompileDependents(p);
+                    // A sheet that just appeared is the sibling of the view with the same stem, which
+                    // did not list it as a dependency (it did not exist): recompile that view too.
+                    if (appeared) _ws.RecompileSibling(p);
                 }
                 else if (Sel.IsLang(p))
                 {
@@ -372,6 +384,7 @@ namespace Armagan.AUI.Lsp
                 case "ellipsis":
                 case "runtime":
                 case "start-hidden":
+                case "dismissable":
                     foreach (string v in new[] { "true", "false" }) ctx.Add(v, CompletionItemKind.EnumMember, null);
                     break;
                 case "href":
@@ -385,11 +398,11 @@ namespace Armagan.AUI.Lsp
                     break;
                 }
                 default:
-                    if (c.Attribute == "text" || c.Attribute == "bind" || c.Attribute == "if" || c.Attribute == "disabled" || c.Attribute == "selected" || c.Attribute == "args" || (c.Tag.Length > 0 && char.IsUpper(c.Tag[0]) && !c.Attribute.StartsWith("on")))
+                    if (c.Attribute == "text" || c.Attribute == "bind" || c.Attribute == "if" || c.Attribute == "disabled" || c.Attribute == "selected" || c.Attribute == "enabled" || c.Attribute == "args" || (c.Tag.Length > 0 && char.IsUpper(c.Tag[0]) && !c.Attribute.StartsWith("on")))
                     {
                         int brace = c.Prefix.LastIndexOf('{');
                         ctx.ReplaceStart = brace >= 0 ? c.ValueStart + brace : ctx.Offset;
-                        if (c.Attribute == "disabled" || c.Attribute == "selected")
+                        if (c.Attribute == "disabled" || c.Attribute == "selected" || c.Attribute == "enabled")
                             foreach (string v in new[] { "true", "false" }) ctx.Add(v, CompletionItemKind.EnumMember, null, null, false, c.ValueStart);
                         if (r != null)
                         {
@@ -435,7 +448,9 @@ namespace Armagan.AUI.Lsp
                 foreach (KeyValuePair<string, string> cls in AllClasses(_ws, ws, null)) ctx.Add("." + cls.Key, CompletionItemKind.Field, cls.Value);
                 return;
             }
-            foreach (AuiElementDef e in AuiSchema.Elements) ctx.Add(e.Name, CompletionItemKind.Class, e.Doc);
+            // prop, event and component do not survive AuiTemplateExpander, so a rule on them can only ever be AUI206.
+            foreach (AuiElementDef e in AuiSchema.Elements)
+                if (e.Name != "prop" && e.Name != "event" && e.Name != "component") ctx.Add(e.Name, CompletionItemKind.Class, e.Doc);
             foreach (string v in ws.Views.Keys) ctx.Add(v, CompletionItemKind.Module, "nested view");
             foreach (KeyValuePair<string, string> cls in AllClasses(_ws, ws, null)) ctx.Add("." + cls.Key, CompletionItemKind.Field, cls.Value);
             foreach (string st in AuiSchema.States) ctx.Add(":" + st, CompletionItemKind.EnumMember, "pointer state");

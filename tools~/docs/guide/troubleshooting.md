@@ -19,8 +19,9 @@ Fix the compile error, then save the `.aui` again or run `AUI/Rebuild All Views`
 
 ## The prefab did not change
 
-Its bake stamp matched, so the builder skipped it. `AUI/Rebuild All Views` forces a rebuild of
-everything.
+Its bake stamp matched, so the builder skipped it. The stamp covers the generated code, every
+solved rect (per language), the resolved styles, the runtime rule table and the builder version,
+so a real change always rebuilds; `AUI/Rebuild All Views` forces one anyway.
 
 ## Boxes instead of letters
 
@@ -34,7 +35,7 @@ up and the text box is measured tall enough.
 
 The scene's language table is older than the views, or there is no language service at all.
 
-The build rebakes the table after every prefab build **if** the scene already has an
+The build rebakes the table at the end of every drain **if** the scene already has an
 `AUI Language Service`. If it has none, run `AUI/Rebuild Language Table` once for that scene.
 
 ## A key shows as its own name

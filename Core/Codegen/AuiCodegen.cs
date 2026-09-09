@@ -218,6 +218,28 @@ namespace Armagan.AUI.Core
                 }
             }
 
+            /// <summary>Every member this file will declare, keyed by its C# name (methods carry a signature suffix), with the node it came from.</summary>
+            private readonly Dictionary<string, AuiNode> _declared = new Dictionary<string, AuiNode>();
+
+            /// <summary>
+            /// Record a member about to be emitted; report a duplicate. Ids are mapped to C#
+            /// names lossily (`save-all`, `saveall` and `SaveAll` all become E_SAVEALL), two
+            /// &lt;Card/&gt; without ids share one `childCard` field, `{count}` and `{Count}` are
+            /// one property, so without this check valid markup produced a .g.cs that failed
+            /// with CS0102 and nothing pointing back at the markup.
+            /// </summary>
+            private void Declare(string name, AuiNode at, string what)
+            {
+                AuiNode first;
+                if (_declared.TryGetValue(name, out first))
+                {
+                    int line = at != null ? at.Line : 1, col = at != null ? at.Column : 1;
+                    _d.Error(AuiCodes.DuplicateId, what + " generates the member '" + name.Split('(')[0] + "', which is already generated" + (first != null ? " by line " + first.Line : "") + "; the ids or names differ only in characters that are dropped from C# names.", line, col, 1);
+                    return;
+                }
+                _declared[name] = at;
+            }
+
             private void CheckNames()
             {
                 foreach (AuiBinding b in _info.Bindings)
@@ -227,6 +249,69 @@ namespace Armagan.AUI.Core
                         AuiBindingUse u = b.Uses[0];
                         _d.Error(AuiCodes.BadBindingSyntax, "Binding name '" + b.Name + "' collides with an AuiView member; pick another name.", u.Node.Line, u.Node.Column, 1);
                     }
+                }
+
+                // Walk everything the Emit* sections declare, in the same order, so a collision is
+                // caught here with a position rather than by the C# compiler in the generated file.
+                _declared.Clear();
+                foreach (AuiNode n in _info.Doc.Nodes)
+                {
+                    if (n.Id == null || E(n) < 0) continue;
+                    Declare(ConstName("E_", n.Id), n, "id '" + n.Id + "'");
+                    if (_map.SignalOf[E(n)] >= 0) Declare(ConstName("S_", n.Id), n, "id '" + n.Id + "'");
+                }
+                foreach (AuiRepeatInfo r in _info.Repeats)
+                {
+                    Declare(ConstName("", r.Id) + "_MAX", r.Node, "<" + r.Node.Tag + " id=\"" + r.Id + "\">");
+                    if (r.IsTemplate) Declare(ConstName("T_", r.Id), r.Node, "<template id=\"" + r.Id + "\">");
+                    string P = r.PascalId;
+                    if (r.IsTemplate) Declare("Create" + P + "(int)", r.Node, "<template id=\"" + r.Id + "\">");
+                    else Declare(P + "Count", r.Node, "<repeat id=\"" + r.Id + "\">");
+                    foreach (AuiBinding b in r.ItemBindings)
+                    {
+                        Declare("Set" + P + b.PropertyName + "(int," + b.CsType + ")", b.Uses.Count > 0 ? b.Uses[0].Node : r.Node, "item binding '" + b.Name + "' of '" + r.Id + "'");
+                        if (b.Type == AuiBindingType.String && UsedByArgs(b)) Declare("_" + AuiNaming.Identifier(r.Id) + "_" + b.Name, r.Node, "item binding '" + b.Name + "' of '" + r.Id + "'");
+                    }
+                }
+                foreach (AuiModalInfo m in _info.Modals)
+                {
+                    Declare(ConstName("M_", m.Id), m.Node, "<modal id=\"" + m.Id + "\">");
+                    Declare("Open" + m.PascalId + "()", m.Node, "<modal id=\"" + m.Id + "\">");
+                    Declare("Close" + m.PascalId + "()", m.Node, "<modal id=\"" + m.Id + "\">");
+                    Declare("Is" + m.PascalId + "Open()", m.Node, "<modal id=\"" + m.Id + "\">");
+                }
+                if (_ctx.ClassNames != null)
+                {
+                    var seen = new Dictionary<string, string>();
+                    for (int i = 0; i < _ctx.ClassNames.Length; i++)
+                    {
+                        string cn = ConstName("C_", _ctx.ClassNames[i]);
+                        string firstClass;
+                        if (seen.TryGetValue(cn, out firstClass))
+                            _d.Warning(AuiCodes.DuplicateId, "Classes '" + firstClass + "' and '" + _ctx.ClassNames[i] + "' share the constant " + cn + ", which addresses only the first; rename one so AddClass/HasClass can reach the other.", 1, 1, 1);
+                        else { seen[cn] = _ctx.ClassNames[i]; Declare(cn, null, "class '" + _ctx.ClassNames[i] + "'"); }
+                    }
+                }
+                foreach (AuiNestedView nv in _info.NestedViews)
+                    if (!InTemplate(nv.Node)) Declare(nv.FieldName, nv.Node, "<" + nv.Node.Tag + "/>" + (nv.Node.Id == null ? " without an id" : ""));
+                foreach (AuiBinding b in _info.Bindings)
+                {
+                    AuiNode at = b.Uses.Count > 0 ? b.Uses[0].Node : null;
+                    Declare(b.PropertyName, at, "binding '{" + b.Name + "}'");
+                    Declare(AuiNaming.Field(b.Name), at, "binding '{" + b.Name + "}'");
+                }
+                foreach (AuiPageGroup g in _info.PageGroups)
+                {
+                    Declare(ConstName("", g.Id) + "_COUNT", g.Node, "<pages id=\"" + g.Id + "\">");
+                    foreach (AuiNode p in g.Pages) if (p.Id != null) Declare(ConstName(ConstName("", g.Id) + "_", p.Id), p, "<page id=\"" + p.Id + "\">");
+                    Declare("Get" + g.PascalId + "Page()", g.Node, "<pages id=\"" + g.Id + "\">");
+                    Declare("Select" + g.PascalId + "Page(int)", g.Node, "<pages id=\"" + g.Id + "\">");
+                }
+                foreach (AuiSelectInfo s in _info.Selects)
+                {
+                    string P = s.Node.Id != null ? AuiNaming.Pascal(s.Node.Id) : "Select" + SelectIndex(s.Node);
+                    Declare("Set" + P + "OptionLabel(int,string)", s.Node, "<select id=\"" + (s.Node.Id ?? "") + "\">");
+                    Declare("Set" + P + "OptionCount(int)", s.Node, "<select id=\"" + (s.Node.Id ?? "") + "\">");
                 }
             }
 

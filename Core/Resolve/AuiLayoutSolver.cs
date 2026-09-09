@@ -165,7 +165,7 @@ namespace Armagan.AUI.Core
             switch (n.Tag)
             {
                 case "text":
-                    MeasureText(n, s, ln, out w, out h, ref ln.ContentSized);
+                    MeasureText(n, s, ln, availW, out w, out h, ref ln.ContentSized);
                     break;
                 case "icon":
                 {
@@ -245,15 +245,28 @@ namespace Armagan.AUI.Core
             return v;
         }
 
-        private void MeasureText(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, out float w, out float h, ref bool contentSized)
+        private void MeasureText(AuiNode n, AuiResolvedStyle s, AuiLayoutNode ln, float availW, out float w, out float h, ref bool contentSized)
         {
             float size = s.FontSize;
             int weight = s.FontWeight;
             bool wrap = IsFlagTrue(n, "wrap", false);
             float maxW = s.MaxWidth.IsSet && !s.MaxWidth.IsPercent ? s.MaxWidth.Value : (s.Width.IsSet && !s.Width.IsAuto && !s.Width.IsPercent ? s.Width.Value : 0);
+            // A wrapping text with no width of its own wraps at what its ancestors can give it,
+            // the same rule the runtime solver uses (the width of the last solve). Measured as a
+            // single line, the baked rect was one line tall and TMP wrapped into it and clipped.
+            if (wrap && maxW <= 0 && availW > 0) maxW = System.Math.Max(0, availW - s.Padding.Horizontal);
             var candidates = new List<string>();
             string key = n.Get("key");
-            if (key != null)
+            // runtime="true": the author will SetText this label in-world, so it is measured like a
+            // bound text (the sample string, content-sized, re-measured at runtime) whatever it
+            // shows at bake time. It was accepted and ignored until BuilderVersion 18.
+            bool runtime = IsFlagTrue(n, "runtime", false);
+            if (runtime)
+            {
+                candidates.Add(_ctx.BoundTextSample);
+                contentSized = true;
+            }
+            else if (key != null)
             {
                 IEnumerable<string> all = _ctx.Translations != null ? _ctx.Translations(key) : null;
                 if (all != null) foreach (string t in all) candidates.Add(StripPlaceholders(t, n));

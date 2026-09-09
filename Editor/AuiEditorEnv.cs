@@ -159,6 +159,8 @@ namespace Armagan.AUI.Editor
             _langDiag = null;
             ChildCache.Clear();
             AuiLog.Info("workspace scan (" + why + "): " + w.Views.Count + " view(s), " + clock.ElapsedMilliseconds + " ms");
+            // Two views with one stem: nested views resolve by stem, so which one a <Card/> gets is walk order.
+            foreach (string dup in w.DuplicateViews) AuiLog.Warn(AuiCodes.NestedViewNotFound + " two views share a name; the last one listed wins for <Name/>: " + dup);
             return w;
         }
 
@@ -295,7 +297,10 @@ namespace Armagan.AUI.Editor
             {
                 string text = File.Exists(p) ? SafeRead(p) : null;
                 seen[p] = HashText(text);
-                if (text != null && onRead != null) onRead(p);
+                // A MISSING file is a dependency too: the sibling Name.auis the compiler probes for,
+                // or a <link href> not written yet. Declared now, its creation re-imports the view;
+                // undeclared, the new sheet changed nothing until the .aui was saved again.
+                if (onRead != null) onRead(p);
                 return text;
             };
             AuiLanguageTable lang = LanguageTable(settings, ws, read);
@@ -308,7 +313,14 @@ namespace Armagan.AUI.Editor
                 Measurer = new AuiTextMeasurer(settings),
                 ViewExists = ws.ViewExists,
                 IconExists = ws.IconExists,
-                ImageSize = (string src, out float w, out float h) => ImageSize(absolutePath, src, out w, out h),
+                ImageSize = (string src, out float w, out float h) =>
+                {
+                    // The image is a dependency: swapping a 200x80 PNG for a 300x120 one must re-import
+                    // the view, or the old intrinsic size stays baked and the new texture is squashed.
+                    string ip = Path.Combine(Path.GetDirectoryName(absolutePath) ?? "", src ?? "");
+                    if (File.Exists(ip)) read(ip);
+                    return ImageSize(absolutePath, src, out w, out h);
+                },
                 ChildInfo = name => ChildInfo(name, ws, settings, read),
                 BoundTextSample = settings != null && !string.IsNullOrEmpty(settings.boundTextSample) ? settings.boundTextSample : "Mmmmmmmmmmm日",
             };
@@ -330,6 +342,16 @@ namespace Armagan.AUI.Editor
         public static void ForgetCompile(string absolutePath)
         {
             CompileCache.Remove(Norm(absolutePath));
+        }
+
+        /// <summary>
+        /// Forget every cached compile. A font rebake with an unchanged charset keeps the stamp
+        /// (same bakedHash) while the glyphs it was measured against are gone; the rects in those
+        /// results are stale and a forced rebuild would bake them.
+        /// </summary>
+        public static void ForgetAllCompiles()
+        {
+            CompileCache.Clear();
         }
 
         // A nested view's model was re-parsed and re-analyzed on every reference, in every

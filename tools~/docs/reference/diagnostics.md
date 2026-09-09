@@ -48,7 +48,7 @@ would not stop for.
 |---|---|
 | `AUI100` | Unknown tag, and no `.aui` of that name exists. Check spelling; the message suggests a near match |
 | `AUI101` | That attribute is not allowed on this element. See [elements](/reference/elements) |
-| `AUI102` | Two elements share an `id` |
+| `AUI102` | Two elements share an `id`, or two ids, bindings or nested views produce the same generated C# member (`save-all` and `saveall` both become `E_SAVEALL`; two `<Card/>` without ids both become `childCard`; `{itemsCount}` next to `<repeat id="items">`). Rename one |
 | `AUI103` | `name` does not equal the file stem. Rename one of them |
 | `AUI104` | The root element is not `<view>` |
 | `AUI105` | A `<repeat>` must have exactly one template child, plus an optional `<empty>` |
@@ -57,11 +57,11 @@ would not stop for.
 | `AUI108` | One binding name used with two different types. Rename one |
 | `AUI109` | A handler value is not a C# identifier |
 | `AUI110` | A required attribute is missing (a `<view>` without `name`, for instance) |
-| `AUI111` | An attribute value does not parse for that attribute |
-| `AUI112` | The element is not allowed there. See [where each element may go](/reference/elements#where-each-element-may-go) |
+| `AUI111` | An attribute value does not parse for that attribute (a literal passed to a typed nested-view prop included). As a **warning**: `hidden` on an element with `icon=` or `key=`, which bakes at the wrong size; use `if="{flag}"` |
+| `AUI112` | The element is not allowed there. See [where each element may go](/reference/elements#where-each-element-may-go). Also `select`, `pages` and `tabs` inside a `<repeat>` or `<template>`: their runtime tables are per element, not per row |
 | `AUI113` | Views nest each other in a cycle |
 | `AUI114` | A `<pages>` group nothing drives. Add a `<tabs>`, or select pages from code |
-| `AUI115` | A `<text>` has both `key` and `text`/literal content. Pick one |
+| `AUI115` | A `<text>` has more than one of `key`, `text` and literal content. Pick one |
 | `AUI116` | Malformed `{binding}`, or a binding whose name collides with an `AuiView` member |
 | `AUI117` | Literal, untranslated text. **Informational**, so you can find every string that will stay English |
 | `AUI118` | `{item.x}` used outside a `<repeat>` or `<template>` |
@@ -74,10 +74,10 @@ would not stop for.
 
 | Code | Meaning and fix |
 |---|---|
-| `AUI200` | Stylesheet syntax error |
+| `AUI200` | Stylesheet syntax error, including a `--variable` declared outside `:root` (variables are sheet-wide, so that is the only place they may be written) |
 | `AUI201` | Unknown property. See [style properties](/reference/properties) |
-| `AUI202` | The value does not parse for that property's kind |
-| `AUI203` | `var(--x)` with no `:root` declaration. Define it, or use `var(--x, fallback)` |
+| `AUI202` | The value does not parse for that property's kind, an unterminated `(` in a value, or a negative `grow`, `opacity`, `scale` or `line-height` |
+| `AUI203` | `var(--x)` with no `:root` declaration. Define it, or use `var(--x, fallback)`; the fallback may itself be a `var()` |
 | `AUI204` | Unknown pseudo-state. Only `hover`, `pressed`, `selected`, `disabled` |
 | `AUI205` | Unsupported selector, usually a descendant combinator (`.card text`). Give the child its own class |
 | `AUI206` | A rule no element matches. **Warning**; often a typo or a leftover |
@@ -118,20 +118,23 @@ See [languages](/guide/languages).
 
 ## 5xx Build and codegen
 
+These come from the build queue rather than a compile, so they carry no file position; the
+message names the view.
+
 | Code | Meaning and fix |
 |---|---|
-| `AUI500` | The class in `Name.g.cs` was not found. Usually a compile error elsewhere; fix it and save again |
-| `AUI501` | The sibling UdonSharp program asset is missing. `AUI/Create missing program assets` |
-| `AUI502` | A handler named in markup has no method. Add it with the [right signature](/guide/handlers#every-signature) |
-| `AUI503` | The prefab builder failed. Read the accompanying exception |
-| `AUI504` | A required symbol was not exported to the Udon heap |
+| `AUI500` | The class in `Name.g.cs` is not available yet. Normal once right after the source is written; otherwise a compile error elsewhere. Fix it and save again |
+| `AUI501` | UdonSharp produced no program for the view. A handler named in markup with no method (or the wrong signature) is the usual cause; read the UdonSharp errors above it |
+| `AUI502` | Reserved for a handler check at codegen time; today a missing handler surfaces as `AUI501` plus the C# error |
+| `AUI503` | The prefab builder failed, or a view was given up on after four attempts. The message says which step it was stuck on and, for a nested view, which child prefab it waited for |
+| `AUI504` | A required table was not exported to the Udon heap. Rebuild; if it persists, the runtime package did not compile |
 
 ## 6xx Fonts
 
 | Code | Meaning and fix |
 |---|---|
-| `AUI600` | The character set changed since the last bake. Run `AUI/Bake Fonts` |
-| `AUI601` | A character has no glyph in any atlas or fallback. This is what boxes in-world look like at build time |
+| `AUI600` | The character set changed since the last bake (checked whenever the language table is rebaked). Run `AUI/Bake Fonts` |
+| `AUI601` | A character has no glyph in any source font. This is what boxes in-world look like at build time |
 | `AUI602` | A source font under `Fonts/src` is missing |
 
 ## Next

@@ -77,7 +77,8 @@ namespace Armagan.AUI.Core
                 if (s.IsDisplayNone || (hidden != null && hidden != "false")) f |= LF_HIDDEN_START;
                 // A template and its parked instance roots start hidden; CreateElement shows an instance when it links it.
                 if (node.Tag == "template" || (node.Parent != null && node.Parent.Tag == "template")) f |= LF_HIDDEN_START;
-                if (node.Tag == "text" && (node.Get("text") != null || node.Get("args") != null)) f |= LF_RUNTIME_TEXT;
+                string rt = node.Get("runtime");
+                if (node.Tag == "text" && (node.Get("text") != null || node.Get("args") != null || (rt != null && rt != "false"))) f |= LF_RUNTIME_TEXT;
                 if (node.Tag == "text" || ln.ContentSized) f |= LF_SHRINKABLE;
                 if (node.Tag == "text") { string w = node.Get("wrap"); if (w != null && (w == "" || w == "true")) f |= LF_TEXT_WRAP; }
                 if (node.Tag == "spacer") f |= LF_SPACER;

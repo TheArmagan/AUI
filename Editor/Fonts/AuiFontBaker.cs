@@ -57,7 +57,7 @@ namespace Armagan.AUI.Editor
             for (int w = 0; w < Weights.Length; w++)
             {
                 Font src = Source("Inter-" + Weights[w] + ".ttf");
-                if (src == null) { AuiLog.Error("font source missing: Fonts/src/Inter-" + Weights[w] + ".ttf"); return; }
+                if (src == null) { AuiLog.Error(AuiCodes.FontSourceMissing + " font source missing: Fonts/src/Inter-" + Weights[w] + ".ttf"); return; }
                 uint[] missing;
                 // 2048, ONE ATLAS. A 1024 atlas held ~340 of Inter's glyphs and the rest went to
                 // extra atlas pages, which TMP's UI text draws with the first page's texture: the
@@ -73,7 +73,7 @@ namespace Armagan.AUI.Editor
                     {
                         if (left.Length == 0) break;
                         Font cjkSrc = Source("NotoSans" + lang + "-" + cw + ".otf");
-                        if (cjkSrc == null) { AuiLog.Warn("font source missing: Fonts/src/NotoSans" + lang + "-" + cw + ".otf"); continue; }
+                        if (cjkSrc == null) { AuiLog.Warn(AuiCodes.FontSourceMissing + " font source missing: Fonts/src/NotoSans" + lang + "-" + cw + ".otf"); continue; }
                         uint[] stillMissing;
                         TMP_FontAsset fa = BakeStatic(cjkSrc, "AUI Noto " + lang + " " + cw, left, 2048, out stillMissing);
                         if (fa.characterTable.Count > 0) chain.Add(fa);
@@ -85,13 +85,17 @@ namespace Armagan.AUI.Editor
                 }
             }
 
-            TMP_FontAsset dynamic = BakeDynamic(Source("Inter-Regular.ttf"), "AUI Dynamic Latin");
+            TMP_FontAsset dynamic = BakeDynamic(Source("Inter-Regular.ttf"), "AUI Dynamic Latin", 1024);
+            // A CJK player name in a world whose language files hold no CJK has no static Noto atlas
+            // to fall through to; this capped dynamic Noto JP atlas is what the docs promised for it.
+            TMP_FontAsset dynamicCjk = BakeDynamic(Source("NotoSansJP-Regular.otf"), "AUI Dynamic CJK", 1024);
 
             for (int w = 0; w < Weights.Length; w++)
             {
                 List<TMP_FontAsset> chain = w < 2 ? cjkRegular : cjkBold;
                 latin[w].fallbackFontAssetTable = new List<TMP_FontAsset>(chain);
                 if (dynamic != null) latin[w].fallbackFontAssetTable.Add(dynamic);
+                if (dynamicCjk != null) latin[w].fallbackFontAssetTable.Add(dynamicCjk);
                 EditorUtility.SetDirty(latin[w]);
             }
 
@@ -102,21 +106,25 @@ namespace Armagan.AUI.Editor
             set.cjkRegular = cjkRegular.ToArray();
             set.cjkBold = cjkBold.ToArray();
             set.dynamicLatin = dynamic;
+            set.dynamicCjk = dynamicCjk;
             set.bakedCharCount = codepoints.Length;
             set.bakedHash = hash;
             EditorUtility.SetDirty(set);
             settings.fontSet = set;
             EditorUtility.SetDirty(settings);
             AssetDatabase.SaveAssets();
-            // The atlases were copied over the existing assets (same identity): measurements taken against the old glyphs are stale.
+            // The atlases were copied over the existing assets (same identity): measurements taken
+            // against the old glyphs are stale, and so is every cached compile result (its stamp
+            // is the charset hash, which a rebake with the same charset does not change).
             AuiTextMeasurer.InvalidateCache();
+            AuiEditorEnv.ForgetAllCompiles();
 
             if (missingEverywhere.Count > 0)
             {
                 var sb = new System.Text.StringBuilder();
                 int n = 0;
                 foreach (uint u in missingEverywhere) { if (n++ > 40) { sb.Append("..."); break; } sb.Append(char.ConvertFromUtf32((int)u)).Append(' '); }
-                AuiLog.Warn(missingEverywhere.Count + " character(s) exist in no source font and will render as boxes: " + sb);
+                AuiLog.Warn(AuiCodes.GlyphMissing + " " + missingEverywhere.Count + " character(s) exist in no source font and will render as boxes: " + sb);
             }
             AuiLog.Info("fonts baked: Inter x4 (" + latin[0].characterTable.Count + " glyphs), CJK regular x" + cjkRegular.Count + ", bold x" + cjkBold.Count + ". Rebuilding views.");
             AuiBuildQueue.EnqueueAll();
@@ -148,10 +156,10 @@ namespace Armagan.AUI.Editor
             return Save(fa, PathFor(name));
         }
 
-        private static TMP_FontAsset BakeDynamic(Font src, string name)
+        private static TMP_FontAsset BakeDynamic(Font src, string name, int atlasSize)
         {
             if (src == null) return null;
-            TMP_FontAsset fa = TMP_FontAsset.CreateFontAsset(src, SamplingPointSize, Padding, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, false);
+            TMP_FontAsset fa = TMP_FontAsset.CreateFontAsset(src, SamplingPointSize, Padding, GlyphRenderMode.SDFAA, atlasSize, atlasSize, AtlasPopulationMode.Dynamic, false);
             fa.name = name;
             fa.isMultiAtlasTexturesEnabled = false;   // one atlas: the cap on runtime rasterisation
             // Seed ASCII so the common case never rasterises at runtime.
@@ -224,23 +232,27 @@ namespace Armagan.AUI.Editor
             set.Add(0x200B);   // zero-width space, inserted by Escape
             set.Add(0x25A1);   // TMP's missing-glyph box
             AuiLanguageTable table = ws.LoadLanguageTable(settings != null ? settings.defaultLanguage : "en", null, null);
-            foreach (char c in table.AllCharacters()) if (!char.IsSurrogate(c)) set.Add(c);
+            AddCodepoints(set, table.AllCharacters());
             // literal text in every view
             foreach (string p in ws.Views.Values)
             {
                 AuiMarkupDocument doc = AuiParser.Parse(File.ReadAllText(p), p);
-                foreach (AuiNode n in doc.Nodes) if (n.Text != null) foreach (char c in n.Text) if (!char.IsSurrogate(c)) set.Add(c);
+                foreach (AuiNode n in doc.Nodes) if (n.Text != null) AddCodepoints(set, n.Text);
             }
             if (settings != null)
             {
-                foreach (char c in settings.extraCharacters ?? "") if (!char.IsSurrogate(c)) set.Add(c);
+                AddCodepoints(set, settings.extraCharacters ?? "");
+                // The sample every bound text is measured with: a CJK character in it is the whole
+                // point (line height), and it has to be in the atlas the measurer uses.
+                AddCodepoints(set, settings.boundTextSample ?? "");
                 foreach (string range in (settings.unicodeRanges ?? "").Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries))
                 {
-                    string[] parts = range.Split('-');
+                    // "U+0400-04FF" and "0x0400-0x04FF" are how people write ranges; accept them.
+                    string[] parts = range.Replace("U+", "").Replace("u+", "").Replace("0x", "").Replace("0X", "").Split('-');
                     uint a, b;
-                    if (!uint.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber, null, out a)) continue;
+                    if (!uint.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber, null, out a)) { AuiLog.Warn("unicode range '" + range + "' is not hex (write it as 0400-04FF); skipped"); continue; }
                     if (parts.Length == 1) { set.Add(a); continue; }
-                    if (!uint.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, null, out b)) continue;
+                    if (!uint.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, null, out b)) { AuiLog.Warn("unicode range '" + range + "' has a bad end (write it as 0400-04FF); skipped"); continue; }
                     if (b - a > 4096) { AuiLog.Warn("unicode range " + range + " is too large to bake; skipped"); continue; }
                     for (uint u = a; u <= b; u++) set.Add(u);
                 }
@@ -249,6 +261,24 @@ namespace Armagan.AUI.Editor
             var list = new List<uint>(set);
             list.Sort();
             return list.ToArray();
+        }
+
+        /// <summary>Every code point of a string, surrogate pairs combined; a lone surrogate is skipped. Dropping every surrogate lost each emoji and CJK Extension B character.</summary>
+        private static void AddCodepoints(HashSet<uint> set, IEnumerable<char> text)
+        {
+            char high = '\0';
+            foreach (char c in text)
+            {
+                if (char.IsHighSurrogate(c)) { high = c; continue; }
+                if (char.IsLowSurrogate(c))
+                {
+                    if (high != '\0') set.Add((uint)char.ConvertToUtf32(high, c));
+                    high = '\0';
+                    continue;
+                }
+                high = '\0';
+                set.Add(c);
+            }
         }
 
         public static string Hash(uint[] codepoints)

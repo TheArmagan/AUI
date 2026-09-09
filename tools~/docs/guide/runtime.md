@@ -139,7 +139,8 @@ SetAutoRelayout(false);
 SetAutoRelayout(true);     // one solve
 ```
 
-`Relayout()` solves on the next frame, `RelayoutNow()` immediately.
+A setter schedules the solve for the next frame; `Relayout()` runs it now if anything is dirty,
+`RelayoutNow()` runs it now regardless.
 
 ## Creating elements
 

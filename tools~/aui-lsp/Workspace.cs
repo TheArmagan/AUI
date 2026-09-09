@@ -422,6 +422,29 @@ namespace Armagan.AUI.Lsp
             Publish("sheet:" + sheetPath, s.Diagnostics.Items, new string[0], sheetPath);
         }
 
+        /// <summary>The view whose stem matches a stylesheet (Name.auis next to Name.aui), if any.</summary>
+        public void RecompileSibling(string sheetPath)
+        {
+            string view = Path.ChangeExtension(sheetPath, ".aui");
+            if (File.Exists(view)) CompileAndPublish(view);
+        }
+
+        /// <summary>Re-read AuiSettings.asset (it changed on disk) and drop the scan that was built from the old one.</summary>
+        public void ReloadSettings()
+        {
+            LangFolder = null;
+            DefaultLanguage = "en";
+            ComponentFolders.Clear();
+            IconFolders.Clear();
+            ReadSettings();
+            if (LangFolder == null)
+            {
+                string aui = FindDirectoryIgnoreCase(Path.Combine(Root, "Assets"), "AUI");
+                LangFolder = aui != null ? FindDirectoryIgnoreCase(aui, "Lang") : null;
+            }
+            InvalidateScan();
+        }
+
         /// <summary>Views that nest a view of this name; a created or deleted .aui changes their AUI107.</summary>
         public void RecompileUsersOf(string viewStem)
         {

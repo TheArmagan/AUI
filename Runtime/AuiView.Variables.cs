@@ -55,7 +55,7 @@ namespace Armagan.AUI
         {
             if (!_started) { _auiStashS = varName; _auiStashS2 = value; _AuiStart(); varName = _auiStashS; value = _auiStashS2; }
             if (StyleVariableId(varName) < 0)
-                Debug.LogWarning("[AUI] " + name + ": no stylesheet of this view defines the variable '" + NormVarName(varName) + "'.");
+                WarnOnce("var:" + varName, "no stylesheet of this view defines the variable '" + NormVarName(varName) + "'.");
             else
                 _ApplyStyleVariable(varName, value);
             // Nested views bake their own copy of the theme: forward so the whole tree follows.
@@ -182,7 +182,7 @@ namespace Armagan.AUI
                 Vector4 enc = Vector4.zero;
                 if (!EncodeStyleValue(declProp[k], v, ref enc))
                 {
-                    Debug.LogWarning("[AUI] " + name + ": '" + v + "' (from '" + t + "') is not a value for style property " + declProp[k] + "; the declaration keeps its previous value.");
+                    WarnOnce("decl:" + k, "'" + v + "' (from '" + t + "') is not a value for style property " + declProp[k] + "; the declaration keeps its previous value.");
                     continue;
                 }
                 if (declValue[k] == enc) continue;
@@ -249,26 +249,36 @@ namespace Armagan.AUI
         private string SubstituteVars(string template)
         {
             if (template == null || template.IndexOf("var(") < 0) return template;
-            string result = "";
-            int i = 0, guard = 0;
-            while (i < template.Length)
+            string v = template;
+            int guard = 0;
+            while (true)
             {
-                int at = template.IndexOf("var(", i);
-                if (at < 0) { result += template.Substring(i); break; }
-                result += template.Substring(i, at - i);
-                int close = template.IndexOf(')', at);
+                int at = v.IndexOf("var(");
+                if (at < 0) break;
+                // The MATCHING ')', not the first one: a fallback like rgba(0,0,0,1) carries its own.
+                // One char[] for the scan: string[i] compiles to ToCharArray(i, 1)[0] under UdonSharp.
+                char[] chars = v.ToCharArray();
+                int close = -1, depth = 0;
+                for (int k = at + 3; k < chars.Length; k++)
+                {
+                    char ch = chars[k];
+                    if (ch == '(') depth++;
+                    else if (ch == ')') { depth--; if (depth == 0) { close = k; break; } }
+                }
                 if (close < 0) break;
-                string inner = template.Substring(at + 4, close - at - 4);
+                string inner = v.Substring(at + 4, close - at - 4);
                 string vn = inner, fallback = null;
                 int comma = inner.IndexOf(',');
                 if (comma >= 0) { vn = inner.Substring(0, comma); fallback = inner.Substring(comma + 1).Trim(); }
-                int id = StyleVariableId(vn);
-                if (id >= 0) result += varValues[id];
-                else if (fallback != null) result += fallback;
-                i = close + 1;
+                int id = StyleVariableId(vn.Trim());
+                string rep = "";
+                if (id >= 0) rep = varValues[id];
+                else if (fallback != null) rep = fallback;
+                // Splice and rescan so a fallback that is itself a var() resolves on the next pass.
+                v = v.Substring(0, at) + rep + v.Substring(close + 1);
                 if (++guard > 64) break;
             }
-            return result;
+            return v;
         }
 
         /// <summary>The Udon half of AuiRuleTable.Encode: one property's stylesheet text into its Vector4 encoding.</summary>
@@ -370,23 +380,25 @@ namespace Armagan.AUI
             if (s == "transparent" || s == "none") { c = Vector4.zero; return true; }
             if (s == "white") { c = new Vector4(1, 1, 1, 1); return true; }
             if (s == "black") { c = new Vector4(0, 0, 0, 1); return true; }
-            if (s[0] == '#')
+            if (s.StartsWith("#"))
             {
-                string h = s.Substring(1);
-                int n = h.Length;
+                // One char[] per parse: string[i] compiles to ToCharArray(i, 1)[0] under UdonSharp,
+                // an allocation per nibble on a path a slider handler drives every frame.
+                char[] h = s.ToCharArray();
+                int n = h.Length - 1;
                 if (n != 3 && n != 4 && n != 6 && n != 8) return false;
                 bool shortForm = n <= 4;
                 int channels = shortForm ? n : n / 2;
-                float[] ch = new float[4];
-                ch[3] = 1f;
+                float r = 0f, g = 0f, b = 0f, a = 1f;
                 for (int i = 0; i < channels; i++)
                 {
-                    int hi = HexNibble(h[shortForm ? i : 2 * i]);
-                    int lo = shortForm ? hi : HexNibble(h[2 * i + 1]);
+                    int hi = HexNibble(h[1 + (shortForm ? i : 2 * i)]);
+                    int lo = shortForm ? hi : HexNibble(h[2 + 2 * i]);
                     if (hi < 0 || lo < 0) return false;
-                    ch[i] = (hi * 16 + lo) / 255f;
+                    float v = (hi * 16 + lo) / 255f;
+                    if (i == 0) r = v; else if (i == 1) g = v; else if (i == 2) b = v; else a = v;
                 }
-                c = new Vector4(ch[0], ch[1], ch[2], ch[3]);
+                c = new Vector4(r, g, b, a);
                 return true;
             }
             if (s.StartsWith("rgb"))
@@ -420,16 +432,19 @@ namespace Armagan.AUI
 
         private const string HexDigits = "0123456789ABCDEF";
 
-        private static string ToHex2(float channel)
-        {
-            int v = Mathf.Clamp(Mathf.RoundToInt(channel * 255f), 0, 255);
-            return HexDigits[v >> 4].ToString() + HexDigits[v & 15].ToString();
-        }
-
-        /// <summary>A colour as the stylesheet writes it: #RRGGBBAA.</summary>
+        /// <summary>A colour as the stylesheet writes it: #RRGGBBAA. One char[] and one string per call.</summary>
         public string ColorToHex(Color c)
         {
-            return "#" + ToHex2(c.r) + ToHex2(c.g) + ToHex2(c.b) + ToHex2(c.a);
+            char[] digits = HexDigits.ToCharArray();
+            char[] o = new char[9];
+            o[0] = '#';
+            int r = Mathf.Clamp(Mathf.RoundToInt(c.r * 255f), 0, 255), g = Mathf.Clamp(Mathf.RoundToInt(c.g * 255f), 0, 255);
+            int b = Mathf.Clamp(Mathf.RoundToInt(c.b * 255f), 0, 255), a = Mathf.Clamp(Mathf.RoundToInt(c.a * 255f), 0, 255);
+            o[1] = digits[r >> 4]; o[2] = digits[r & 15];
+            o[3] = digits[g >> 4]; o[4] = digits[g & 15];
+            o[5] = digits[b >> 4]; o[6] = digits[b & 15];
+            o[7] = digits[a >> 4]; o[8] = digits[a & 15];
+            return new string(o);
         }
 
         /// <summary>A number with up to three decimals and a '.' whatever the player's locale (ParseFloatInvariant reads it back).</summary>
