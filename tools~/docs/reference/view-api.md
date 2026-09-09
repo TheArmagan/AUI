@@ -201,9 +201,13 @@ A select can only ever hold as many rows as were baked: its authored `<option>`s
 ## Inputs
 
 ```csharp
+void   OpenInput(int elem);        // arm the keyboard for an input from code, as a click would
 int    InputMaxLength(int elem);   // <input maxlength>, -1 when unlimited
 int    InputType(int elem);        // INPUT_TEXT or INPUT_URL
 VRCUrl GetInputUrl(int elem);      // the last VRCUrl a url input submitted, or null
+void   SetInputUrl(int elem, VRCUrl url);   // what it reopens with
+
+protected virtual VRCUrl InputUrlSeed(int elem, VRCUrl last);   // hook: the VRCUrl a url input opens with
 
 public string inputResult;         // written by the input panel before _OnInputResult
 public int    inputResultId;
@@ -211,7 +215,11 @@ public VRCUrl inputResultUrl;      // url inputs only
 ```
 
 The generated `_OnInputResult` sets the bound property and calls `onsubmit`; a url input's
-handler gets `inputResultUrl`. See [elements](/reference/elements#input).
+handler gets `inputResultUrl`. `OpenInput` is for a Go button beside the box: it arms the same
+panel a click on the box would, and the player's next click opens the keyboard. Override
+`InputUrlSeed` to open the field with a baked URL the player types onto the end of (a VRCUrl
+cannot be built from a string); the default reopens with the last submitted one. See
+[elements](/reference/elements#input).
 
 ## Modals
 

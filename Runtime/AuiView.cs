@@ -538,15 +538,7 @@ namespace Armagan.AUI
                 if (k == KIND_TOGGLE) { _toggleOn[e] = !_toggleOn[e]; SetSelected(id, _toggleOn[e]); }
                 else if (k == KIND_TAB) { ClickTab(id); }
                 else if (k == KIND_OPTION) { ClickOption(e); }
-                // The stored value is the ESCAPED one (a zero-width space after every '<'). The
-                // keyboard gets the raw text back, or every round trip through the bound setter
-                // would add one more space: "<3" became "<​3", then "<​​3".
-                else if (k == KIND_INPUT)
-                {
-                    if (inputPanel == null) { }
-                    else if (InputType(e) == INPUT_URL) inputPanel.OpenUrl(_inputUrl[e], this, e);
-                    else inputPanel.OpenTextMax(_inputValue[e].Replace("​", ""), this, e, InputMaxLength(e));
-                }
+                else if (k == KIND_INPUT) { ArmInput(e); }
                 else if (k == KIND_SELECT) { ToggleSelect(e); }
                 else if (k == KIND_SCRIM) { CloseSelect(); }
                 else if (k == KIND_MODAL_SCRIM) { ClickModalScrim(e); }
@@ -960,6 +952,45 @@ namespace Armagan.AUI
         public VRCUrl GetInputUrl(int elem)
         {
             return _inputUrl != null && elem >= 0 && elem < _inputUrl.Length ? _inputUrl[elem] : null;
+        }
+
+        /// <summary>Set what a url input reopens with (a baked VRCUrl, or one from another field); null clears it.</summary>
+        public void SetInputUrl(int elem, VRCUrl url)
+        {
+            if (!_started) { _auiStashI = elem; _AuiStart(); elem = _auiStashI; }
+            if (_inputUrl != null && elem >= 0 && elem < _inputUrl.Length) _inputUrl[elem] = url;
+        }
+
+        /// <summary>
+        /// Author hook: the VRCUrl a url input opens with. <paramref name="last"/> is what it last
+        /// submitted (null at first). Override to seed the field from something else, such as a
+        /// baked URL the player types onto the end of; a VRCUrl cannot be built from a string.
+        /// </summary>
+        protected virtual VRCUrl InputUrlSeed(int elem, VRCUrl last)
+        {
+            return last;
+        }
+
+        /// <summary>
+        /// Arm the keyboard panel for an input element from code, exactly as a click on it would:
+        /// for a Go button beside the box, or a shortcut that opens the search. Nothing opens
+        /// VRChat's keyboard by itself; the player's next click on the armed panel does.
+        /// </summary>
+        public void OpenInput(int elem)
+        {
+            if (!_started) { _auiStashI = elem; _AuiStart(); elem = _auiStashI; }
+            if (elemKind == null || elem < 0 || elem >= elemKind.Length || elemKind[elem] != KIND_INPUT) return;
+            ArmInput(elem);
+        }
+
+        private void ArmInput(int e)
+        {
+            if (inputPanel == null) return;
+            // The stored value is the ESCAPED one (a zero-width space after every '<'). The
+            // keyboard gets the raw text back, or every round trip through the bound setter
+            // would add one more space: "<3" became "<​3", then "<​​3".
+            if (InputType(e) == INPUT_URL) inputPanel.OpenUrl(InputUrlSeed(e, _inputUrl[e]), this, e);
+            else inputPanel.OpenTextMax(_inputValue[e].Replace("​", ""), this, e, InputMaxLength(e));
         }
 
         /// <summary>AuiInputPanel's url submit: inputResultUrl / inputResult / inputResultId are set; remember the url, then the generated _OnInputResult runs.</summary>

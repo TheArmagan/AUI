@@ -590,7 +590,10 @@ Public API: `Show()`, `Hide()`, `ShowInstant()`, `HideInstant()`, `Toggle()`, `I
 `RowElem(r, row, offset)` (-1 for a bad index, never an exception); `GetSelect(s)`,
 `SetSelect(s, i)`, `SetSelectOptionLabel(s, i, label)`, `SetSelectOptionCount(s, n)`,
 `CloseSelect()`; `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v, decimals)` (culture-free: a `.`
-whatever the client's locale, so it can feed a style binding), `InputMaxLength(elem)`;
+whatever the client's locale, so it can feed a style binding), `InputMaxLength(elem)`,
+`InputType(elem)`, `GetInputUrl(elem)` / `SetInputUrl(elem, url)`, `OpenInput(elem)` (arm the
+panel from code, as a click would) and the hook `InputUrlSeed(elem, last)` (what a url input
+opens with; avtr.zip overrides it to seed the baked padded URL the player types onto);
 `_Retranslate()`; `SetStyleVariable(name, value)`, `SetStyleVariableColor(name, c)`,
 `SetStyleVariableFloat(name, f)`, `GetStyleVariable(name)`, `StyleVariableId(name)` (section 5);
 `WarnOnce(key, message)` for author code that would otherwise log every frame.
