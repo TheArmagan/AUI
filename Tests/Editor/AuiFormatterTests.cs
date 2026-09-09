@@ -121,6 +121,7 @@ namespace Armagan.AUI.Tests
                 "      background: none;\n" +
                 "      padding: 0;\n" +
                 "    }\n" +
+                "\n" +
                 "    .a, .b:hover {\n" +
                 "      font: 700 40;\n" +
                 "      color: var(--muted);\n" +
@@ -139,9 +140,10 @@ namespace Armagan.AUI.Tests
                 ":root { --ok:   #7FC97F; --pad: 12 }\n" +
                 "view { background: sprite(Rounded12) var(--surface); padding: var(--pad); }\n\n\n" +
                 ".ok     { color: var(--ok);     icon-color: var(--ok); }\n" +
+                "/* the pressed look */\n" +
                 "button:hover { scale: 1.03 }\n" +
                 ".x {\n" +
-                "  color: #fff // note\n" +
+                "  color: #fff // note\n\n" +
                 "  gap: 2;\n" +
                 "}\n";
             string expected =
@@ -152,6 +154,7 @@ namespace Armagan.AUI.Tests
                 "  --ok: #7FC97F;\n" +
                 "  --pad: 12;\n" +
                 "}\n" +
+                "\n" +
                 "view {\n" +
                 "  background: sprite(Rounded12) var(--surface);\n" +
                 "  padding: var(--pad);\n" +
@@ -161,9 +164,12 @@ namespace Armagan.AUI.Tests
                 "  color: var(--ok);\n" +
                 "  icon-color: var(--ok);\n" +
                 "}\n" +
+                "\n" +
+                "/* the pressed look */\n" +
                 "button:hover {\n" +
                 "  scale: 1.03;\n" +
                 "}\n" +
+                "\n" +
                 ".x {\n" +
                 "  color: #fff;   // note\n" +
                 "  gap: 2;\n" +

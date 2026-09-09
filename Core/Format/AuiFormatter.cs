@@ -14,7 +14,9 @@ namespace Armagan.AUI.Core
     ///     otherwise one per line at one extra indent, the closer on its own line; nothing is
     ///     ever aligned with padding spaces;
     ///   - a stylesheet rule is always expanded: the selectors on one line, one declaration per
-    ///     line, the brace on its own line; `:root` too;
+    ///     line, the brace on its own line; `:root` too; one blank line between rules, whether
+    ///     the source had it or not, and none inside a block. A `&lt;style&gt;` block is formatted
+    ///     the same way at its own indent;
     ///   - comments are kept verbatim and re-indented; one blank line between things is kept,
     ///     more than one collapses to one.
     ///
@@ -382,9 +384,13 @@ namespace Armagan.AUI.Core
                     continue;
                 }
                 if (!atLineStart) sb.Append('\n');
-                // No blank line right after a '{' or right before a '}': the braces frame the block.
-                bool allowBlank = !atLineStart && prev != SKind.Selector && t.Kind != SKind.Close;
-                if (allowBlank) for (int b = 0; b < System.Math.Min(1, t.BlankBefore); b++) sb.Append('\n');
+                // ONE BLANK LINE BETWEEN RULES, always: after a '}' the next rule or comment gets
+                // one whether the source had it or not. A comment directly above a rule stays
+                // attached to it (no blank unless the source had one). Inside a block, none: the
+                // braces frame the declarations.
+                bool topLevel = depth == baseDepth && t.Kind != SKind.Close;
+                bool blank = !atLineStart && topLevel && (prev == SKind.Close || t.BlankBefore > 0);
+                if (blank) sb.Append('\n');
                 string ind = Repeat(Indent, depth);
                 switch (t.Kind)
                 {

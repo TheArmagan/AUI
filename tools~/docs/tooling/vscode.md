@@ -98,7 +98,8 @@ over inline packing:
   indent with the `>` or `/>` on its own line. Never aligned with padding spaces, and alignment
   padding in the source is collapsed
 - a stylesheet rule always expanded: selectors on one line, one declaration per line, the brace on
-  its own. `<style>` blocks inside a view too
+  its own, one blank line between rules and none inside a block. `<style>` blocks inside a view
+  get the same treatment at their own indent
 - comments kept verbatim and re-indented; one blank line between things is kept, more collapse
   to one
 
