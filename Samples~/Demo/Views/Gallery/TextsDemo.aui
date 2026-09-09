@@ -20,9 +20,22 @@
     </panel>
     <panel class="card *grow" style="gap: 6">
       <text key="texts.wrapLabel" class="hint cell"/>
-      <text id="wrapped" key="texts.wrap" wrap="true" max-lines="3" ellipsis="true" class="cell" style="font-size: 15"/>
+      <text
+        id="wrapped"
+        key="texts.wrap"
+        wrap="true"
+        max-lines="3"
+        ellipsis="true"
+        class="cell"
+        style="font-size: 15"
+      />
       <text key="texts.runtimeLabel" class="hint cell" wrap="true" max-lines="2"/>
-      <text id="runtime" text="{who}" runtime="true" class="*text-lg *fg-accent *font-semibold cell"/>
+      <text
+        id="runtime"
+        text="{who}"
+        runtime="true"
+        class="*text-lg *fg-accent *font-semibold cell"
+      />
       <panel class="row" style="gap: 8">
         <text class="*text-sm hint">sm</text>
         <text class="*text-base">base</text>
@@ -34,15 +47,17 @@
 
   <panel class="grid">
     <button onclick="SetHello" key="texts.setHello" icon="pencil"/>
-    <button onclick="SetLong"  key="texts.setLong"/>
-    <button onclick="Inject"   key="texts.inject" icon="triangle-alert" class="ghost"/>
-    <button onclick="Bump"     key="texts.bump" icon="plus"/>
-    <button onclick="Rename"   key="texts.rename" icon="user" class="ghost"/>
-    <button onclick="Align"    key="texts.align" icon="arrow-up-down" class="ghost"/>
+    <button onclick="SetLong" key="texts.setLong"/>
+    <button onclick="Inject" key="texts.inject" icon="triangle-alert" class="ghost"/>
+    <button onclick="Bump" key="texts.bump" icon="plus"/>
+    <button onclick="Rename" key="texts.rename" icon="user" class="ghost"/>
+    <button onclick="Align" key="texts.align" icon="arrow-up-down" class="ghost"/>
   </panel>
 
   <style>
     /* Every text in the two cards is capped, so the cards split the width instead of growing to their longest string. */
-    .cell { max-width: 236; }
+    .cell {
+      max-width: 236;
+    }
   </style>
 </view>

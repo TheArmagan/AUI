@@ -14,9 +14,25 @@
   </panel>
 
   <style>
-    view    { background: sprite(Rounded8) var(--card); padding: 4 8; show: none; }
-    .accent { icon-color: var(--accent); }
-    .hint   { font-size: 15; color: var(--muted); }
-    .kick   { min-width: 28; min-height: 28; padding: 5; }
+    view {
+      background: sprite(Rounded8) var(--card);
+      padding: 4 8;
+      show: none;
+    }
+
+    .accent {
+      icon-color: var(--accent);
+    }
+
+    .hint {
+      font-size: 15;
+      color: var(--muted);
+    }
+
+    .kick {
+      min-width: 28;
+      min-height: 28;
+      padding: 5;
+    }
   </style>
 </view>

@@ -10,18 +10,22 @@
     <text text="{status}" class="hint" style="max-width: 300"/>
   </panel>
   <panel class="row">
-    <button onclick="Say"      key="runtime.say"   icon="pencil"     class="chip"/>
-    <button onclick="Note"     key="runtime.note"  icon="info"       class="chip ghost"/>
-    <button onclick="Lift"     icon="chevron-up" class="chip ghost"/>
-    <button onclick="Drop"     icon="x"          class="chip ghost"/>
+    <button onclick="Say" key="runtime.say" icon="pencil" class="chip"/>
+    <button onclick="Note" key="runtime.note" icon="info" class="chip ghost"/>
+    <button onclick="Lift" icon="chevron-up" class="chip ghost"/>
+    <button onclick="Drop" icon="x" class="chip ghost"/>
     <spacer/>
-    <button onclick="AskClear" key="runtime.clear" icon="trash-2"    class="chip danger"/>
+    <button onclick="AskClear" key="runtime.clear" icon="trash-2" class="chip danger"/>
   </panel>
 
   <panel class="row" style="align: start">
     <panel id="log" class="card *grow" style="gap: 4; min-height: 200"/>
     <panel style="gap: 8; min-width: 210">
-      <panel class="row"><text key="runtime.cards" class="hint"/><spacer/><button onclick="Deal" key="runtime.deal" icon="plus" class="chip"/></panel>
+      <panel class="row">
+        <text key="runtime.cards" class="hint"/>
+        <spacer/>
+        <button onclick="Deal" key="runtime.deal" icon="plus" class="chip"/>
+      </panel>
       <panel id="deck" style="gap: 6"/>
     </panel>
   </panel>
@@ -41,7 +45,10 @@
   </template>
 
   <modal id="confirm" enabled="{asking}" onclose="Cancelled" show="fade-scale">
-    <panel class="row"><icon name="triangle-alert" class="warn" size="22"/><text key="runtime.sure" class="section"/></panel>
+    <panel class="row">
+      <icon name="triangle-alert" class="warn" size="22"/>
+      <text key="runtime.sure" class="section"/>
+    </panel>
     <text key="runtime.sureHint" class="hint" wrap="true" style="max-width: 260"/>
     <panel class="row">
       <spacer/>

@@ -10,7 +10,10 @@
     <prop name="icon" default="zap"/>
     <prop name="tone" default="accent"/>
     <panel class="kpi">
-      <panel class="row" style="gap: 6"><icon name="{icon}" class="{tone}" size="16"/><text key="{label}" class="hint tile" ellipsis="true"/></panel>
+      <panel class="row" style="gap: 6">
+        <icon name="{icon}" class="{tone}" size="16"/>
+        <text key="{label}" class="hint tile" ellipsis="true"/>
+      </panel>
       <text text="{value}" class="kpi-value tile"/>
     </panel>
   </component>
@@ -20,26 +23,37 @@
 
   <panel class="row">
     <Stat id="elements" label="home.elements" value="{elemCount}" icon="library-big"/>
-    <Stat id="langs"    label="home.languages" value="{langCount}" icon="globe" tone="info"/>
-    <Stat id="players"  label="home.players"   value="{players}"   icon="users" tone="ok"/>
-    <Stat id="uptime"   label="home.uptime"    value="{uptime}"    icon="refresh-cw" tone="warn"/>
+    <Stat id="langs" label="home.languages" value="{langCount}" icon="globe" tone="info"/>
+    <Stat id="players" label="home.players" value="{players}" icon="users" tone="ok"/>
+    <Stat id="uptime" label="home.uptime" value="{uptime}" icon="refresh-cw" tone="warn"/>
   </panel>
 
   <panel class="card">
-    <panel class="row"><text key="home.progress" class="hint"/><spacer/><text text="{progressLabel}" class="hint"/></panel>
-    <panel class="bar"><panel class="fill" style="width: {progress}"/></panel>
+    <panel class="row">
+      <text key="home.progress" class="hint"/>
+      <spacer/>
+      <text text="{progressLabel}" class="hint"/>
+    </panel>
+    <panel class="bar">
+      <panel class="fill" style="width: {progress}"/>
+    </panel>
   </panel>
 
   <text key="home.tour" class="section"/>
   <panel class="grid">
-    <button onclick="GoTexts"   key="gallery.texts"   icon="pencil"   class="chip ghost"/>
-    <button onclick="GoStyles"  key="gallery.styles"  icon="sparkles" class="chip ghost"/>
-    <button onclick="GoTheme"   key="gallery.theme"   icon="eye"      class="chip ghost"/>
-    <button onclick="GoRuntime" key="gallery.runtime" icon="zap"      class="chip primary"/>
+    <button onclick="GoTexts" key="gallery.texts" icon="pencil" class="chip ghost"/>
+    <button onclick="GoStyles" key="gallery.styles" icon="sparkles" class="chip ghost"/>
+    <button onclick="GoTheme" key="gallery.theme" icon="eye" class="chip ghost"/>
+    <button onclick="GoRuntime" key="gallery.runtime" icon="zap" class="chip primary"/>
   </panel>
 
   <style>
-    .kpi-value { font: 600 24; }
-    .tile { max-width: 78; }   /* four tiles share the row whatever the longest translation is */
+    .kpi-value {
+      font: 600 24;
+    }
+
+    .tile {
+      max-width: 78;
+    }   /* four tiles share the row whatever the longest translation is */
   </style>
 </view>

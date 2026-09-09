@@ -8,21 +8,23 @@
   <panel class="row">
     <text key="states.title" class="section"/>
     <spacer/>
-    <panel class="badge"><text key="states.hits" args="{hits}"/></panel>
+    <panel class="badge">
+      <text key="states.hits" args="{hits}"/>
+    </panel>
   </panel>
   <text key="states.hint" class="hint" wrap="true" style="max-width: 540"/>
 
   <panel class="grid">
     <button onclick="Hit" key="states.normal"/>
-    <button onclick="Hit" key="states.primary"  class="primary"/>
-    <button onclick="Hit" key="states.danger"   class="danger"/>
-    <button onclick="Hit" key="states.ghost"    class="ghost"/>
+    <button onclick="Hit" key="states.primary" class="primary"/>
+    <button onclick="Hit" key="states.danger" class="danger"/>
+    <button onclick="Hit" key="states.ghost" class="ghost"/>
     <button onclick="Hit" key="states.selected" selected="{sel}"/>
     <button onclick="Hit" key="states.disabled" disabled="{off}"/>
-    <button onclick="Hit" key="states.lift"     class="lift"/>
-    <button onclick="Hit" key="states.fade"     class="fade"/>
-    <button onclick="Hit" key="states.bounce"   class="bounce"/>
-    <button onclick="Hit" key="states.outline"  class="outline"/>
+    <button onclick="Hit" key="states.lift" class="lift"/>
+    <button onclick="Hit" key="states.fade" class="fade"/>
+    <button onclick="Hit" key="states.bounce" class="bounce"/>
+    <button onclick="Hit" key="states.outline" class="outline"/>
   </panel>
 
   <panel class="row" style="align: start">
@@ -36,28 +38,76 @@
     </panel>
     <panel style="gap: 6; min-width: 190">
       <button onclick="FlipSelected" key="states.flipSelected" icon="check" class="ghost"/>
-      <button onclick="FlipDisabled" key="states.flipDisabled" icon="lock"  class="ghost"/>
-      <button onclick="CycleTone"    key="states.cycleTone"    icon="sparkles"/>
-      <button onclick="Randomize"    key="states.randomize"    icon="refresh-cw"/>
-      <button onclick="Utilities"    key="states.utilities"    icon="layout-grid" class="ghost"/>
+      <button onclick="FlipDisabled" key="states.flipDisabled" icon="lock" class="ghost"/>
+      <button onclick="CycleTone" key="states.cycleTone" icon="sparkles"/>
+      <button onclick="Randomize" key="states.randomize" icon="refresh-cw"/>
+      <button onclick="Utilities" key="states.utilities" icon="layout-grid" class="ghost"/>
     </panel>
   </panel>
 
   <style>
-    .fade         { transition: opacity 0.15s out-quad; }
-    .fade:hover   { opacity: 0.6; }
-    .fade:pressed { opacity: 0.3; }
-    .bounce         { transition: scale 0.35s out-bounce, background 0.12s out-quad, color 0.12s out-quad, icon-color 0.12s out-quad; }
-    .bounce:hover   { scale: 1.12; }
-    .bounce:pressed { scale: 0.9; }
-    .outline         { background: sprite(Rounded8) transparent; border: var(--accent); color: var(--accent); transition: border 0.15s out-quad, background 0.15s out-quad, color 0.15s out-quad; }
-    .outline:hover   { background: var(--accent); color: var(--base); }
-    .outline:pressed { border: var(--text); }
+    .fade {
+      transition: opacity 0.15s out-quad;
+    }
+
+    .fade:hover {
+      opacity: 0.6;
+    }
+
+    .fade:pressed {
+      opacity: 0.3;
+    }
+
+    .bounce {
+      transition: scale 0.35s out-bounce, background 0.12s out-quad, color 0.12s out-quad, icon-color 0.12s out-quad;
+    }
+
+    .bounce:hover {
+      scale: 1.12;
+    }
+
+    .bounce:pressed {
+      scale: 0.9;
+    }
+
+    .outline {
+      background: sprite(Rounded8) transparent;
+      border: var(--accent);
+      color: var(--accent);
+      transition: border 0.15s out-quad, background 0.15s out-quad, color 0.15s out-quad;
+    }
+
+    .outline:hover {
+      background: var(--accent);
+      color: var(--base);
+    }
+
+    .outline:pressed {
+      border: var(--text);
+    }
 
     /* Runtime-only classes for the card: the {tone} binding and AddClass reach them. */
-    .warm { background: sprite(Rounded8) var(--accent); color: var(--base); icon-color: var(--base); }
-    .cool { background: sprite(Rounded8) var(--info); color: var(--base); icon-color: var(--base); }
-    .big  { padding: 20; gap: 14; }
-    .swatch { height: 40; background: sprite(Rounded8) var(--chip); transition: background 0.3s out-quad, opacity 0.3s out-quad, scale 0.3s out-back; }
+    .warm {
+      background: sprite(Rounded8) var(--accent);
+      color: var(--base);
+      icon-color: var(--base);
+    }
+
+    .cool {
+      background: sprite(Rounded8) var(--info);
+      color: var(--base);
+      icon-color: var(--base);
+    }
+
+    .big {
+      padding: 20;
+      gap: 14;
+    }
+
+    .swatch {
+      height: 40;
+      background: sprite(Rounded8) var(--chip);
+      transition: background 0.3s out-quad, opacity 0.3s out-quad, scale 0.3s out-back;
+    }
   </style>
 </view>

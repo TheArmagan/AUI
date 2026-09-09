@@ -14,30 +14,98 @@
 
   <panel class="row" style="align: start">
     <panel class="*grow" style="gap: 8">
-      <panel class="setting"><icon name="headset" class="hint"/><text key="controls.volume"/><spacer/>
-        <slider id="volume" bind="{volume}" min="0" max="100" step="1" format-key="controls.pct" onchange="VolumeChanged"/></panel>
-      <panel class="setting"><icon name="zap" class="hint"/><text key="controls.speed"/><spacer/>
-        <slider bind="{speed}" min="0.5" max="2" step="0.05" decimals="2" format-key="controls.times" disabled="{mute}" onchange="SpeedChanged"/></panel>
-      <panel class="setting"><icon name="monitor" class="hint"/><text key="controls.quality"/><spacer/>
+      <panel class="setting">
+        <icon name="headset" class="hint"/>
+        <text key="controls.volume"/>
+        <spacer/>
+        <slider
+          id="volume"
+          bind="{volume}"
+          min="0"
+          max="100"
+          step="1"
+          format-key="controls.pct"
+          onchange="VolumeChanged"
+        />
+      </panel>
+      <panel class="setting">
+        <icon name="zap" class="hint"/>
+        <text key="controls.speed"/>
+        <spacer/>
+        <slider
+          bind="{speed}"
+          min="0.5"
+          max="2"
+          step="0.05"
+          decimals="2"
+          format-key="controls.times"
+          disabled="{mute}"
+          onchange="SpeedChanged"
+        />
+      </panel>
+      <panel class="setting">
+        <icon name="monitor" class="hint"/>
+        <text key="controls.quality"/>
+        <spacer/>
         <select id="quality" bind="{quality}" onchange="QualityChanged">
           <option value="low" key="controls.low"/>
           <option value="medium" key="controls.medium"/>
           <option value="high" key="controls.high"/>
-        </select></panel>
-      <panel class="setting"><icon name="globe" class="hint"/><text key="controls.region"/><spacer/>
+        </select>
+      </panel>
+      <panel class="setting">
+        <icon name="globe" class="hint"/>
+        <text key="controls.region"/>
+        <spacer/>
         <select id="region" bind="{region}" max="6" onchange="RegionChanged">
           <option value="auto" key="controls.auto"/>
-        </select></panel>
-      <panel class="setting"><icon name="user" class="hint"/><text key="controls.nick"/><spacer/>
-        <input id="nick" bind="{nick}" placeholder-key="controls.nickHint" maxlength="16" onsubmit="NickSubmitted"/></panel>
-      <panel class="setting"><icon name="external-link" class="hint"/><text key="controls.link"/><spacer/>
-        <input id="link" type="url" bind="{link}" placeholder-key="controls.linkHint" onsubmit="LinkSubmitted"/></panel>
+        </select>
+      </panel>
+      <panel class="setting">
+        <icon name="user" class="hint"/>
+        <text key="controls.nick"/>
+        <spacer/>
+        <input
+          id="nick"
+          bind="{nick}"
+          placeholder-key="controls.nickHint"
+          maxlength="16"
+          onsubmit="NickSubmitted"
+        />
+      </panel>
+      <panel class="setting">
+        <icon name="external-link" class="hint"/>
+        <text key="controls.link"/>
+        <spacer/>
+        <input
+          id="link"
+          type="url"
+          bind="{link}"
+          placeholder-key="controls.linkHint"
+          onsubmit="LinkSubmitted"
+        />
+      </panel>
     </panel>
 
     <panel style="gap: 8; min-width: 176">
       <toggle id="mute" bind="{mute}" key="controls.mute" icon="check" onchange="MuteChanged"/>
-      <button id="ping" onclick="Ping" onhover="Hovering" onleave="Unhover" key="controls.ping" icon="zap" disabled="{locked}" class="primary"/>
-      <button onclick="ToggleLock" key="controls.lock" icon="lock" selected="{locked}" class="ghost"/>
+      <button
+        id="ping"
+        onclick="Ping"
+        onhover="Hovering"
+        onleave="Unhover"
+        key="controls.ping"
+        icon="zap"
+        disabled="{locked}"
+        class="primary"
+      />
+      <button
+        onclick="ToggleLock"
+        key="controls.lock"
+        icon="lock"
+        selected="{locked}"
+        class="ghost"
+      />
       <panel id="banner" class="row" if="{mute}" style="gap: 6">
         <icon name="triangle-alert" class="warn" size="16"/>
         <text key="controls.muted" class="hint" wrap="true" style="max-width: 140"/>

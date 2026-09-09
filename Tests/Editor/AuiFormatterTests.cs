@@ -178,6 +178,12 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void EmptyRuleStaysOnOneLine()
+        {
+            Assert.AreEqual("text {}\n\n.a {\n  gap: 1;\n}\n", AuiFormatter.FormatSheet("text { }\n.a { gap: 1 }"));
+        }
+
+        [Test]
         public void FormattingIsIdempotent()
         {
             string once = AuiFormatter.FormatMarkup(AuiCodegenTests.Demo);

@@ -6,7 +6,9 @@
   <panel class="row">
     <text key="langdemo.title" class="section"/>
     <spacer/>
-    <panel class="badge"><text text="{code}"/></panel>
+    <panel class="badge">
+      <text text="{code}"/>
+    </panel>
   </panel>
   <text key="langdemo.hint" class="hint" wrap="true" style="max-width: 540"/>
 
@@ -18,7 +20,7 @@
   <AuiLanguagePicker/>
 
   <panel class="row">
-    <button onclick="Next"  key="langdemo.next"  icon="chevron-right"/>
+    <button onclick="Next" key="langdemo.next" icon="chevron-right"/>
     <button onclick="Reset" key="langdemo.reset" icon="refresh-cw" class="ghost"/>
   </panel>
 </view>

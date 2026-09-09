@@ -13,30 +13,83 @@
   <text key="theme.hint" class="hint" wrap="true" style="max-width: 540"/>
 
   <panel class="grid">
-    <button onclick="Ember"  key="theme.ember"  icon="sparkles" class="preset" style="icon-color: #E0A86A"/>
-    <button onclick="Ocean"  key="theme.ocean"  icon="sparkles" class="preset" style="icon-color: #5FB4E8"/>
-    <button onclick="Forest" key="theme.forest" icon="sparkles" class="preset" style="icon-color: #7FD08A"/>
-    <button onclick="Rose"   key="theme.rose"   icon="sparkles" class="preset" style="icon-color: #F08CB0"/>
-    <button onclick="Mono"   key="theme.mono"   icon="sparkles" class="preset" style="icon-color: #E6E6E6"/>
+    <button
+      onclick="Ember"
+      key="theme.ember"
+      icon="sparkles"
+      class="preset"
+      style="icon-color: #E0A86A"
+    />
+    <button
+      onclick="Ocean"
+      key="theme.ocean"
+      icon="sparkles"
+      class="preset"
+      style="icon-color: #5FB4E8"
+    />
+    <button
+      onclick="Forest"
+      key="theme.forest"
+      icon="sparkles"
+      class="preset"
+      style="icon-color: #7FD08A"
+    />
+    <button
+      onclick="Rose"
+      key="theme.rose"
+      icon="sparkles"
+      class="preset"
+      style="icon-color: #F08CB0"
+    />
+    <button
+      onclick="Mono"
+      key="theme.mono"
+      icon="sparkles"
+      class="preset"
+      style="icon-color: #E6E6E6"
+    />
   </panel>
 
   <panel class="card" style="gap: 6">
-    <panel class="setting"><text key="theme.hue"/><spacer/><slider bind="{hue}" min="0" max="360" step="1" format-key="theme.deg" onchange="HueChanged"/></panel>
-    <panel class="setting"><text key="theme.density"/><spacer/><slider bind="{pad}" min="4" max="24" step="1" format-key="theme.mm" onchange="PadChanged"/></panel>
-    <panel class="setting"><text key="theme.lift"/><spacer/><slider bind="{lift}" min="0" max="100" step="1" format-key="theme.pct" onchange="LiftChanged"/></panel>
+    <panel class="setting">
+      <text key="theme.hue"/>
+      <spacer/>
+      <slider bind="{hue}" min="0" max="360" step="1" format-key="theme.deg" onchange="HueChanged"/>
+    </panel>
+    <panel class="setting">
+      <text key="theme.density"/>
+      <spacer/>
+      <slider bind="{pad}" min="4" max="24" step="1" format-key="theme.mm" onchange="PadChanged"/>
+    </panel>
+    <panel class="setting">
+      <text key="theme.lift"/>
+      <spacer/>
+      <slider
+        bind="{lift}"
+        min="0"
+        max="100"
+        step="1"
+        format-key="theme.pct"
+        onchange="LiftChanged"
+      />
+    </panel>
   </panel>
 
   <panel class="row">
     <text key="theme.preview" class="hint"/>
     <button onclick="Sample" key="theme.sample" class="primary chip"/>
     <button onclick="Sample" key="theme.sample" class="ghost chip"/>
-    <panel class="badge"><text text="{accentNow}"/></panel>
+    <panel class="badge">
+      <text text="{accentNow}"/>
+    </panel>
     <spacer/>
     <button onclick="Reset" key="theme.reset" icon="refresh-cw" class="ghost"/>
   </panel>
 
   <style>
     /* Preset buttons keep their own icon tint in every state (the inline style sits in the top tier). */
-    .preset:hover { icon-color: var(--base); }
+    .preset:hover {
+      icon-color: var(--base);
+    }
   </style>
 </view>

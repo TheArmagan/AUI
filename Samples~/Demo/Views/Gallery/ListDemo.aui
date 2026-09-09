@@ -8,11 +8,29 @@
   <panel class="row">
     <text key="lists.title" class="section"/>
     <spacer/>
-    <button onclick="Add"     key="lists.add"  icon="plus"          class="chip"/>
-    <button onclick="Remove"  icon="x"             class="chip ghost" onhover="HintRemove"  onleave="HintClear"/>
-    <button onclick="Shuffle" icon="refresh-cw"    class="chip ghost" onhover="HintShuffle" onleave="HintClear"/>
-    <button onclick="Sort"    icon="arrow-up-down" class="chip ghost" onhover="HintSort"    onleave="HintClear"/>
-    <button onclick="Clear"   icon="trash-2"       class="chip ghost" onhover="HintClearAll" onleave="HintClear"/>
+    <button onclick="Add" key="lists.add" icon="plus" class="chip"/>
+    <button onclick="Remove" icon="x" class="chip ghost" onhover="HintRemove" onleave="HintClear"/>
+    <button
+      onclick="Shuffle"
+      icon="refresh-cw"
+      class="chip ghost"
+      onhover="HintShuffle"
+      onleave="HintClear"
+    />
+    <button
+      onclick="Sort"
+      icon="arrow-up-down"
+      class="chip ghost"
+      onhover="HintSort"
+      onleave="HintClear"
+    />
+    <button
+      onclick="Clear"
+      icon="trash-2"
+      class="chip ghost"
+      onhover="HintClearAll"
+      onleave="HintClear"
+    />
   </panel>
   <panel class="row">
     <text key="lists.count" args="{count} {picked}" class="hint"/>
@@ -22,25 +40,64 @@
 
   <repeat id="board" max="5" onselect="Pick" class="card" style="gap: 4">
     <button class="line" selected="{item.picked}">
-      <panel class="badge"><text text="{item.rank}"/></panel>
+      <panel class="badge">
+        <text text="{item.rank}"/>
+      </panel>
       <icon name="user" class="hint"/>
       <text text="{item.name}" style="min-width: 130; max-width: 130; text-align: left"/>
       <spacer/>
-      <text text="{item.score}" class="accent *font-semibold" style="min-width: 70; text-align: right"/>
+      <text
+        text="{item.score}"
+        class="accent *font-semibold"
+        style="min-width: 70; text-align: right"
+      />
       <toggle bind="{item.fav}" icon="heart" onchange="FavChanged" class="fav"/>
     </button>
-    <empty><panel class="row"><icon name="info" class="info"/><text key="lists.empty" class="hint"/></panel></empty>
+    <empty>
+      <panel class="row">
+        <icon name="info" class="info"/>
+        <text key="lists.empty" class="hint"/>
+      </panel>
+    </empty>
   </repeat>
 
   <repeat id="tags" max="8" onselect="PickTag" class="grid">
-    <button class="chip" selected="{item.on}"><icon name="tag" size="14"/><text text="{item.label}" style="max-width: 80"/></button>
+    <button class="chip" selected="{item.on}">
+      <icon name="tag" size="14"/>
+      <text text="{item.label}" style="max-width: 80"/>
+    </button>
   </repeat>
 
   <style>
-    .line { justify: start; padding: 4 10; min-height: 34; background: sprite(Rounded8) transparent; }
-    .line:hover { background: var(--chip); color: var(--text); icon-color: var(--text); }
-    .line:selected { background: var(--panel); color: var(--text); icon-color: var(--text); }
-    .fav { min-width: 28; min-height: 28; padding: 5; background: sprite(Rounded8) transparent; }
-    .fav:selected { background: sprite(Rounded8) transparent; icon-color: var(--bad); }
+    .line {
+      justify: start;
+      padding: 4 10;
+      min-height: 34;
+      background: sprite(Rounded8) transparent;
+    }
+
+    .line:hover {
+      background: var(--chip);
+      color: var(--text);
+      icon-color: var(--text);
+    }
+
+    .line:selected {
+      background: var(--panel);
+      color: var(--text);
+      icon-color: var(--text);
+    }
+
+    .fav {
+      min-width: 28;
+      min-height: 28;
+      padding: 5;
+      background: sprite(Rounded8) transparent;
+    }
+
+    .fav:selected {
+      background: sprite(Rounded8) transparent;
+      icon-color: var(--bad);
+    }
   </style>
 </view>

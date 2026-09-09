@@ -6,34 +6,54 @@
   <panel class="row">
     <icon name="wand-sparkles" size="24" class="accent"/>
     <text key="gallery.title" class="title"/>
-    <panel class="badge"><text text="{version}"/></panel>
+    <panel class="badge">
+      <text text="{version}"/>
+    </panel>
     <spacer/>
     <text key="gallery.summary" args="{pass} {fail}" class="hint"/>
   </panel>
 
   <panel class="row body">
     <tabs bind="{page}" class="side" onchange="PageChanged">
-      <tab page="home"     key="gallery.home"     icon="house"/>
-      <tab page="texts"    key="gallery.texts"    icon="pencil"/>
+      <tab page="home" key="gallery.home" icon="house"/>
+      <tab page="texts" key="gallery.texts" icon="pencil"/>
       <tab page="controls" key="gallery.controls" icon="sliders-horizontal"/>
-      <tab page="lists"    key="gallery.lists"    icon="layout-grid"/>
-      <tab page="layout"   key="gallery.layout"   icon="arrow-up-down"/>
-      <tab page="styles"   key="gallery.styles"   icon="sparkles"/>
-      <tab page="theme"    key="gallery.theme"    icon="eye"/>
-      <tab page="runtime"  key="gallery.runtime"  icon="zap"/>
-      <tab page="lang"     key="gallery.language" icon="globe"/>
-      <tab page="log"      key="gallery.log"      icon="library-big"/>
+      <tab page="lists" key="gallery.lists" icon="layout-grid"/>
+      <tab page="layout" key="gallery.layout" icon="arrow-up-down"/>
+      <tab page="styles" key="gallery.styles" icon="sparkles"/>
+      <tab page="theme" key="gallery.theme" icon="eye"/>
+      <tab page="runtime" key="gallery.runtime" icon="zap"/>
+      <tab page="lang" key="gallery.language" icon="globe"/>
+      <tab page="log" key="gallery.log" icon="library-big"/>
     </tabs>
     <pages id="main" mode="crossfade">
-      <page id="home"><HomeDemo on-navigate="Navigate"/></page>
-      <page id="texts"><TextsDemo on-changed="TextsChanged"/></page>
-      <page id="controls"><ControlsDemo on-changed="ControlsChanged" on-ping="ControlsPinged"/></page>
-      <page id="lists"><ListDemo on-changed="ListChanged" on-picked="ListPicked"/></page>
-      <page id="layout"><LayoutDemo on-changed="LayoutChanged"/></page>
-      <page id="styles"><StatesDemo on-hit="StatesHit" on-changed="StatesChanged"/></page>
-      <page id="theme"><ThemeDemo on-changed="ThemeChanged"/></page>
-      <page id="runtime"><RuntimeDemo on-changed="RuntimeChanged"/></page>
-      <page id="lang"><LangDemo on-changed="LangChanged"/></page>
+      <page id="home">
+        <HomeDemo on-navigate="Navigate"/>
+      </page>
+      <page id="texts">
+        <TextsDemo on-changed="TextsChanged"/>
+      </page>
+      <page id="controls">
+        <ControlsDemo on-changed="ControlsChanged" on-ping="ControlsPinged"/>
+      </page>
+      <page id="lists">
+        <ListDemo on-changed="ListChanged" on-picked="ListPicked"/>
+      </page>
+      <page id="layout">
+        <LayoutDemo on-changed="LayoutChanged"/>
+      </page>
+      <page id="styles">
+        <StatesDemo on-hit="StatesHit" on-changed="StatesChanged"/>
+      </page>
+      <page id="theme">
+        <ThemeDemo on-changed="ThemeChanged"/>
+      </page>
+      <page id="runtime">
+        <RuntimeDemo on-changed="RuntimeChanged"/>
+      </page>
+      <page id="lang">
+        <LangDemo on-changed="LangChanged"/>
+      </page>
       <page id="log">
         <panel class="row">
           <text key="gallery.logTitle" class="hint"/>
@@ -45,7 +65,9 @@
             <text text="{item.time}" class="hint" style="min-width: 52"/>
             <text text="{item.line}" style="font-size: 15; max-width: 440"/>
           </panel>
-          <empty><text key="gallery.logEmpty" class="hint"/></empty>
+          <empty>
+            <text key="gallery.logEmpty" class="hint"/>
+          </empty>
         </repeat>
       </page>
     </pages>
@@ -59,10 +81,33 @@
 
   <style>
     /* The theme lays tabs out in a row; this view turns them into a sidebar. */
-    view { background: sprite(Rounded12) var(--base); padding: 16; gap: 12; show: fade-scale; }
-    .body { align: stretch; grow: 1; }
-    .side { flex-direction: column; gap: 4; width: 150; align: stretch; }
-    tab   { justify: start; padding: 8 12; font: 500 16; }
-    pages { grow: 1; }
+    view {
+      background: sprite(Rounded12) var(--base);
+      padding: 16;
+      gap: 12;
+      show: fade-scale;
+    }
+
+    .body {
+      align: stretch;
+      grow: 1;
+    }
+
+    .side {
+      flex-direction: column;
+      gap: 4;
+      width: 150;
+      align: stretch;
+    }
+
+    tab {
+      justify: start;
+      padding: 8 12;
+      font: 500 16;
+    }
+
+    pages {
+      grow: 1;
+    }
   </style>
 </view>

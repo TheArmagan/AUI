@@ -383,6 +383,13 @@ namespace Armagan.AUI.Core
                     sb.Append("   ").Append(t.Text);
                     continue;
                 }
+                // An empty rule closes on the same line: `text {}`, not a brace alone on the next.
+                if (t.Kind == SKind.Close && prev == SKind.Selector)
+                {
+                    sb.Append('}');
+                    prev = t.Kind;
+                    continue;
+                }
                 if (!atLineStart) sb.Append('\n');
                 // ONE BLANK LINE BETWEEN RULES, always: after a '}' the next rule or comment gets
                 // one whether the source had it or not. A comment directly above a rule stays

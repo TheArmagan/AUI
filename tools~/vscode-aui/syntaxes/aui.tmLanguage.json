@@ -58,7 +58,7 @@
           "patterns": [{ "include": "source.css.auis#declarations" }]
         },
         {
-          "match": "\\b(on[a-z-]+)\\s*(=)",
+          "match": "\\b(on[A-Za-z0-9-]+)\\s*(=)",
           "captures": { "1": { "name": "entity.other.attribute-name.event.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
         },
         {
@@ -66,7 +66,7 @@
           "captures": { "1": { "name": "entity.other.attribute-name.key.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
         },
         {
-          "match": "\\b([a-z][a-z0-9-]*)\\s*(=)",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_-]*)\\s*(=)",
           "captures": { "1": { "name": "entity.other.attribute-name.aui" }, "2": { "name": "punctuation.separator.key-value.aui" } }
         },
         { "match": "\\b(hidden|wrap|ellipsis|runtime|start-hidden)\\b", "name": "entity.other.attribute-name.flag.aui" },
