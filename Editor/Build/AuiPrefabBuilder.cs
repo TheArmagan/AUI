@@ -48,7 +48,8 @@ namespace Armagan.AUI.Editor
         //     resizes to count * selectOptionH ends where the last row does.
         // 18: <text max-lines>, <text runtime>, <input maxlength> (elemInputMax) finally do something;
         //     the compile hash covers the rule table and the per-language widths.
-        public const int BuilderVersion = 18;
+        // 19: <input type="url"> (elemInputType): armed on the panel's VRCUrlInputField.
+        public const int BuilderVersion = 19;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -1287,16 +1288,19 @@ namespace Armagan.AUI.Editor
             v.sigElem = c.SigElem; v.signals = c.Signals;
             v.auiBakeHash = BakeStamp(r);
 
-            // ---- <input maxlength>: -1 (no limit) for everything else. Indexed like every elem* table.
+            // ---- <input maxlength> (-1 = no limit) and <input type> (0 text, 1 url), indexed like every elem* table.
             var inputMax = new int[c.N];
+            var inputType = new int[c.N];
             for (int e = 0; e < c.N; e++)
             {
                 inputMax[e] = -1;
                 AuiNode node = e < r.Map.NodeOf.Length ? r.Map.NodeOf[e] : null;
                 int ml;
                 if (node != null && node.Tag == "input" && int.TryParse(node.Get("maxlength") ?? "", out ml) && ml > 0) inputMax[e] = ml;
+                if (AuiAnalyzer.IsUrlInput(node)) inputType[e] = AuiView.INPUT_URL;
             }
             v.elemInputMax = inputMax;
+            v.elemInputType = inputType;
 
             // ---- view transition
             AuiResolvedStyle rs = r.Styles[r.Doc.Root.Index];

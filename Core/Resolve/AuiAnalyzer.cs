@@ -633,6 +633,16 @@ namespace Armagan.AUI.Core
                     if (n.Tag == "image" && a.Value != "simple" && a.Value != "sliced" && a.Value != "fit")
                         d.Error(AuiCodes.BadAttributeValue, "image mode must be simple, sliced or fit.", a.ValueLine, a.ValueColumn, a.Value.Length);
                     break;
+                case "type":
+                    if (n.Tag == "input")
+                    {
+                        if (a.Value != "text" && a.Value != "url")
+                            d.Error(AuiCodes.BadAttributeValue, "input type must be text or url.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                        // The URL field is VRChat's own component; its text is not ours to cut.
+                        else if (a.Value == "url" && n.Get("maxlength") != null)
+                            d.Warning(AuiCodes.BadAttributeValue, "maxlength is ignored on a url input; VRChat's URL field owns the text.", n.FindAttribute("maxlength").Line, n.FindAttribute("maxlength").Column, 9);
+                    }
+                    break;
                 case "wrap":
                 case "ellipsis":
                 case "runtime":
@@ -673,6 +683,12 @@ namespace Armagan.AUI.Core
         public static bool IsBindingValue(string v)
         {
             return v != null && v.Length > 2 && v[0] == '{' && v[v.Length - 1] == '}';
+        }
+
+        /// <summary>&lt;input type="url"&gt;: armed on VRChat's VRCUrlInputField, submits a VRCUrl.</summary>
+        public static bool IsUrlInput(AuiNode n)
+        {
+            return n != null && n.Tag == "input" && n.Get("type") == "url";
         }
 
         public static string BindingName(string v)
@@ -741,7 +757,9 @@ namespace Armagan.AUI.Core
                     h.ParamType = n.Tag == "toggle" ? "bool" : n.Tag == "slider" ? "float" : "int";
                     break;
                 case "onsubmit":
-                    h.ParamType = "string";
+                    // A url input's submit is the VRCUrl itself: Udon cannot build one from a string,
+                    // so handing over the text would leave the author with nothing loadable.
+                    h.ParamType = IsUrlInput(n) ? "VRCUrl" : "string";
                     break;
                 case "onselect":
                     h.HasRow = true; // the repeat's own row event

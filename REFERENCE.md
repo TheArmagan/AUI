@@ -237,7 +237,7 @@ once, so the glyph is stuck outside the button forever, see §15).
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"`; events `onclick onhover onleave onpress onrelease` | any | |
 | `toggle` | `bind="{b}"`, `key`, `icon`, `disabled`; events `onchange` + pointer | any | a Button with a selected state; the icon is the "on" mark |
 | `slider` | `bind="{f}"`, `min`, `max`, `step` (>=1 means whole numbers), `format-key`, `decimals`, `disabled`; `onchange` | none | `format-key` text contains `{value}` |
-| `input` | `bind="{s}"`, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel with the element's `maxlength` (baked in `elemInputMax`); the panel cuts a longer submission |
+| `input` | `bind="{s}"`, `type` text/url, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel with the element's `maxlength` (baked in `elemInputMax`); the panel cuts a longer submission. `type="url"` (baked in `elemInputType`) arms the panel's `VRCUrlInputField` instead and `onsubmit` takes a `VRCUrl`: Udon cannot build one from a string, so the field's own result is the only loadable form. The bound string gets the URL's text; `GetInputUrl(e)` the last VRCUrl, which the next click hands back to the field |
 | `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` bakes that many rows, the ones past the authored options starting inactive and empty for `SetSelectOptionLabel` to fill. The popup resizes to the rows that are showing. Not inside a `repeat`/`template` (nor `pages`/`tabs`): the index map adds the popup and scrim per node, not per row (AUI112) |
 | `option` | `value`, `key` or literal | none | must be under `select`; `value` is a name for the reader and is not baked (the select reports the index) |
 | `tabs` | `bind="{i}"`, `for` (pages id); `onchange` | `tab` | `for` is required when a view has more than one `pages` |
@@ -643,7 +643,13 @@ remembered in PlayerData `aui.lang` as the code, after `OnPlayerRestored`. `Twee
 and `ProbeDone()` come from a `VRCTween.DelayedCall` at 0.05 s raced against a plain delayed event
 at 1 s.
 
-`AuiInputPanel`: `OpenText(initial, view, elemId)`, `OpenTextMax(initial, view, elemId, maxLength)`
+`AuiInputPanel`: two click targets under one root, each its own canvas and collider (`Text
+Panel` with a `TMP_InputField`, `Url Panel` with a `VRCUrlInputField`; two raycast targets on
+one canvas would fight for the click, and a nested canvas under a disabled parent does not
+draw). `OpenUrl(initialVrcUrl, view, elemId)` arms the url panel; on its `On End Edit` (which
+VRChat does raise for that field) it writes `view.inputResultUrl = GetUrl()`, `inputResult =
+url.Get()`, `inputResultId`, and calls `view._OnInputResultUrl()`, which remembers the url per
+element and runs `_OnInputResult`. `OpenText(initial, view, elemId)`, `OpenTextMax(initial, view, elemId, maxLength)`
 (the view calls this one, with the element's `maxlength`; a longer submission is cut in the
 panel rather than through `TMP_InputField.characterLimit`, whose Udon exposure is unverified),
 `Cancel()`, `IsOpen()`; on submit writes `view.inputResult`, `view.inputResultId` and calls
@@ -697,7 +703,8 @@ For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
 
 Handler signatures the author must provide (a missing one is a plain C# error): `void H()` for
 onclick and pointer events, `void H(bool value)` toggle onchange, `void H(float value)` slider
-onchange, `void H(int value)` select/tabs/pages onchange, `void H(string value)` onsubmit,
+onchange, `void H(int value)` select/tabs/pages onchange, `void H(string value)` onsubmit
+(`void H(VRCUrl value)` for `type="url"`; both halves carry `using VRC.SDKBase;`),
 `void H(int row)` onselect; inside a repeat every handler gets `int row` first. The same name
 used twice must have the same signature (AUI108). Binding names that collide with AuiView members
 are refused (`Lang`, `Content`, `Show`, `Hide`, ... see `AuiCodegen.Reserved`).

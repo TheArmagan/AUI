@@ -80,6 +80,8 @@
     "high": "高",
     "nick": "ニックネーム",
     "nickHint": "何か入力",
+    "link": "リンク",
+    "linkHint": "URLを貼り付け",
     "mute": "ミュート",
     "muted": "ミュート中: 速度は無効",
     "region": "リージョン",

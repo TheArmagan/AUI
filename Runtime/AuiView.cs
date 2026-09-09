@@ -2,6 +2,7 @@ using UdonSharp;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using VRC.SDKBase;
 using VRC.SDK3.Components;
 
 namespace Armagan.AUI
@@ -116,6 +117,11 @@ namespace Armagan.AUI
         [HideInInspector] public int inputResultId = -1;
         /// <summary>&lt;input maxlength&gt; per element, -1 when unlimited (BuilderVersion 18; older prefabs have no table).</summary>
         [HideInInspector] public int[] elemInputMax;
+        public const int INPUT_TEXT = 0, INPUT_URL = 1;
+        /// <summary>&lt;input type&gt; per element, INPUT_* (BuilderVersion 19).</summary>
+        [HideInInspector] public int[] elemInputType;
+        /// <summary>The VRCUrl a url input submitted, written by AuiInputPanel next to inputResult (its text). Udon cannot build one from a string; this is the loadable form.</summary>
+        [HideInInspector] public VRCUrl inputResultUrl;
 
         [Header("Nesting (baked)")]
         [Tooltip("The view this one is embedded in, if any. Emit() reports to it.")]
@@ -146,6 +152,8 @@ namespace Armagan.AUI
         private int _selectSeq;
         private bool _tweensCached, _tweensOk;
         private string[] _inputValue;
+        /// <summary>The last VRCUrl each url input submitted, handed back to the field on the next click so the player edits rather than retypes.</summary>
+        private VRCUrl[] _inputUrl;
         private bool _broken;
 
         // ================================================================ lifecycle
@@ -170,6 +178,7 @@ namespace Armagan.AUI
             // indexed a null array and halted the parent's start chain along with this view.
             _inputValue = new string[n];
             for (int i = 0; i < n; i++) _inputValue[i] = "";
+            _inputUrl = new VRCUrl[n];
             _hover = new bool[_signalCount];
             _press = new bool[_signalCount];
             _selected = new bool[_signalCount];
@@ -532,7 +541,12 @@ namespace Armagan.AUI
                 // The stored value is the ESCAPED one (a zero-width space after every '<'). The
                 // keyboard gets the raw text back, or every round trip through the bound setter
                 // would add one more space: "<3" became "<​3", then "<​​3".
-                else if (k == KIND_INPUT) { if (inputPanel != null) inputPanel.OpenTextMax(_inputValue[e].Replace("​", ""), this, e, InputMaxLength(e)); }
+                else if (k == KIND_INPUT)
+                {
+                    if (inputPanel == null) { }
+                    else if (InputType(e) == INPUT_URL) inputPanel.OpenUrl(_inputUrl[e], this, e);
+                    else inputPanel.OpenTextMax(_inputValue[e].Replace("​", ""), this, e, InputMaxLength(e));
+                }
                 else if (k == KIND_SELECT) { ToggleSelect(e); }
                 else if (k == KIND_SCRIM) { CloseSelect(); }
                 else if (k == KIND_MODAL_SCRIM) { ClickModalScrim(e); }
@@ -934,6 +948,25 @@ namespace Armagan.AUI
         public int InputMaxLength(int elem)
         {
             return elemInputMax != null && elem >= 0 && elem < elemInputMax.Length ? elemInputMax[elem] : -1;
+        }
+
+        /// <summary>INPUT_TEXT or INPUT_URL for an input element (text for a prefab built before the table existed).</summary>
+        public int InputType(int elem)
+        {
+            return elemInputType != null && elem >= 0 && elem < elemInputType.Length ? elemInputType[elem] : INPUT_TEXT;
+        }
+
+        /// <summary>The VRCUrl a url input last submitted, or null. The loadable form of the bound string.</summary>
+        public VRCUrl GetInputUrl(int elem)
+        {
+            return _inputUrl != null && elem >= 0 && elem < _inputUrl.Length ? _inputUrl[elem] : null;
+        }
+
+        /// <summary>AuiInputPanel's url submit: inputResultUrl / inputResult / inputResultId are set; remember the url, then the generated _OnInputResult runs.</summary>
+        public void _OnInputResultUrl()
+        {
+            if (_inputUrl != null && inputResultId >= 0 && inputResultId < _inputUrl.Length) _inputUrl[inputResultId] = inputResultUrl;
+            _OnInputResult();
         }
 
         /// <summary>Shows a bound value in an input box, or its translated placeholder when empty.</summary>

@@ -22,6 +22,7 @@ public void Buy() { }
 | `onchange` | `select` | `void Name(int index)` |
 | `onchange` | `tabs`, `pages` | `void Name(int page)` |
 | `onsubmit` | `input` | `void Name(string value)` |
+| `onsubmit` | `input type="url"` | `void Name(VRCUrl value)` |
 | `onselect` | `repeat` | `void Name(int row)` |
 | `onopen`, `onclose` | `modal` | `void Name()` |
 | `on-<event>` | a nested view | matches the child's `<event type>` |

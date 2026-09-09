@@ -50,10 +50,13 @@ bool TweensAvailable();         // false under ClientSim, where VRCTween is iner
 
 ## AuiInputPanel
 
-One per scene, on a GameObject named `AUI Input Panel`. The invisible click target behind every
-`<input>`, because no Udon API opens VRChat's keyboard directly.
+One per scene, on a GameObject named `AUI Input Panel`. The invisible click targets behind every
+`<input>`, because no Udon API opens VRChat's keyboard directly: a `Text Panel` with a
+`TMP_InputField`, and a `Url Panel` with VRChat's own `VRCUrlInputField` for `<input type="url">`.
+Each is its own canvas and collider; one is enabled at a time.
 
-Create it with `AUI/Rebuild Input Panel`.
+Create it with `AUI/Rebuild Input Panel`. Re-run it on a scene built before the url panel existed;
+the builder moves the old text field under `Text Panel` and adds the url one.
 
 | Field | Default | Meaning |
 |---|---|---|

@@ -167,6 +167,7 @@ namespace Armagan.AUI.Core
                 L("// </auto-generated>");
                 L("using UdonSharp;");
                 L("using UnityEngine;");
+                L("using VRC.SDKBase;");
                 L("using Armagan.AUI;");
                 L();
                 bool ns = true;
@@ -841,12 +842,15 @@ namespace Armagan.AUI.Core
                     AuiBinding b = BindingFor(n, n.Get("bind") ?? "");
                     string h = n.Get("onsubmit");
                     bool inRow = Stride(n) > 0;
+                    // A url input's bound string is the URL's text (for display); its handler gets
+                    // the VRCUrl the panel read off VRChat's field, which is the only loadable form.
+                    bool url = AuiAnalyzer.IsUrlInput(n);
                     if (!inRow)
                     {
                         Open("if (inputResultId == " + E(n) + ")");
                         if (b != null) L(b.PropertyName + " = inputResult;");
                         else L("RenderInput(" + E(n) + ", Escape(inputResult));");
-                        if (h != null) L(h + "(" + (b != null ? AuiNaming.Field(b.Name) : "Escape(inputResult)") + ");");
+                        if (h != null) L(h + "(" + (url ? "inputResultUrl" : b != null ? AuiNaming.Field(b.Name) : "Escape(inputResult)") + ");");
                         L("return;");
                         Close();
                     }
@@ -858,7 +862,7 @@ namespace Armagan.AUI.Core
                         L("int row = (inputResultId - " + b0 + ") / " + st + ";");
                         L("string v = Escape(inputResult);");
                         L("RenderInput(inputResultId, v);");
-                        if (h != null) L(h + "(row, v);");
+                        if (h != null) L(h + "(row, " + (url ? "inputResultUrl" : "v") + ");");
                         L("return;");
                         Close();
                     }

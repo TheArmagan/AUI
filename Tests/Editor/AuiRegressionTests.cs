@@ -206,6 +206,40 @@ namespace Armagan.AUI.Tests
             Assert.AreEqual(2, bad.Count, string.Join("\n", bag.Items));
         }
 
+        // ---------------------------------------------------------------- <input type="url">
+
+        [Test]
+        public void UrlInputHandlerTakesAVrcUrl()
+        {
+            AuiDiagnosticBag bag;
+            AuiViewInfo v = Analyze("<view name=\"Demo\"><input type=\"url\" bind=\"{link}\" onsubmit=\"LinkSubmitted\"/><input bind=\"{nick}\" onsubmit=\"NickSubmitted\"/></view>", out bag);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items));
+            Assert.AreEqual("void LinkSubmitted(VRCUrl value)", v.FindHandler("LinkSubmitted").Signature);
+            Assert.AreEqual("void NickSubmitted(string value)", v.FindHandler("NickSubmitted").Signature);
+            Assert.AreEqual(AuiBindingType.String, v.FindBinding("link", null).Type);
+        }
+
+        [Test]
+        public void UrlInputTypeIsValidatedAndMaxlengthWarns()
+        {
+            AuiDiagnosticBag bag;
+            Analyze("<view name=\"Demo\"><input type=\"email\" bind=\"{a}\"/><input type=\"url\" maxlength=\"8\" bind=\"{b}\"/></view>", out bag);
+            Assert.AreEqual(1, bag.Items.Count(x => x.Code == AuiCodes.BadAttributeValue && x.Severity == AuiSeverity.Error));
+            Assert.AreEqual(1, bag.Items.Count(x => x.Code == AuiCodes.BadAttributeValue && x.Severity == AuiSeverity.Warning && x.Message.Contains("maxlength")));
+        }
+
+        [Test]
+        public void UrlInputCodegenPassesTheUrlToTheHandler()
+        {
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            string src = AuiCodegenTests.Generate("<view name=\"Demo\"><input id=\"link\" type=\"url\" bind=\"{link}\" onsubmit=\"LinkSubmitted\"/><repeat id=\"rows\" max=\"2\"><input type=\"url\" onsubmit=\"RowLink\"/></repeat></view>", out bag, out map);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items));
+            StringAssert.Contains("using VRC.SDKBase;", src);
+            StringAssert.Contains("Link = inputResult;", src);
+            StringAssert.Contains("LinkSubmitted(inputResultUrl);", src);
+            StringAssert.Contains("RowLink(row, inputResultUrl);", src);
+        }
+
         // ---------------------------------------------------------------- codegen
 
         [Test]

@@ -80,6 +80,8 @@
     "high": "Yüksek",
     "nick": "Takma ad",
     "nickHint": "Bir şey yaz",
+    "link": "Bağlantı",
+    "linkHint": "Bir URL yapıştır",
     "mute": "Sessiz",
     "muted": "Sessiz: hız devre dışı",
     "region": "Bölge",

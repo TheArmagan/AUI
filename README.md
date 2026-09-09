@@ -213,7 +213,7 @@ objects.
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"` | `onclick`: `void H()` |
 | `toggle` | `bind="{b}"`, `key`, `icon` | `onchange`: `void H(bool value)` |
 | `slider` | `bind="{f}"`, `min`, `max`, `step`, `format-key`, `decimals` | `onchange`: `void H(float value)` |
-| `input` | `bind="{s}"`, `placeholder-key`, `maxlength` | `onsubmit`: `void H(string value)` |
+| `input` | `bind="{s}"`, `type` text/url, `placeholder-key`, `maxlength` | `onsubmit`: `void H(string value)`, or `void H(VRCUrl value)` for `type="url"` |
 | `select` | `bind="{i}"`, `max`; children `<option value key/>` | `onchange`: `void H(int value)` |
 | `tabs` / `tab` | `bind="{i}"`, `for`; `<tab page key icon/>` | `onchange`: `void H(int page)` |
 | `pages` / `page` | `id`, `mode=crossfade\|sequential`, `default` | |

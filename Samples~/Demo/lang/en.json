@@ -80,6 +80,8 @@
     "high": "High",
     "nick": "Nickname",
     "nickHint": "Type something",
+    "link": "Link",
+    "linkHint": "Paste a URL",
     "mute": "Mute",
     "muted": "Muted: speed is disabled",
     "region": "Region",

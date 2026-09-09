@@ -5,18 +5,26 @@ using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using VRC.SDK3.Components;
 
 namespace Armagan.AUI.Editor
 {
     /// <summary>
-    /// Authors the one AuiInputPanel a scene needs: an invisible world-space canvas with a
-    /// TMP_InputField spanning 2.0 x 1.4 m, parked in front of the player when armed.
+    /// Authors the one AuiInputPanel a scene needs: a root that is parked in front of the
+    /// player, holding two invisible world-space click targets of 2.0 x 1.4 m, one with a
+    /// TMP_InputField (text) and one with a VRCUrlInputField (url).
     ///
     /// A TMP_InputField is four objects with three cross-references (field, viewport with a
     /// RectMask2D, text, placeholder); one missing and it renders nothing while every property
-    /// looks healthy. Hence a builder, re-runnable, that also asserts the wiring at the end.
+    /// looks healthy. A VRCUrlInputField is a legacy uGUI InputField and needs a UI.Text child.
+    /// Hence a builder, re-runnable, that also asserts the wiring at the end.
     /// Everything stays ACTIVE: VRChat's keyboard refuses to open for a field that was ever on
-    /// an inactive object. The panel hides by disabling its Canvas and collider.
+    /// an inactive object. The panel hides by disabling each canvas and collider.
+    ///
+    /// Each field sits on its OWN canvas with its own collider: two raycast targets on one
+    /// canvas would fight for the click, and a nested canvas under a disabled parent does not
+    /// draw. A scene built before the url panel existed has the text canvas on the root; the
+    /// builder moves it under a "Text Panel" child and leaves the root as a plain holder.
     /// </summary>
     public static class AuiInputPanelBuilder
     {
@@ -45,20 +53,95 @@ namespace Armagan.AUI.Editor
             else root = panel.gameObject;
 
             var rt = root.GetComponent<RectTransform>() ?? root.AddComponent<RectTransform>();
+            MigrateLegacyRoot(rt);
             rt.sizeDelta = new Vector2(PanelW, PanelH);
-            rt.localScale = Vector3.one * PanelScale;
+            rt.localScale = Vector3.one;
 
-            var canvas = Get<Canvas>(root);
+            TMP_FontAsset font = AuiTextMeasurer.FontFor(AuiEditorEnv.FindSettings() != null ? AuiEditorEnv.FindSettings().fontSet : null, 400);
+            var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(panel);
+
+            // ---- text panel
+            RectTransform textPanel = Panel(rt, "Text Panel");
+            TMP_InputField field = BuildTextField(textPanel, font);
+            ClearPersistent(field.onEndEdit);
+            UnityEventTools.AddStringPersistentListener(field.onEndEdit, ub.SendCustomEvent, "OnEndEdit");
+            ClearPersistent(field.onValueChanged);
+            UnityEventTools.AddStringPersistentListener(field.onValueChanged, ub.SendCustomEvent, "OnValueChanged");
+            panel.canvas = textPanel.GetComponent<Canvas>();
+            panel.clickCollider = textPanel.GetComponent<BoxCollider>();
+            panel.field = field;
+
+            // ---- url panel
+            RectTransform urlPanel = Panel(rt, "Url Panel");
+            VRCUrlInputField urlField = BuildUrlField(urlPanel);
+            ClearPersistent(urlField.onEndEdit);
+            UnityEventTools.AddStringPersistentListener(urlField.onEndEdit, ub.SendCustomEvent, "OnUrlEndEdit");
+            panel.urlCanvas = urlPanel.GetComponent<Canvas>();
+            panel.urlCollider = urlPanel.GetComponent<BoxCollider>();
+            panel.urlField = urlField;
+
+            panel.canvas.enabled = false;
+            panel.clickCollider.enabled = false;
+            panel.urlCanvas.enabled = false;
+            panel.urlCollider.enabled = false;
+
+            AuiProgramAssets.ApplySyncMode(panel);
+            EditorUtility.SetDirty(panel);
+            UdonSharpEditorUtility.CopyProxyToUdon(panel);
+            EditorSceneManager.MarkSceneDirty(root.scene);
+
+            bool bad = false;
+            if (field.textViewport == null || field.textComponent == null || field.fontAsset == null)
+            { bad = true; AuiLog.Error("input panel: the TMP_InputField is missing a viewport, text component or font; it would render nothing."); }
+            if (urlField.textComponent == null || urlField.targetGraphic == null)
+            { bad = true; AuiLog.Error("input panel: the VRCUrlInputField is missing its text component or target graphic; nothing could click it."); }
+            foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+                if (!t.gameObject.activeSelf) { bad = true; AuiLog.Error("input panel: '" + t.name + "' is inactive; VRChat's keyboard will not open for a field that was ever on an inactive object."); }
+            if (!bad) AuiLog.Info("input panel rebuilt: text + url click targets, " + PanelW * PanelScale + " x " + PanelH * PanelScale + " m each.");
+            return panel;
+        }
+
+        /// <summary>A scene from before the url panel: the root itself was the text canvas. Move that stack under "Text Panel" so the root is a holder.</summary>
+        private static void MigrateLegacyRoot(RectTransform root)
+        {
+            var canvas = root.GetComponent<Canvas>();
+            if (canvas == null) return;
+            var oldField = root.Find("Field");
+            RectTransform textPanel = Panel(root, "Text Panel");
+            if (oldField != null) oldField.SetParent(textPanel, false);
+            foreach (var type in new[] { typeof(BoxCollider), typeof(VRCUiShape), typeof(GraphicRaycaster), typeof(Canvas) })
+            {
+                var c = root.GetComponent(type);
+                if (c != null) Undo.DestroyObjectImmediate(c);
+            }
+            AuiLog.Info("input panel: moved the text field under 'Text Panel' (the root used to be the canvas).");
+        }
+
+        /// <summary>A world-space canvas child sized to the click target, with its own raycaster, VRCUiShape and trigger collider.</summary>
+        private static RectTransform Panel(RectTransform parent, string name)
+        {
+            RectTransform t = Child(parent, name);
+            t.anchorMin = t.anchorMax = new Vector2(0.5f, 0.5f);
+            t.pivot = new Vector2(0.5f, 0.5f);
+            t.anchoredPosition = Vector2.zero;
+            t.sizeDelta = new Vector2(PanelW, PanelH);
+            t.localScale = Vector3.one * PanelScale;
+            t.localRotation = Quaternion.identity;
+            var canvas = Get<Canvas>(t.gameObject);
             canvas.renderMode = RenderMode.WorldSpace;
-            Get<GraphicRaycaster>(root);
-            if (root.GetComponent<VRC.SDK3.Components.VRCUiShape>() == null) root.AddComponent<VRC.SDK3.Components.VRCUiShape>();
-            var bc = Get<BoxCollider>(root);
+            Get<GraphicRaycaster>(t.gameObject);
+            if (t.GetComponent<VRCUiShape>() == null) t.gameObject.AddComponent<VRCUiShape>();
+            var bc = Get<BoxCollider>(t.gameObject);
             bc.isTrigger = true;
             bc.center = Vector3.zero;
             bc.size = new Vector3(PanelW, PanelH, 10f);
+            if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+            return t;
+        }
 
-            // ---- the field: an invisible click target
-            RectTransform frt = Child(rt, "Field");
+        private static TMP_InputField BuildTextField(RectTransform panel, TMP_FontAsset font)
+        {
+            RectTransform frt = Child(panel, "Field");
             Stretch(frt);
             var img = Get<Image>(frt.gameObject);
             img.sprite = null;
@@ -68,7 +151,6 @@ namespace Armagan.AUI.Editor
             RectTransform area = Child(frt, "Text Area");
             Stretch(area, 10f);
             Get<RectMask2D>(area.gameObject);
-            TMP_FontAsset font = AuiTextMeasurer.FontFor(AuiEditorEnv.FindSettings() != null ? AuiEditorEnv.FindSettings().fontSet : null, 400);
             TextMeshProUGUI placeholder = Label(area, "Placeholder", font);
             placeholder.text = "";
             TextMeshProUGUI text = Label(area, "Text", font);
@@ -90,28 +172,43 @@ namespace Armagan.AUI.Editor
             field.customCaretColor = true;
             field.selectionColor = new Color(0, 0, 0, 0);
             field.transition = Selectable.Transition.None;
+            return field;
+        }
 
-            var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(panel);
-            ClearPersistent(field.onEndEdit);
-            UnityEventTools.AddStringPersistentListener(field.onEndEdit, ub.SendCustomEvent, "OnEndEdit");
-            ClearPersistent(field.onValueChanged);
-            UnityEventTools.AddStringPersistentListener(field.onValueChanged, ub.SendCustomEvent, "OnValueChanged");
+        /// <summary>
+        /// VRChat's own URL field: a legacy uGUI InputField subclass, so it wants a UI.Text (not
+        /// TMP) for its text and an Image to click. Invisible like the text one: the keyboard
+        /// VRChat opens on top is the whole visible UI.
+        /// </summary>
+        private static VRCUrlInputField BuildUrlField(RectTransform panel)
+        {
+            RectTransform frt = Child(panel, "Url Field");
+            Stretch(frt);
+            var img = Get<Image>(frt.gameObject);
+            img.sprite = null;
+            img.color = new Color(0, 0, 0, 0);
+            img.raycastTarget = true;
 
-            panel.canvas = canvas;
-            panel.clickCollider = bc;
-            panel.field = field;
-            canvas.enabled = false;
-            bc.enabled = false;
+            RectTransform trt = Child(frt, "Text");
+            Stretch(trt, 10f);
+            var text = Get<Text>(trt.gameObject);
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 34;
+            text.color = new Color(0, 0, 0, 0);
+            text.raycastTarget = false;
+            text.supportRichText = false;
 
-            AuiProgramAssets.ApplySyncMode(panel);
-            EditorUtility.SetDirty(panel);
-            UdonSharpEditorUtility.CopyProxyToUdon(panel);
-            EditorSceneManager.MarkSceneDirty(root.scene);
-
-            if (field.textViewport == null || field.textComponent == null || field.fontAsset == null)
-                AuiLog.Error("input panel: the TMP_InputField is missing a viewport, text component or font; it would render nothing.");
-            else AuiLog.Info("input panel rebuilt (" + PanelW * PanelScale + " x " + PanelH * PanelScale + " m click target).");
-            return panel;
+            var field = Get<VRCUrlInputField>(frt.gameObject);
+            var nav = field.navigation; nav.mode = Navigation.Mode.None; field.navigation = nav;
+            field.textComponent = text;
+            field.targetGraphic = img;
+            field.lineType = VRCUrlInputField.LineType.SingleLine;   // its own enum, not InputField's
+            field.readOnly = false;
+            field.caretColor = new Color(0, 0, 0, 0);
+            field.customCaretColor = true;
+            field.selectionColor = new Color(0, 0, 0, 0);
+            field.transition = Selectable.Transition.None;
+            return field;
         }
 
         private static RectTransform Child(RectTransform parent, string name)

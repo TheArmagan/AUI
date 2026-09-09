@@ -57,6 +57,7 @@ namespace Armagan.AUI.Editor
             // Same namespace as the generated half: the two files are one partial class.
             string ns = AuiCodegenContext.Namespace;
             sb.Append("using UnityEngine;\n");
+            sb.Append("using VRC.SDKBase;\n");   // VRCUrl, for a url input's onsubmit
             sb.Append("using Armagan.AUI;\n\n");
             string indent = "";
             if (!string.IsNullOrEmpty(ns)) { sb.Append("namespace ").Append(ns).Append("\n{\n"); indent = "    "; }

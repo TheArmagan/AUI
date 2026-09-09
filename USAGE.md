@@ -198,7 +198,7 @@ A handler attribute names a method you write. Signatures:
 | `onchange` | toggle | `void Name(bool value)` |
 | `onchange` | slider | `void Name(float value)` (per frame while dragging) |
 | `onchange` | select, tabs, pages | `void Name(int value)` |
-| `onsubmit` | input | `void Name(string value)` |
+| `onsubmit` | input | `void Name(string value)`; `void Name(VRCUrl value)` for `type="url"` |
 | `onselect` | repeat | `void Name(int row)` |
 | any, inside a repeat template | | `int row` is the first parameter |
 | `on-<event>` | a nested view | `void Name()` |

@@ -4,6 +4,7 @@
 // </auto-generated>
 using UdonSharp;
 using UnityEngine;
+using VRC.SDKBase;
 using Armagan.AUI;
 
 namespace Armagan.AUI.Generated

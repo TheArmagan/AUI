@@ -198,6 +198,21 @@ revealed and re-clamps the selected index if it fell outside them.
 A select can only ever hold as many rows as were baked: its authored `<option>`s plus whatever
 `max="N"` reserved. Anything past that is refused.
 
+## Inputs
+
+```csharp
+int    InputMaxLength(int elem);   // <input maxlength>, -1 when unlimited
+int    InputType(int elem);        // INPUT_TEXT or INPUT_URL
+VRCUrl GetInputUrl(int elem);      // the last VRCUrl a url input submitted, or null
+
+public string inputResult;         // written by the input panel before _OnInputResult
+public int    inputResultId;
+public VRCUrl inputResultUrl;      // url inputs only
+```
+
+The generated `_OnInputResult` sets the bound property and calls `onsubmit`; a url input's
+handler gets `inputResultUrl`. See [elements](/reference/elements#input).
+
 ## Modals
 
 ```csharp

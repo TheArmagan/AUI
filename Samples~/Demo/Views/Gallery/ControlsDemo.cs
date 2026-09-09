@@ -1,4 +1,5 @@
 using UnityEngine;
+using VRC.SDKBase;
 using Armagan.AUI;
 
 namespace Armagan.AUI.Generated
@@ -24,6 +25,9 @@ namespace Armagan.AUI.Generated
         public void QualityChanged(int value) { Last = "quality " + value; Emit("changed"); }
         public void RegionChanged(int value) { Last = "region " + (value == 0 ? "auto" : _regions[value - 1]); Emit("changed"); }
         public void NickSubmitted(string value) { Last = "nick " + value; Emit("changed"); }
+        // A url input hands over the VRCUrl VRChat's field produced: the one URL Udon can load
+        // that was not baked. The bound string {link} already holds its text for display.
+        public void LinkSubmitted(VRCUrl value) { Last = "link " + (value != null ? value.Get() : ""); Emit("changed"); }
         public void Ping() { Last = "ping"; Emit("ping"); }
         public void ToggleLock() { Locked = !Locked; Last = Locked ? "locked" : "unlocked"; Emit("changed"); }
         public void Hovering() { Last = "hovering the ping button"; }

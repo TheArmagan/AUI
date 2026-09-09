@@ -1,4 +1,4 @@
-<view name="ControlsDemo" width="566" height="514">
+<view name="ControlsDemo" width="566" height="560">
   <!-- Every control: two sliders (one with decimals, one disabled by a binding), a dropdown, a
        dropdown filled at runtime, a keyboard input, a labelled toggle, a disable-able button with
        pointer handlers, and an if="{mute}" banner. -->
@@ -30,6 +30,8 @@
         </select></panel>
       <panel class="setting"><icon name="user" class="hint"/><text key="controls.nick"/><spacer/>
         <input id="nick" bind="{nick}" placeholder-key="controls.nickHint" maxlength="16" onsubmit="NickSubmitted"/></panel>
+      <panel class="setting"><icon name="external-link" class="hint"/><text key="controls.link"/><spacer/>
+        <input id="link" type="url" bind="{link}" placeholder-key="controls.linkHint" onsubmit="LinkSubmitted"/></panel>
     </panel>
 
     <panel style="gap: 8; min-width: 176">

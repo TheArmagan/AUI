@@ -9,7 +9,7 @@ Everything AUI adds to the Unity editor.
 | `AUI/Preview` | opens the live preview window (see below) |
 | `AUI/Rebuild All Views` | queues every `.aui` and builds them, even when unchanged |
 | `AUI/Rebuild Language Table` | merges the language files onto the scene's service, creating it if absent |
-| `AUI/Rebuild Input Panel` | (re)builds the invisible keyboard target for `<input>` |
+| `AUI/Rebuild Input Panel` | (re)builds the invisible keyboard targets for `<input>`: the text field and VRChat's URL field |
 | `AUI/Bake Fonts` | bakes atlases for exactly the glyphs the language files use, then rebuilds views |
 | `AUI/Auto-build Views` | a toggle. Off means saved views queue instead of building |
 | `AUI/Validate` | compiles every view and prints every diagnostic |

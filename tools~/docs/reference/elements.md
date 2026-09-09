@@ -215,17 +215,32 @@ VRChat's keyboard. Needs an `AUI Input Panel` in the scene.
 
 | Attribute | Meaning |
 |---|---|
-| `bind` | `{string}`, two-way |
+| `bind` | `{string}`, two-way (for a url input: the URL's text, for display) |
+| `type` | `text` (default) or `url` |
 | `placeholder-key` | translation key shown while empty |
-| `maxlength` | character limit; a longer submission is cut to it |
+| `maxlength` | character limit; a longer submission is cut to it (text only) |
 | `disabled` | `{binding}` |
 
 | Event | Signature |
 |---|---|
-| `onsubmit` | `void Name(string value)` |
+| `onsubmit` | `void Name(string value)`, or `void Name(VRCUrl value)` when `type="url"` |
 
 ```aui
 <input bind="{nick}" placeholder-key="profile.nickHint" maxlength="24" onsubmit="NickSubmitted"/>
+<input type="url" bind="{link}" placeholder-key="profile.linkHint" onsubmit="LinkSubmitted"/>
+```
+
+A url input arms VRChat's own URL field instead of the keyboard field. That matters because Udon
+cannot build a `VRCUrl` from a string: the only URL a world can load that was not baked at build
+time is one a player typed into a `VRCUrlInputField`. The handler receives that `VRCUrl` (its text
+lands in the bound string), and `GetInputUrl(E_LINK)` returns the last one submitted. The next click
+reopens the field with it, so the player edits rather than retypes.
+
+```csharp
+public void LinkSubmitted(VRCUrl value)
+{
+    VRCStringDownloader.LoadUrl(value, (IUdonEventReceiver)this);
+}
 ```
 
 ### `<select>` and `<option>`

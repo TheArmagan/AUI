@@ -376,6 +376,10 @@ namespace Armagan.AUI.Lsp
                 case "mode":
                     foreach (string v in c.Tag == "image" ? new[] { "simple", "sliced", "fit" } : new[] { "crossfade", "sequential" }) ctx.Add(v, CompletionItemKind.EnumMember, null);
                     break;
+                case "type":
+                    if (c.Tag == "input") foreach (string v in new[] { "text", "url" }) ctx.Add(v, CompletionItemKind.EnumMember, v == "url" ? "VRChat's URL field; onsubmit gets a VRCUrl" : "the keyboard; onsubmit gets a string");
+                    else foreach (string v in new[] { "string", "int", "float", "bool" }) ctx.Add(v, CompletionItemKind.EnumMember, null);
+                    break;
                 case "show":
                     foreach (string v in AuiSchema.FindProp("show").EnumValues) ctx.Add(v, CompletionItemKind.EnumMember, null);
                     break;
