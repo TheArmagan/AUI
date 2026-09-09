@@ -37,6 +37,7 @@ namespace Armagan.AUI.Lsp
                 .WithHandler<WorkspaceSymbolsHandler>()
                 .WithHandler<WatchedFilesHandler>()
                 .WithHandler<SemanticTokensHandler>()
+                .WithHandler<FormattingHandler>()
                 .OnRequest<GeneratedParams, GeneratedResult>("aui/generated", p => Generated.Handle(Ws, p))
                 .OnInitialize((s, request, token) =>
                 {

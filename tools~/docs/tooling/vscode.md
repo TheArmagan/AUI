@@ -87,6 +87,22 @@ This is the feature that makes renaming a translation key painless.
 - **create a handler method** in the view's `.cs`
 - remove an unused rule
 
+### Format Document
+
+`Shift+Alt+F` (or format on save) for both `.aui` and `.auis`. The house style prefers newlines
+over inline packing:
+
+- every child element on its own line, the closing tag on its own; an element whose only content
+  is text stays on one line (`<text>Debug build</text>`)
+- attributes on one line while the tag fits in 100 columns, otherwise one per line, aligned
+- a stylesheet rule always expanded: selectors on one line, one declaration per line, the brace on
+  its own. `<style>` blocks inside a view too
+- comments kept verbatim and re-indented; one blank line between things is kept, more collapse
+  to one
+
+Two spaces, LF, whatever the editor's tab settings say, so every file in a project looks the same.
+A file with a syntax error is left exactly as it is: formatting never moves a mistake around.
+
 ### Editor extras
 
 - colour swatches and a picker for stylesheet colours

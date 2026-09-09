@@ -823,7 +823,12 @@ the parser, so the embedded stylesheet is coloured by the server whatever gramma
 inlay hints (default-language text after `key=`), document
 links (`href`, `src`), document symbols for views (with details) and sheets, workspace symbols
 (views, classes, keys), watched files (`.aui`, `.auis`, language JSON, `.svg`; created and deleted
-files invalidate the scan and re-check dependents), and the custom request `aui/generated` that
+files invalidate the scan and re-check dependents), document formatting (`Formatting.cs`, one
+whole-document edit from `Core/Format/AuiFormatter.cs`: a token formatter, not an AST printer,
+because the parser drops comments and the place of a `<style>` block; children one per line,
+attributes wrapped past 100 columns, every rule expanded, comments re-indented, a document with
+syntax errors returned untouched; `Tests/Editor/AuiFormatterTests.cs` pins the shape and that
+formatting is idempotent and tree-preserving), and the custom request `aui/generated` that
 returns the generated C# of a view. `Occurrences.cs` decides what a position names (`Target`) and
 finds every occurrence; `LangJson.cs` inserts a key into a language file keeping its formatting and
 tells which key a JSON position is on; `Cursor.cs` decides the completion context from raw text so
