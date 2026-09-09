@@ -826,7 +826,9 @@ links (`href`, `src`), document symbols for views (with details) and sheets, wor
 files invalidate the scan and re-check dependents), document formatting (`Formatting.cs`, one
 whole-document edit from `Core/Format/AuiFormatter.cs`: a token formatter, not an AST printer,
 because the parser drops comments and the place of a `<style>` block; children one per line,
-attributes wrapped past 100 columns, every rule expanded, comments re-indented, a document with
+attributes wrapped past 100 columns to one per line at one extra indent with the closer on its
+own line (never aligned: padding spaces are what a diff churns on, and the source's are
+collapsed), every rule expanded, comments re-indented, a document with
 syntax errors returned untouched; `Tests/Editor/AuiFormatterTests.cs` pins the shape and that
 formatting is idempotent and tree-preserving), and the custom request `aui/generated` that
 returns the generated C# of a view. `Occurrences.cs` decides what a position names (`Target`) and

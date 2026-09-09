@@ -94,7 +94,9 @@ over inline packing:
 
 - every child element on its own line, the closing tag on its own; an element whose only content
   is text stays on one line (`<text>Debug build</text>`)
-- attributes on one line while the tag fits in 100 columns, otherwise one per line, aligned
+- attributes on one line while the tag fits in 100 columns, otherwise one per line at one extra
+  indent with the `>` or `/>` on its own line. Never aligned with padding spaces, and alignment
+  padding in the source is collapsed
 - a stylesheet rule always expanded: selectors on one line, one declaration per line, the brace on
   its own. `<style>` blocks inside a view too
 - comments kept verbatim and re-indented; one blank line between things is kept, more collapse

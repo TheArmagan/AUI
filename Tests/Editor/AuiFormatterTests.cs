@@ -41,13 +41,38 @@ namespace Armagan.AUI.Tests
             string src = "<view name=\"V\"><AvtrPager id=\"pager\" label=\"{pagerLabel}\" page=\"{pagerPage}\" hasFirst=\"{hasFirst}\" hasPrev=\"{hasPrev}\" hasNext=\"{hasNext}\" on-first=\"PagerFirst\"/></view>";
             string expected =
                 "<view name=\"V\">\n" +
-                "  <AvtrPager id=\"pager\"\n" +
-                "             label=\"{pagerLabel}\"\n" +
-                "             page=\"{pagerPage}\"\n" +
-                "             hasFirst=\"{hasFirst}\"\n" +
-                "             hasPrev=\"{hasPrev}\"\n" +
-                "             hasNext=\"{hasNext}\"\n" +
-                "             on-first=\"PagerFirst\"/>\n" +
+                "  <AvtrPager\n" +
+                "    id=\"pager\"\n" +
+                "    label=\"{pagerLabel}\"\n" +
+                "    page=\"{pagerPage}\"\n" +
+                "    hasFirst=\"{hasFirst}\"\n" +
+                "    hasPrev=\"{hasPrev}\"\n" +
+                "    hasNext=\"{hasNext}\"\n" +
+                "    on-first=\"PagerFirst\"\n" +
+                "  />\n" +
+                "</view>\n";
+            Assert.AreEqual(expected, AuiFormatter.FormatMarkup(src));
+        }
+
+        [Test]
+        public void AlignmentPaddingIsCollapsedAndLongOpenTagsWrapToo()
+        {
+            string src = "<view name=\"V\"><select id=\"fSize\" bind=\"{size}\"     max=\"20\" onchange=\"SizePicked\"     class=\"filter\"><option key=\"a\"/></select>" +
+                         "<select id=\"aVeryLongIdentifierForTheSelect\" bind=\"{platformChoice}\" max=\"20\" onchange=\"PlatformPicked\" class=\"filter wide\"><option key=\"b\"/></select></view>";
+            string expected =
+                "<view name=\"V\">\n" +
+                "  <select id=\"fSize\" bind=\"{size}\" max=\"20\" onchange=\"SizePicked\" class=\"filter\">\n" +
+                "    <option key=\"a\"/>\n" +
+                "  </select>\n" +
+                "  <select\n" +
+                "    id=\"aVeryLongIdentifierForTheSelect\"\n" +
+                "    bind=\"{platformChoice}\"\n" +
+                "    max=\"20\"\n" +
+                "    onchange=\"PlatformPicked\"\n" +
+                "    class=\"filter wide\"\n" +
+                "  >\n" +
+                "    <option key=\"b\"/>\n" +
+                "  </select>\n" +
                 "</view>\n";
             Assert.AreEqual(expected, AuiFormatter.FormatMarkup(src));
         }

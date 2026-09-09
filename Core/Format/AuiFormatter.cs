@@ -11,7 +11,8 @@ namespace Armagan.AUI.Core
     ///   - every child element on its own line, the closing tag on its own line; an element
     ///     whose only content is text stays on one line (`&lt;text&gt;Debug build&lt;/text&gt;`);
     ///   - attributes stay on one line while the tag fits in <see cref="MaxWidth"/> columns,
-    ///     otherwise one per line, aligned under the first;
+    ///     otherwise one per line at one extra indent, the closer on its own line; nothing is
+    ///     ever aligned with padding spaces;
     ///   - a stylesheet rule is always expanded: the selectors on one line, one declaration per
     ///     line, the brace on its own line; `:root` too;
     ///   - comments are kept verbatim and re-indented; one blank line between things is kept,
@@ -225,7 +226,11 @@ namespace Armagan.AUI.Core
             return sb.ToString();
         }
 
-        /// <summary>Attributes on one line while the tag fits MaxWidth; otherwise one per line aligned under the first.</summary>
+        /// <summary>
+        /// Attributes on one line while the tag fits MaxWidth; otherwise one per line, indented
+        /// one level (never aligned under the first: alignment padding is what a diff churns on),
+        /// with the closer on its own line.
+        /// </summary>
         private static string TagText(Token t, string indent, bool selfClose)
         {
             var one = new StringBuilder();
@@ -235,14 +240,9 @@ namespace Armagan.AUI.Core
             if (indent.Length + one.Length <= MaxWidth || t.Attrs.Count <= 1) return one.ToString();
 
             var sb = new StringBuilder();
-            sb.Append('<').Append(t.Tag).Append(' ');
-            string pad = indent + Repeat(" ", t.Tag.Length + 2);
-            for (int i = 0; i < t.Attrs.Count; i++)
-            {
-                if (i > 0) sb.Append('\n').Append(pad);
-                sb.Append(AttrText(t.Attrs[i]));
-            }
-            sb.Append(selfClose ? "/>" : ">");
+            sb.Append('<').Append(t.Tag);
+            foreach (KeyValuePair<string, string> a in t.Attrs) sb.Append('\n').Append(indent).Append(Indent).Append(AttrText(a));
+            sb.Append('\n').Append(indent).Append(selfClose ? "/>" : ">");
             return sb.ToString();
         }
 
