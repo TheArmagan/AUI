@@ -879,6 +879,13 @@ after touching any of them.
   literal text, because `BuildClickableContent` only makes a label when there is a `key` or text
   and `SetSelectOptionLabel` would otherwise write into a null; and `SetSelectOptionCount`
   resizes the popup, because a well baked for twenty rows showing four is as wrong as the bug.
+- **A reserved select row measures shorter than an authored one, and the well overshot by the
+  difference.** A reserved row has no key, so the solver measured it at the option's `min-height`
+  (32) while the authored row with its label measured 45.96. The builder baked each row at its own
+  height but wrote the tallest as `selectOptionH`, and `SetSelectOptionCount` sizes the well to
+  `count * selectOptionH`: twenty rows ended at 654 mm inside a 927 mm well, 270 mm of bare
+  background under the last option. Since BuilderVersion 17 every row is baked at the tallest
+  row's height, so the runtime's arithmetic and the baked positions agree by construction.
 - **`hidden` on an element that carries an icon bakes the icon at the wrong offset, permanently.**
   A clickable's icon and label are not layout elements: `BuildClickableContent` anchors the icon
   left-middle (pivot 0, anchor 0/0.5) and writes its offset once, and `ApplyLayout` only touches

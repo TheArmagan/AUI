@@ -44,7 +44,9 @@ namespace Armagan.AUI.Editor
         // 13: cascade tables replace the per-signal style rows.
         // 16: <select max="N"> finally bakes its reserved rows, and a popup resizes to the rows
         //     that are showing (selectOptionShown / selectOptionH / selectPopupUp / selectPopupEdge).
-        public const int BuilderVersion = 16;
+        // 17: every select row is baked at the tallest row's height, so the well the runtime
+        //     resizes to count * selectOptionH ends where the last row does.
+        public const int BuilderVersion = 17;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -1011,14 +1013,20 @@ namespace Armagan.AUI.Editor
             // inactive and the popup grows to them when SetSelectOptionCount says so — sizing it
             // for max here would leave a four-option filter standing in a twenty-row well.
             int authored = n.ReservedFrom >= 0 ? n.ReservedFrom : n.Children.Count;
-            float optH = 0f, rowH = 0f;
-            int counted = 0;
+            // ONE ROW HEIGHT FOR EVERY ROW, the tallest the solver measured. The rows do NOT all
+            // measure the same: a reserved row carries no key, so it measures at the option's
+            // min-height, shorter than an authored row whose label sets the height. The runtime
+            // resizes the well to count * selectOptionH, so a row baked shorter than that leaves
+            // the well running past the last row — a twenty-row popup drew 270 mm of empty
+            // background under its options — and a runtime label written into a min-height row
+            // would sit in a shorter chip than the row above it.
+            float rowH = 0f;
             foreach (AuiNode o in n.Children)
             {
                 float h = c.R.Layout[o.Index].Local.H;
-                if (h > rowH) rowH = h;          // every option resolves the same style, so this is THE row height
-                if (counted++ < authored) optH += h;
+                if (h > rowH) rowH = h;
             }
+            float optH = authored * rowH;
             var popup = new GameObject(Name(n) + " popup", typeof(RectTransform));
             popup.transform.SetParent(c.Content, false);
             var prt = (RectTransform)popup.transform;
@@ -1092,21 +1100,21 @@ namespace Armagan.AUI.Editor
             foreach (AuiNode o in n.Children)
             {
                 int oe = c.R.Map.Elem(o, row);
-                AuiLayoutNode ol = c.R.Layout[o.Index];
                 AuiResolvedStyle os = c.R.Styles[o.Index];
                 var ogo = new GameObject(Name(o), typeof(RectTransform));
                 ogo.transform.SetParent(popup.transform, false);
                 var ort = (RectTransform)ogo.transform;
-                Place(ort, new AuiRect(4f, y, popupRect.W - 8f, ol.Local.H), false, popupRect.W, popupRect.H);
+                // rowH, not this row's own measured height — see above.
+                Place(ort, new AuiRect(4f, y, popupRect.W - 8f, rowH), false, popupRect.W, popupRect.H);
                 Register(c, oe, ogo, ort, ort.anchoredPosition);
                 ApplyBackground(c, o, oe, ogo.transform, true);
-                BuildClickableContent(c, o, oe, ogo, os, new AuiRect(0, 0, popupRect.W - 8f, ol.Local.H));
+                BuildClickableContent(c, o, oe, ogo, os, new AuiRect(0, 0, popupRect.W - 8f, rowH));
                 if (c.Signal[oe] >= 0) AddSignal(c, o, oe, ogo, os, true);
                 // A reserved row is placed like the rest — its y never moves — but starts
                 // inactive, so a select shows only the options it actually has until the view
                 // calls SetSelectOptionCount.
                 if (built++ >= authored) ogo.SetActive(false);
-                y += ol.Local.H;
+                y += rowH;
             }
             if (!(c.Preview && c.Opt.OpenSelects.Contains(c.R.ViewName + "/" + n.Index))) popup.SetActive(false);
         }
