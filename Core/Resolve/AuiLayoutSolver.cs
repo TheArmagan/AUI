@@ -181,6 +181,10 @@ namespace Armagan.AUI.Core
                     else { w = 64; h = 64; }
                     break;
                 }
+                case "rawimage":
+                    // No texture exists at bake time; the stylesheet's width/height override this.
+                    w = 64; h = 64;
+                    break;
                 case "spacer":
                 {
                     float size;

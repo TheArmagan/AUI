@@ -60,6 +60,9 @@ void   SetBackground(int elem, string spriteName);
 void   SetMaterial(int elem, string materialName);   // null clears it
 Sprite IconSprite(string iconName);
 int    RefId(string refName);
+void   SetRawTexture(int elem, Texture texture);   // <rawimage>; null hides it
+void   SetRawUv(int elem, Rect uv);                // <rawimage>; 0..1, bottom-left origin
+RawImage GetRawImage(int elem);
 ```
 
 An icon, sprite or material must be baked into the view: used in its markup or sheets, or

@@ -208,6 +208,7 @@ objects.
 | `panel` / `div` | | |
 | `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `ellipsis`, `runtime` | |
 | `image` | `src`, `mode=simple\|sliced\|fit` | |
+| `rawimage` | `texture="{t}"` (Texture), `uv="{r}"` (Rect); set from code, hidden while null | |
 | `icon` | `name` (Lucide file name), `size` | |
 | `spacer` | `size` (fixed) or none (grows) | |
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"` | `onclick`: `void H()` |

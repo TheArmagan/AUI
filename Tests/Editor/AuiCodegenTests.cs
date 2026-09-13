@@ -115,6 +115,41 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void RawImageBindsTextureAndUv()
+        {
+            const string markup =
+                "<view name=\"Demo\" width=\"400\" height=\"300\">\n" +
+                "  <rawimage id=\"cover\" texture=\"{cover}\" uv=\"{coverUv}\"/>\n" +
+                "  <repeat id=\"results\" max=\"4\">\n" +
+                "    <panel><rawimage texture=\"{item.thumb}\" uv=\"{item.uv}\"/><text text=\"{item.title}\"/></panel>\n" +
+                "  </repeat>\n" +
+                "</view>";
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            string src = Generate(markup, out bag, out map);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items.Where(x => x.Severity == AuiSeverity.Error)));
+            StringAssert.Contains("public Texture Cover", src);
+            StringAssert.Contains("private Texture _cover = null;", src);
+            StringAssert.Contains("public Rect CoverUv", src);
+            StringAssert.Contains("private Rect _coverUv = new Rect(0f, 0f, 1f, 1f);", src);
+            StringAssert.Contains("EnsureStartedT(value)", src);
+            StringAssert.Contains("EnsureStartedR(value)", src);
+            StringAssert.Contains("SetRawTexture(1, _cover);", src);
+            StringAssert.Contains("public void SetResultsThumb(int row, Texture value)", src);
+            StringAssert.Contains("public void SetResultsUv(int row, Rect value)", src);
+            StringAssert.Contains("_auiStashT = value", src);
+            StringAssert.Contains("_auiStashR = value", src);
+            StringAssert.Contains("SetRawUv(", src);
+        }
+
+        [Test]
+        public void RawImageRejectsLiteralTexture()
+        {
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            Generate("<view name=\"Demo\" width=\"400\" height=\"300\"><rawimage texture=\"logo.png\"/></view>", out bag, out map);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.BadBindingSyntax), string.Join("\n", bag.Items));
+        }
+
+        [Test]
         public void GoldenFile()
         {
             AuiDiagnosticBag bag; AuiIndexMap map;

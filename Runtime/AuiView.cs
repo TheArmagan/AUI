@@ -64,6 +64,10 @@ namespace Armagan.AUI
         [HideInInspector] public TextMeshProUGUI[] elemText;
         [HideInInspector] public Button[] elemButtons;
         [HideInInspector] public Slider[] elemSliders;
+        // A <rawimage>'s RawImage. KEPT OUT OF elemBg ON PURPOSE: the cascade writes sprites,
+        // materials and colour tweens into elemBg, and a texture set from code would be replaced
+        // by the next state change. Nothing in the cascade reads this table.
+        [HideInInspector] public RawImage[] elemRaw;
         [HideInInspector] public Vector2[] elemBasePos;
         [HideInInspector] public int[] elemSignal;   // signal id or -1
         [HideInInspector] public int[] elemKey;      // translation key index or -1 (text label, input placeholder, slider format)
@@ -300,12 +304,16 @@ namespace Armagan.AUI
         protected float _auiStashF;
         protected string _auiStashS, _auiStashS2;
         protected Color _auiStashC;
+        protected Texture _auiStashT;
+        protected Rect _auiStashR;
 
         protected string EnsureStartedS(string v) { if (_started) return v; _auiStashS = v; _AuiStart(); return _auiStashS; }
         protected Color EnsureStartedC(Color v) { if (_started) return v; _auiStashC = v; _AuiStart(); return _auiStashC; }
         protected int EnsureStartedI(int v) { if (_started) return v; _auiStashI = v; _AuiStart(); return _auiStashI; }
         protected float EnsureStartedF(float v) { if (_started) return v; _auiStashF = v; _AuiStart(); return _auiStashF; }
         protected bool EnsureStartedB(bool v) { if (_started) return v; _auiStashB = v; _AuiStart(); return _auiStashB; }
+        protected Texture EnsureStartedT(Texture v) { if (_started) return v; _auiStashT = v; _AuiStart(); return _auiStashT; }
+        protected Rect EnsureStartedR(Rect v) { if (_started) return v; _auiStashR = v; _AuiStart(); return _auiStashR; }
 
         /// <summary>Generated code applies initial binding values here.</summary>
         protected virtual void _AfterStart()

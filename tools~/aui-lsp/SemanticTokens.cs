@@ -114,7 +114,7 @@ namespace Armagan.AUI.Lsp
 
             private static readonly HashSet<string> Tags = new HashSet<string>
             {
-                "view", "panel", "div", "text", "image", "icon", "spacer", "button", "toggle", "slider", "input", "select", "option",
+                "view", "panel", "div", "text", "image", "rawimage", "icon", "spacer", "button", "toggle", "slider", "input", "select", "option",
                 "tabs", "tab", "pages", "page", "repeat", "empty", "modal", "template", "slot", "component",
             };
             private static readonly HashSet<string> States = new HashSet<string> { "hover", "pressed", "selected", "disabled" };

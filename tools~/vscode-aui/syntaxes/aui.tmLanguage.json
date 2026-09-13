@@ -37,7 +37,7 @@
         "2": {
           "patterns": [
             { "match": "^[A-Z][A-Za-z0-9_]*$", "name": "entity.name.type.component.aui" },
-            { "match": "^(view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|modal|prop|event|component|template|slot|link|style)$", "name": "entity.name.tag.aui" },
+            { "match": "^(view|panel|div|text|image|rawimage|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|modal|prop|event|component|template|slot|link|style)$", "name": "entity.name.tag.aui" },
             { "match": ".+", "name": "invalid.illegal.unknown-tag.aui" }
           ]
         }

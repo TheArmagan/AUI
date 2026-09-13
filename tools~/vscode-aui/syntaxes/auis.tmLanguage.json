@@ -29,7 +29,7 @@
         { "match": ":(hover|pressed|selected|disabled)\\b", "name": "entity.other.attribute-name.pseudo-class.auis" },
         { "match": ":[A-Za-z_][A-Za-z0-9_-]*", "name": "invalid.illegal.unknown-state.auis" },
         { "match": "\\.[A-Za-z_][A-Za-z0-9_-]*", "name": "entity.other.attribute-name.class.auis" },
-        { "match": "\\b(view|panel|div|text|image|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|modal|template|slot|component)\\b", "name": "entity.name.tag.auis" },
+        { "match": "\\b(view|panel|div|text|image|rawimage|icon|spacer|button|toggle|slider|input|select|option|tabs|tab|pages|page|repeat|empty|modal|template|slot|component)\\b", "name": "entity.name.tag.auis" },
         { "match": "\\b[A-Z][A-Za-z0-9_]*\\b", "name": "entity.name.type.component.auis" },
         { "match": "\\*", "name": "entity.name.tag.wildcard.auis" },
         { "match": ",", "name": "punctuation.separator.list.auis" }

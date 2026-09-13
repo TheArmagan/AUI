@@ -131,6 +131,24 @@ namespace Armagan.AUI
             elemBg[elem].material = declMaterial[rf];
         }
 
+        /// <summary>The texture a &lt;rawimage&gt; shows; null hides it so the parent's background shows. The caller owns the texture's lifetime.</summary>
+        public void SetRawTexture(int elem, Texture texture)
+        {
+            if (!_started) { _auiStashI = elem; _auiStashT = texture; _AuiStart(); elem = _auiStashI; texture = _auiStashT; }
+            if (elemRaw == null || elem < 0 || elem >= elemRaw.Length || elemRaw[elem] == null) return;
+            elemRaw[elem].texture = texture;
+            // A RawImage without a texture draws solid white, never "nothing".
+            elemRaw[elem].enabled = texture != null;
+        }
+
+        /// <summary>The region of the texture a &lt;rawimage&gt; shows, in 0..1 UV space with a bottom-left origin; (0, 0, 1, 1) is the whole texture.</summary>
+        public void SetRawUv(int elem, Rect uv)
+        {
+            if (!_started) { _auiStashI = elem; _auiStashR = uv; _AuiStart(); elem = _auiStashI; uv = _auiStashR; }
+            if (elemRaw == null || elem < 0 || elem >= elemRaw.Length || elemRaw[elem] == null) return;
+            elemRaw[elem].uvRect = uv;
+        }
+
         public int RefId(string refName)
         {
             if (refNames == null || refName == null) return -1;
@@ -153,6 +171,11 @@ namespace Armagan.AUI
         public Image GetBackgroundImage(int elem)
         {
             return elemBg != null && elem >= 0 && elem < elemBg.Length ? elemBg[elem] : null;
+        }
+
+        public RawImage GetRawImage(int elem)
+        {
+            return elemRaw != null && elem >= 0 && elem < elemRaw.Length ? elemRaw[elem] : null;
         }
 
         public bool IsElementShown(int elem)

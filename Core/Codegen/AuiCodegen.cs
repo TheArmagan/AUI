@@ -401,6 +401,8 @@ namespace Armagan.AUI.Core
                     case AuiBindingType.Float: return "0f";
                     case AuiBindingType.Int: return "0";
                     case AuiBindingType.Color: return "Color.white";
+                    case AuiBindingType.Texture: return "null";
+                    case AuiBindingType.Rect: return "new Rect(0f, 0f, 1f, 1f)";
                     default: return "\"\"";
                 }
             }
@@ -476,6 +478,12 @@ namespace Armagan.AUI.Core
                     case "icon":
                     case "name":
                         L("SetIcon(" + ex + ", " + valueExpr + ");");
+                        break;
+                    case "texture":
+                        L("SetRawTexture(" + ex + ", " + valueExpr + ");");
+                        break;
+                    case "uv":
+                        L("SetRawUv(" + ex + ", " + valueExpr + ");");
                         break;
                     case "enabled":
                     {
@@ -586,6 +594,8 @@ namespace Armagan.AUI.Core
                     case AuiBindingType.Float: return "F";
                     case AuiBindingType.Int: return "I";
                     case AuiBindingType.Color: return "C";
+                    case AuiBindingType.Texture: return "T";
+                    case AuiBindingType.Rect: return "R";
                     default: return "S";
                 }
             }

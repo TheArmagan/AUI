@@ -42,6 +42,8 @@ public bool   Muted      { get; set; }   // SetToggle(...)
 public string Nick       { get; set; }   // re-renders the input
 public bool   IsVip      { get; set; }   // SetActiveElem(...)
 public int    Quality    { get; set; }   // SetSelect(0, value)
+public Texture Cover     { get; set; }   // <rawimage texture>: SetRawTexture(...), starts null
+public Rect   CoverUv    { get; set; }   // <rawimage uv>: SetRawUv(...), starts (0, 0, 1, 1)
 ```
 
 Rules: string bindings are always escaped; every setter starts the view first if needed, so writing

@@ -11,6 +11,10 @@ namespace Armagan.AUI.Core
         Int,
         /// <summary>UnityEngine.Color, for style="color: {c}" and background colours.</summary>
         Color,
+        /// <summary>UnityEngine.Texture, for &lt;rawimage texture="{t}"&gt;. Starts null.</summary>
+        Texture,
+        /// <summary>UnityEngine.Rect, for &lt;rawimage uv="{r}"&gt;. Starts as the whole texture (0, 0, 1, 1).</summary>
+        Rect,
     }
 
     public sealed class AuiBindingUse
@@ -264,6 +268,8 @@ namespace Armagan.AUI.Core
                 case AuiBindingType.Float: return "float";
                 case AuiBindingType.Int: return "int";
                 case AuiBindingType.Color: return "Color";
+                case AuiBindingType.Texture: return "Texture";
+                case AuiBindingType.Rect: return "Rect";
                 default: return "string";
             }
         }

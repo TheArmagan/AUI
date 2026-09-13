@@ -20,6 +20,8 @@ The name is camelCase in markup and PascalCase in C#: `{playerName}` gives `Play
 | `if="{b}"`, `disabled="{b}"`, `selected="{b}"`, toggle `bind`, modal `enabled` | `bool` | `bool B { get; set; }` |
 | slider `bind` | `float` | `float F { get; set; }` |
 | select `bind`, tabs `bind` | `int` | `int I { get; set; }` |
+| rawimage `texture` | `Texture` | `Texture T { get; set; }` |
+| rawimage `uv` | `Rect` | `Rect R { get; set; }` |
 
 Using one name with two different types is an error (AUI108). Pick two names.
 

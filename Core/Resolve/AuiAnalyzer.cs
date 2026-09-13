@@ -441,6 +441,10 @@ namespace Armagan.AUI.Core
                 case "image":
                     if (n.Get("src") == null) d.Error(AuiCodes.MissingRequiredAttribute, "<image> needs src=.", n.Line, n.Column, 6);
                     break;
+                case "rawimage":
+                    if (n.Get("texture") == null)
+                        d.Warning(AuiCodes.MissingRequiredAttribute, "<rawimage> without texture=\"{name}\" has no generated setter; reach it with GetRawImage(E_ID) or SetRawTexture.", n.Line, n.Column, 9);
+                    break;
                 case "toggle":
                 case "slider":
                 case "input":
@@ -560,6 +564,13 @@ namespace Armagan.AUI.Core
                 case "text":
                     if (!IsBindingValue(a.Value)) { d.Error(AuiCodes.BadBindingSyntax, "text= takes a binding: text=\"{name}\". For a literal, write it as content.", a.ValueLine, a.ValueColumn, a.Value.Length); return; }
                     AddBinding(n, a, AuiBindingType.String, repeat, info, d);
+                    break;
+                case "texture":
+                case "uv":
+                    // A Texture or a Rect has no literal form a view could bake; both only ever come
+                    // from code (a VRCImageDownloader result, a sheet tile), so a binding is required.
+                    if (!IsBindingValue(a.Value)) { d.Error(AuiCodes.BadBindingSyntax, a.Name + "= takes a binding: " + a.Name + "=\"{name}\"; set its value from code.", a.ValueLine, a.ValueColumn, a.Value.Length); return; }
+                    AddBinding(n, a, a.Name == "texture" ? AuiBindingType.Texture : AuiBindingType.Rect, repeat, info, d);
                     break;
                 case "bind":
                 {

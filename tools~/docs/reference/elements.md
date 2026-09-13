@@ -140,6 +140,35 @@ A sprite asset, by path relative to the `.aui`.
 <image src="../Art/logo.png" mode="fit"/>
 ```
 
+### `<rawimage>`
+
+A texture that only exists at runtime: a `VRCImageDownloader` result, a render texture, or one
+tile of a downloaded sprite sheet. Nothing is baked; the element stays invisible until a texture
+is set, so a background on its parent shows as the placeholder.
+
+| Attribute | Values |
+|---|---|
+| `texture` | `{binding}` of type `Texture` |
+| `uv` | `{binding}` of type `Rect`: the region shown, 0 to 1 with a bottom-left origin. Starts as `(0, 0, 1, 1)` |
+
+Both attributes take a binding; a literal is an error. Give it a `width` and `height` in the
+stylesheet, otherwise it is 64 by 64. Allowed inside a `<repeat>`.
+
+```aui
+<repeat id="results" max="10" class="grid">
+  <panel class="card">
+    <rawimage texture="{item.thumb}" uv="{item.uv}" class="thumb"/>
+  </panel>
+</repeat>
+```
+
+```csharp
+SetResultsThumb(i, sheet);                  // Texture
+SetResultsUv(i, new Rect(0f, 0.5f, 0.5f, 0.5f));
+```
+
+The view does not own the texture: destroy a downloaded texture yourself when you replace it.
+
 ## Controls
 
 ### `<button>`

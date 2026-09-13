@@ -49,7 +49,8 @@ namespace Armagan.AUI.Editor
         // 18: <text max-lines>, <text runtime>, <input maxlength> (elemInputMax) finally do something;
         //     the compile hash covers the rule table and the per-language widths.
         // 19: <input type="url"> (elemInputType): armed on the panel's VRCUrlInputField.
-        public const int BuilderVersion = 19;
+        // 20: <rawimage> (elemRaw): a RawImage outside the cascade's elemBg.
+        public const int BuilderVersion = 20;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -72,6 +73,7 @@ namespace Armagan.AUI.Editor
             public TextMeshProUGUI[] Text;
             public Button[] Buttons;
             public Slider[] Sliders;
+            public RawImage[] Raw;
             public Vector2[] BasePos;
             public int[] Signal, Key, Kind;
             public AuiSignal[] Signals;
@@ -276,6 +278,7 @@ namespace Armagan.AUI.Editor
             c.Text = new TextMeshProUGUI[n];
             c.Buttons = new Button[n];
             c.Sliders = new Slider[n];
+            c.Raw = new RawImage[n];
             c.BasePos = new Vector2[n];
             c.Signal = new int[n];
             c.Key = new int[n];
@@ -410,6 +413,7 @@ namespace Armagan.AUI.Editor
                 case "text": BuildText(c, n, e, go, s, local, parentNode); break;
                 case "icon": BuildIcon(c, n, e, go, s); break;
                 case "image": BuildImage(c, n, e, go, s); break;
+                case "rawimage": BuildRawImage(c, n, e, go, s); break;
                 case "spacer": break;
                 case "slider": BuildSlider(c, n, e, go, s, local); break;
                 case "input": BuildInput(c, n, e, go, s, local); break;
@@ -878,6 +882,23 @@ namespace Armagan.AUI.Editor
             c.Bg[e] = img;
         }
 
+        private static void BuildRawImage(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s)
+        {
+            // THE RAWIMAGE GOES INTO c.Raw, NEVER c.Bg. The cascade writes sprite, material and
+            // colour into elemBg on every state change; a texture a script set would be lost.
+            // The tint stays white: `color` is inherited text colour, and taking it would dim
+            // every thumbnail to the muted grey of the label beside it.
+            var raw = go.AddComponent<RawImage>();
+            raw.texture = null;
+            raw.uvRect = new Rect(0f, 0f, 1f, 1f);
+            raw.raycastTarget = false;
+            raw.color = Color.white;
+            // A RawImage with no texture draws a solid white quad; bake it off until a texture arrives
+            // (SetRawTexture toggles it), so a parent's background shows through as the placeholder.
+            raw.enabled = false;
+            c.Raw[e] = raw;
+        }
+
         /// <summary>Icon + label inside a button-like element, laid out left to right inside the padding.</summary>
         private static void BuildClickableContent(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
         {
@@ -1283,7 +1304,7 @@ namespace Armagan.AUI.Editor
             AuiView v = c.View;
             AuiCompileResult r = c.R;
             v.elemObjects = c.Objects; v.elemRects = c.Rects; v.elemGroups = c.Groups; v.elemBg = c.Bg; v.elemBorder = c.Border;
-            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemBasePos = c.BasePos;
+            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemRaw = c.Raw; v.elemBasePos = c.BasePos;
             v.elemSignal = c.Signal; v.elemKey = c.Key; v.elemKind = c.Kind;
             v.sigElem = c.SigElem; v.signals = c.Signals;
             v.auiBakeHash = BakeStamp(r);
@@ -1509,7 +1530,7 @@ namespace Armagan.AUI.Editor
             if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
             {
                 var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
-                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate" })
+                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate" })
                     if (!exports.Contains(must)) AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }
         }
