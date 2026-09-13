@@ -8,6 +8,9 @@
     "name": "Armagan"
   },
   "license": "UNLICENSED",
+  "dependencies": {
+    "com.unity.vectorgraphics": "2.0.0-preview.25"
+  },
   "vpmDependencies": {
     "com.vrchat.worlds": "^3.10.4"
   },
