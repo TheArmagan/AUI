@@ -113,6 +113,7 @@ namespace Armagan.AUI.Core
             AuiPoolSynthesizer.Synthesize(r.Doc, r.Diagnostics);
             var resolver = new AuiStyleResolver(r.Sheets);
             r.Styles = resolver.Resolve(r.Doc, r.Diagnostics);
+            ApplyIconSizes(r);
             r.Info = AuiAnalyzer.Analyze(r.Doc, new AuiAnalysisContext { FileStem = stem, ViewExists = opt.ViewExists, IconExists = opt.IconExists, ChildInfo = opt.ChildInfo }, r.Diagnostics);
             if (opt.Lang != null) opt.Lang.Check(r.Info, r.Diagnostics);
             if (r.Doc.Root == null) return r;
@@ -141,6 +142,44 @@ namespace Armagan.AUI.Core
             r.Hash = ComputeHash(r, unhashed);
             r.GeneratedSource = AuiCodegen.WithHeaderHash(unhashed, Sha1(unhashed));
             return r;
+        }
+
+        /// <summary>
+        /// &lt;icon size="40"&gt; BEATS A SHEET THAT SIZES ICONS. The attribute sits on the element, so it is more
+        /// specific than any rule, and the default theme sizes every icon (icon { width: 18; height: 18 }):
+        /// an explicit width wins over an element's intrinsic size everywhere in the solver, which made
+        /// size= a no-op in any themed view. Rewriting the resolved value, rather than teaching each reader
+        /// about icons, keeps the Core solver, the baked runtime tables and the prefab builder in agreement
+        /// for free: they all read this object.
+        ///
+        /// Only where the sheet set a fixed width or height. An icon the sheet leaves unsized keeps size= as
+        /// its intrinsic size, so align: stretch still widens its box as before; a percentage is left alone.
+        /// </summary>
+        private static void ApplyIconSizes(AuiCompileResult r)
+        {
+            if (r.Doc == null || r.Styles == null) return;
+            foreach (AuiNode n in r.Doc.Nodes)
+            {
+                float size;
+                if (n.Tag != "icon" || n.Index < 0 || n.Index >= r.Styles.Length || r.Styles[n.Index] == null) continue;
+                if (!AuiNum.TryParse(n.Get("size") ?? "", out size) || size <= 0) continue;
+                AuiResolvedStyle s = r.Styles[n.Index];
+                // An inline style="width: .." is the author being even more specific than size=; leave it.
+                string[] inline = (n.Get("style") ?? "").Split(';');
+                foreach (string prop in new[] { "width", "height" })
+                {
+                    AuiLength l = s.Length(prop);
+                    if (!l.IsSet || l.IsAuto || l.IsPercent) continue;
+                    bool inlined = false;
+                    // The declaration's own name, so max-width / min-width do not count as width.
+                    foreach (string decl in inline)
+                    {
+                        int colon = decl.IndexOf(':');
+                        if (colon > 0 && decl.Substring(0, colon).Trim() == prop) inlined = true;
+                    }
+                    if (!inlined) s.Values[prop] = AuiNum.Fmt(size);
+                }
+            }
         }
 
         private static string Read(AuiCompileOptions opt, string path)

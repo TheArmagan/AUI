@@ -65,6 +65,15 @@ namespace Armagan.AUI.Editor
             sb.Append(indent).Append("public partial class ").Append(r.ViewName).Append(" : AuiView\n");
             sb.Append(indent).Append("{\n");
             var seen = new System.Collections.Generic.HashSet<string>();
+            // A HANDLER MAY NAME A GENERATED METHOD: onclick="CloseConfirm" on a modal's cancel button is
+            // the documented way to close it. The generated half already defines those, so a stub here
+            // is a duplicate member (CS0111) in a file the author has not even opened yet.
+            foreach (AuiModalInfo m in r.Info.Modals)
+            {
+                seen.Add("Open" + m.PascalId);
+                seen.Add("Close" + m.PascalId);
+                seen.Add("Is" + m.PascalId + "Open");
+            }
             foreach (AuiHandler h in r.Info.Handlers)
             {
                 if (!seen.Add(h.Name)) continue;

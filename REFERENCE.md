@@ -476,6 +476,18 @@ translation plus icon and padding; a select measures its widest option plus the 
 reserves `max` copies (in a row, one line; the layout pass wraps). Explicit non-percent width and
 height override; min/max clamp.
 
+`<icon size>` AGAINST A SHEET THAT SIZES ICONS. An explicit width wins over an intrinsic size
+everywhere in the solver, and the default theme gives every icon one (`icon { width: 18; height:
+18 }`), so until BuilderVersion 22 `size=` did nothing in a themed view: a 40 mm icon was 18 in
+both solvers, which is also why the parity tests never saw it. `AuiCompiler.ApplyIconSizes` runs
+straight after the cascade and rewrites the resolved `width` / `height` of a sized icon to its
+`size`, wherever the sheet had set a fixed one. Both solvers, the baked runtime tables and the
+builder read that resolved style, so they agree without each learning about icons. It leaves alone:
+an icon the sheet did not size (there `size` stays the intrinsic size and `align: stretch` still
+widens the box), a percentage, and an inline `style="width: ..."`, which is the author being more
+specific still. A class added at runtime that sets an icon's width re-resolves from the rule table
+and wins over `size`; nothing in the package does that.
+
 Layout (top-down): each child gets a rect. Grow shares leftover; justify places the rest; align
 positions on the cross axis (stretch fills unless the child has an explicit size). On overflow,
 text and content-sized children shrink proportionally (floor 24 mm) before a warning AUI400 is
@@ -708,8 +720,10 @@ never written by the builder: `wristOffset` (0, 0.07, 0.03), `wristRange` 0.6, `
   hides past `wristHideAngle` (the gap is the hysteresis). Hand rotation is not used because it
   differs between controllers and avatar bones differ between rigs. Outside VR (`IsUserInVR`
   false) a wrist mode behaves as `corner`.
-- `corner`: head rotation times `Euler(+-cornerAngles.y, +-cornerAngles.x, 0)`, at `distance`,
-  facing the head. `follow`: yaw-only heading, `distance` ahead, `followDrop` below eye height;
+- `corner`: positioned along head rotation times `Euler(+-cornerAngles.y, +-cornerAngles.x, 0)`, at
+  `distance`, and ROTATED AS THE HEAD IS, that is parallel to the view plane, not turned toward
+  the eye. Turned toward the eye, a wide desktop FOV sheared the panel into a trapezoid at 27
+  degrees off axis (seen in ClientSim). `follow`: yaw-only heading, `distance` ahead, `followDrop` below eye height;
   it rests until the heading to the panel is off by more than `followAngle` or the head moved
   more than `followSlack` from where the rest pose was chosen, then lerps at `followSpeed` until
   within 1 cm. Looking straight up or down keeps the last pose. `front`: head position plus
@@ -771,7 +785,10 @@ are refused (`Lang`, `Content`, `Show`, `Hide`, ... see `AuiCodegen.Reserved`).
 
 Determinism: the same model gives byte-identical text; the header carries the hash so the writer
 can skip. The scaffold (`AuiSourceWriter.Scaffold`) writes `Foo.cs` once with an empty method per
-handler, in the same namespace.
+handler, in the same namespace. It skips a handler that names a generated modal method
+(`Open<Id>`, `Close<Id>`, `Is<Id>Open`): `onclick="CloseConfirm"` on a modal's cancel button is the
+documented way to close it, and a stub for it used to collide with the generated method (CS0111)
+in a file the author had not opened yet.
 
 ## 10. Index map: how codegen and the builder agree
 
@@ -805,6 +822,9 @@ constants in `AuiView`.
   `ApplySyncMode` and `CopyProxyToUdon` on it. The root BoxCollider is disabled when the view is
   attached and has no signals: a trigger that travels with the player would swallow every click
   aimed past it. `AuiProgramAssets.EnsurePackageRuntime` covers `AuiAttach.asset`.
+- BuilderVersion 22 changes no builder code: `<icon size>` now beats a sheet's fixed icon width
+  (section 6, `AuiCompiler.ApplyIconSizes`), and the bump makes every existing prefab rebuild with
+  the corrected layout tables even if its compile hash happened not to move.
 - `Content` child: stretch, CanvasGroup; element 0 (the `<view>`) is this object.
 - Sprites are imported at 100 pixels per unit to cancel `Canvas.referencePixelsPerUnit` (100); a
   14 px slice border is then 14 mm. Setting the canvas reference to 1 was measured not to survive

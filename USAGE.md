@@ -465,7 +465,8 @@ How each mode behaves:
   not read the hand's rotation, which differs between controllers and avatar rigs. A view that is
   out of sight has its canvas and collider disabled; its content and bindings are untouched.
 - `corner` is head-locked: 27 degrees sideways and 15 degrees up or down from the centre of the
-  view, at `attach-distance`.
+  view, at `attach-distance`, parallel to the view plane. `cornerAngles` on the component moves
+  it further out.
 - `follow` stays level (yaw only), 0.12 m below eye height. It moves only after the player has
   turned more than 38 degrees away from it or walked more than 0.45 m, then glides to the new
   spot.

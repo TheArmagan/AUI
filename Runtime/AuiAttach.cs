@@ -175,8 +175,11 @@ namespace Armagan.AUI
             float pitch = (corner == CORNER_BOTTOM_LEFT || corner == CORNER_BOTTOM_RIGHT) ? cornerAngles.y : -cornerAngles.y;
             Quaternion rot = head.rotation * Quaternion.Euler(pitch, yaw, 0f);
             Vector3 dir = rot * Vector3.forward;
-            // A uGUI canvas is read looking ALONG its +Z, so facing the player means forward = away from the head.
-            transform.SetPositionAndRotation(head.position + dir * distance, Quaternion.LookRotation(dir, head.rotation * Vector3.up));
+            // PARALLEL TO THE VIEW PLANE, NOT TURNED TOWARD THE EYE. Turned toward the eye is what a wrist
+            // panel wants, but in a corner the perspective of a wide desktop FOV shears it into a
+            // trapezoid (seen in ClientSim at 27 degrees off axis). head.rotation as is: a uGUI canvas is
+            // read looking ALONG its +Z, so the head's own forward is already the readable side.
+            transform.SetPositionAndRotation(head.position + dir * distance, head.rotation);
         }
 
         private void TickWrist(VRCPlayerApi.TrackingData head, VRCPlayerApi.TrackingData hand)

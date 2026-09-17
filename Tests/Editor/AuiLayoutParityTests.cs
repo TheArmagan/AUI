@@ -43,6 +43,9 @@ namespace Armagan.AUI.Tests
             "<view name=\"V\" width=\"200\" height=\"100\"><icon id=\"tl\" name=\"x\" size=\"10\" style=\"position: absolute; top: -4; left: -6\"/><icon id=\"br\" name=\"x\" size=\"10\" style=\"position: absolute; bottom: 2; right: 3\"/><panel id=\"st\" style=\"position: absolute; top: 5; bottom: 5; left: 20; right: 20\"/><icon id=\"flow\" name=\"x\" size=\"10\"/></view>|view { padding: 10; gap: 0 } panel { padding: 0 }",
             "<view name=\"V\" width=\"240\" height=\"120\"><panel class=\"row\"><button id=\"b1\" icon=\"zap\">Go</button><button id=\"b2\" icon=\"zap\"/><toggle id=\"t1\" bind=\"{on}\">Solid</toggle><spacer/><text id=\"long\" text=\"{v}\"/></panel><panel class=\"wrap\"><icon name=\"x\" size=\"30\"/><icon name=\"x\" size=\"30\"/><icon name=\"x\" size=\"30\"/><icon name=\"x\" size=\"30\"/></panel></view>|view { padding: 8; gap: 6 } .row { flex-direction: row; gap: 8; align: center } .wrap { flex-direction: row; wrap: true; gap: 4 } button { padding: 4 8; gap: 6 } toggle { padding: 4 8 }",
             "<view name=\"V\" width=\"200\" height=\"120\"><panel class=\"row\"><text id=\"a\" style=\"margin: 2 4\">abc</text><panel id=\"p\" style=\"grow: 2; margin: 1\"/><panel id=\"q\" style=\"grow: 1; max-width: 20\"/></panel></view>|view { padding: 0 } .row { flex-direction: row; gap: 3; align: end; padding: 5 }",
+            // size= against a sheet that sizes icons, which is what the default theme does (icon { width: 18 }).
+            // The runtime tables used to carry only the sheet's 18, so a 40 mm icon was solved back to 18 in the world.
+            "<view name=\"V\" width=\"200\" height=\"120\"><panel class=\"row\"><icon id=\"big\" name=\"x\" size=\"40\"/><icon id=\"dflt\" name=\"x\"/><icon id=\"small\" name=\"x\" size=\"9\"/></panel></view>|view { padding: 0 } .row { flex-direction: row; gap: 4; align: center; padding: 0 } icon { width: 18; height: 18 }",
         };
 
         private static AuiCompileResult Compile(string fixture, int[] counts)
@@ -161,6 +164,34 @@ namespace Armagan.AUI.Tests
             AssertParity(Fixtures[6], new[] { 2 });
             AssertParity(Fixtures[6], new[] { 0 });
             AssertParity(Fixtures[7], new[] { 3 });
+        }
+
+        /// <summary>Parity alone would pass with both solvers wrong in the same way, which is how this went unseen: assert the numbers.</summary>
+        [Test]
+        public void IconSizeBeatsASheetThatSizesIcons()
+        {
+            AuiCompileResult r = Compile(Fixtures[Fixtures.Length - 1], null);
+            Assert.IsFalse(r.HasErrors, string.Join("\n", r.Diagnostics.Items));
+            var byId = new Dictionary<string, AuiNode>();
+            foreach (AuiNode n in r.Doc.Nodes) if (n.Id != null) byId[n.Id] = n;
+            Assert.AreEqual(40f, r.Layout[byId["big"].Index].Local.W, 0.01, "size=40 against icon { width: 18 }");
+            Assert.AreEqual(40f, r.Layout[byId["big"].Index].Local.H, 0.01);
+            Assert.AreEqual(18f, r.Layout[byId["dflt"].Index].Local.W, 0.01, "no size=: the sheet decides");
+            Assert.AreEqual(9f, r.Layout[byId["small"].Index].Local.W, 0.01, "size= can also shrink");
+
+            AuiLayoutTables t = AuiLayoutTables.Build(r);
+            int e = r.Map.Elem(byId["big"], 0);
+            Assert.AreEqual(40f, t.SizeVal[6 * e + AuiLayoutTables.SZ_W], 0.01, "the runtime tables carry it too");
+        }
+
+        [Test]
+        public void IconSizeDoesNotOverrideAnInlineWidth()
+        {
+            AuiCompileResult r = Compile("<view name=\"V\" width=\"200\" height=\"100\"><icon id=\"i\" name=\"x\" size=\"40\" style=\"width: 12; max-width: 60\"/></view>|view { padding: 0 } icon { width: 18; height: 18 }", null);
+            AuiNode icon = null;
+            foreach (AuiNode n in r.Doc.Nodes) if (n.Id == "i") icon = n;
+            Assert.AreEqual(12f, r.Layout[icon.Index].Local.W, 0.01, "an inline width is more specific than size=");
+            Assert.AreEqual(40f, r.Layout[icon.Index].Local.H, 0.01, "max-width must not be mistaken for width, nor block height");
         }
 
         [Test]

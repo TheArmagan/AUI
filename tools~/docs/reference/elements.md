@@ -131,11 +131,15 @@ A bundled Lucide icon, tinted by the `icon-color` style property.
 | Attribute | Meaning |
 |---|---|
 | `name` | the icon file name, without `.svg` (AUI119 if unknown) |
-| `size` | size in mm |
+| `size` | size in mm. It wins over a stylesheet's fixed `width` / `height` for icons (the theme sets 18); an inline `style="width: ..."` on the same icon wins over `size` |
 
 ```aui
 <icon name="sliders-horizontal" size="22" class="accent"/>
 ```
+
+Icons from a folder listed in `AuiSettings.iconFolders` work the same way. Add the folder to the
+settings BEFORE dropping SVGs into it: a file imported earlier keeps Unity's default SVG import
+settings and renders as nothing until `AUI/Reimport Icons` is run.
 
 See [icons](/reference/icons) for the full set.
 

@@ -51,7 +51,8 @@ namespace Armagan.AUI.Editor
         // 19: <input type="url"> (elemInputType): armed on the panel's VRCUrlInputField.
         // 20: <rawimage> (elemRaw): a RawImage outside the cascade's elemBg.
         // 21: <view attach>: an AuiAttach on the root (AuiView.attach), kept across rebuilds like the view itself.
-        public const int BuilderVersion = 21;
+        // 22: <icon size> reaches the runtime layout tables; it used to bake right and be re-solved to the sheet's 18.
+        public const int BuilderVersion = 22;
 
         public static string BakeStamp(AuiCompileResult r)
         {

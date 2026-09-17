@@ -58,7 +58,10 @@ the default 18 mm body text holds very little.
 ```
 
 Head-locked: 27 degrees sideways and 15 degrees up or down from the centre of the player's view,
-at `attach-distance`, facing them. Head-locked panels are tiring in VR over a long session, which
+at `attach-distance`, lying parallel to the view so it reads as a flat rectangle rather than one
+turned toward the eye. 27 and 15 degrees is about a third of the way in on a desktop view; raise
+`cornerAngles` on the `AuiAttach` component (37 and 19 reach the corner of a 16:9 view for a panel
+18 cm wide at 0.55 m) if it covers what the player is looking at. Head-locked panels are tiring in VR over a long session, which
 is why the wrist modes only use the corner on desktop.
 
 ## Follow
