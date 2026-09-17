@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: AuiSignal
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: 46fb23feb38f00141bf2f647376b8702, type: 2}
+  serializedUdonProgramAsset: {fileID: 11400000, guid: 7c43acca105677b41a7574fdeed5deed, type: 2}
   udonAssembly: 
   assemblyError: 
   sourceCsScript: {fileID: 11500000, guid: 13848fe802ad86c4694e4b306178e7c4, type: 3}

@@ -50,6 +50,9 @@ The root of every `.aui` file. Exactly one per file (AUI004), and it must be the
 | `materials` | names | preload materials for `SetMaterial` |
 | `utilities` | names | preload star classes for `AddClass` |
 | `pool` | `tag:count ...` | bake spare elements for `CreateElementByTag`, e.g. `text:16 panel:8` |
+| `attach` | `none`, `wrist-left`, `wrist-right`, `corner`, `follow`, `front` | ties the view to the local player. Present at all, `none` included, it bakes the [`AuiAttach`](/reference/services#auiattach) component that `SetAttach` drives. See [attaching a view](/guide/attaching) |
+| `attach-corner` | `bottom-left`, `bottom-right`, `top-left`, `top-right` | where a `corner` view sits, and where a wrist view sits on desktop. Default `bottom-left`. Ignored with a warning on `follow` and `front` (AUI111) |
+| `attach-distance` | number, 0.2 to 3 | metres from the head for `corner`, `follow` and `front`. Default 0.6. Outside the range is AUI111 |
 
 ```aui
 <view name="Chat" width="400" height="300"
@@ -59,6 +62,15 @@ The root of every `.aui` file. Exactly one per file (AUI004), and it must be the
 ```
 
 The four preload attributes exist because only baked asset references can be swapped in-world.
+
+```aui
+<view name="Hud" width="150" height="80" attach="wrist-left" attach-corner="bottom-left">
+  ...
+</view>
+```
+
+`attach` only works on an outermost view. A view that declares it and is then used as a tag
+inside another view loses it, and the host gets AUI123.
 
 ### `<panel>` and `<div>`
 

@@ -187,6 +187,14 @@ namespace Armagan.AUI.Core
         public string Name;
         public float Width;
         public float Height;
+        /// <summary>&lt;view attach&gt;: index into AuiSchema.AttachModes, 0 for none. Read by a host that nests this view (AUI123) and by the builder.</summary>
+        public int Attach;
+        /// <summary>The attribute is present at all. attach="none" still gets the component, so code can call SetAttach later.</summary>
+        public bool HasAttach;
+        /// <summary>&lt;view attach-corner&gt;: index into AuiSchema.AttachCorners.</summary>
+        public int AttachCorner;
+        /// <summary>&lt;view attach-distance&gt; in metres.</summary>
+        public float AttachDistance = 0.6f;
         public readonly List<AuiBinding> Bindings = new List<AuiBinding>();
         public readonly List<AuiHandler> Handlers = new List<AuiHandler>();
         public readonly List<AuiRepeatInfo> Repeats = new List<AuiRepeatInfo>();

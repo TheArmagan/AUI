@@ -54,6 +54,7 @@ Runtime/                      asmdef Armagan.AUI (autoReferenced) + Armagan.AUI.
   AuiSignal.cs                per-element relay: uGUI UnityEvent -> view._OnSignal(id, kind)
   AuiLanguageService.cs       the flat language table, detection, persistence, fan-out, tween probe
   AuiInputPanel.cs            the invisible keyboard click target (port of the world's InputPanelManager)
+  AuiAttach.cs                <view attach>: moves an outermost view's root with the local player (wrist, corner, follow, front)
   AuiInspectorBridge.cs       editor-only reflection hop so generated inspectors reach the editor assembly
   AuiSettings.cs              ScriptableObject: project configuration (lang folder, default language, fonts, ranges)
   AuiFontSet.cs               ScriptableObject: the baked font assets
@@ -220,6 +221,18 @@ Literal text inside an element is trimmed and whitespace-collapsed and kept on t
 
 Root: `<view name="Foo" width="440" height="330" show="fade-scale" start-hidden="false">`.
 `name` must equal the file stem and be a C# identifier. Width and height are millimetres.
+
+Attach, also on the root: `attach="none|wrist-left|wrist-right|corner|follow|front"`,
+`attach-corner="bottom-left|bottom-right|top-left|top-right"`, `attach-distance` (metres from the
+head, 0.2 to 3, default 0.6). The value lists are `AuiSchema.AttachModes` / `AttachCorners`, and
+the index into them is what gets baked (`AuiAttach.mode`, the `ATTACH_*` constants), so both lists
+are append-only. `AuiAnalyzer.AnalyzeAttach` validates the three together and fills
+`AuiViewInfo.HasAttach`, `Attach`, `AttachCorner`, `AttachDistance`. `HasAttach` is true whenever
+the attribute is present, `attach="none"` included: that is how a view asks for the component so
+`SetAttach` works later. A bad value is an `AUI111` error; `attach-corner` on `follow` / `front` or
+without `attach`, and `attach-distance` without `attach`, are `AUI111` warnings. A host that nests
+a view whose `Attach` is not none gets warning `AUI123` (read through `ChildInfo`). Codegen does
+not read any of it, so the golden file is unaffected. Runtime behaviour is in section 8.
 
 Common attributes on every element: `id` (identifier; becomes `E_ID` / `S_ID` constants),
 `class` (space separated), `style` (inline declarations), `if="{bool}"` (SetActive from a
@@ -558,11 +571,13 @@ optionally, a dynamic Noto JP atlas for runtime strings such as player names. Th
 
 ## 8. Runtime: the classes and how they talk
 
-All `[UdonBehaviourSyncMode(BehaviourSyncMode.None)]`. Nothing runs in `Update` except
-`AuiInputPanel` while armed.
+All `[UdonBehaviourSyncMode(BehaviourSyncMode.None)]`. Nothing runs per frame except
+`AuiInputPanel` (`Update`) while armed and `AuiAttach` (`PostLateUpdate`) while its view is shown
+and moving with the player.
 
 `AuiView` (base of every view). Baked, hidden fields: `lang`, `inputPanel`, `content`,
-`contentGroup`, `contentRect`, `auiBakeHash`; element tables indexed by runtime element index:
+`contentGroup`, `contentRect`, `auiBakeHash`, `attach` (the sibling `AuiAttach`, null when the
+markup has no `attach`; BuilderVersion 21); element tables indexed by runtime element index:
 `elemObjects`, `elemRects`, `elemGroups`, `elemBg`, `elemBorder`, `elemIcon`, `elemText`,
 `elemButtons`, `elemSliders`, `elemBasePos`, `elemSignal`, `elemKey`, `elemKind`; signal tables
 `sigElem`, `signals`; style rows `styleRangeStart/Count[sig * 5 + state]`, `styleProp`,
@@ -596,6 +611,11 @@ panel from code, as a click would) and the hook `InputUrlSeed(elem, last)` (what
 opens with; avtr.zip overrides it to seed the baked padded URL the player types onto);
 `_Retranslate()`; `SetStyleVariable(name, value)`, `SetStyleVariableColor(name, c)`,
 `SetStyleVariableFloat(name, f)`, `GetStyleVariable(name)`, `StyleVariableId(name)` (section 5);
+`SetAttach(mode)`, `GetAttach()`, `SetAttachCorner(corner)`, `SetAttachDistance(metres)` (clamped
+0.2 to 3), `SetAttachOffset(Vector3)` with the constants `ATTACH_NONE`, `ATTACH_WRIST_LEFT`,
+`ATTACH_WRIST_RIGHT`, `ATTACH_CORNER`, `ATTACH_FOLLOW`, `ATTACH_FRONT` and `CORNER_BOTTOM_LEFT`,
+`CORNER_BOTTOM_RIGHT`, `CORNER_TOP_LEFT`, `CORNER_TOP_RIGHT` (on a view built without `attach`
+the setters warn once and return; `GetAttach` answers `ATTACH_NONE`);
 `WarnOnce(key, message)` for author code that would otherwise log every frame.
 
 Snaps are guarded by due time, not by sequence number: `_PageSnap` and `_ModalSnap` take no
@@ -665,6 +685,43 @@ is never on an inactive object, focus drops with `enabled = false`, `OnValueChan
 focused is the submit, the armed panel expires after `clickTimeout`, the component disables itself
 while idle.
 
+`AuiAttach`: `<view attach>`. A separate behaviour on the view's root because `AuiView` runs
+nothing per frame and a followed panel has to; the same escape hatch as `AuiInputPanel`, with
+`enabled` false whenever there is nothing to move (view hidden, mode `none`, a `front` view after
+its placement). Baked, hidden fields: `view`, `rootCanvas`, `rootCollider`, `interactive` (the
+view has at least one signal), `mode`, `corner`, `distance`. Tuning fields, public and shown,
+never written by the builder: `wristOffset` (0, 0.07, 0.03), `wristRange` 0.6, `wristShowAngle`
+24, `wristHideAngle` 36, `cornerAngles` (27, 15), `followDrop` 0.12, `followAngle` 38,
+`followSlack` 0.45, `followSpeed` 5. Entry points called by the view: `_OnViewShown()` (from
+`Show` / `ShowInstant`), `_OnViewHidden()` (from `Hide` / `HideInstant`), `_OnChanged()` (from the
+`SetAttach*` setters); all of them are safe before its own `Start`.
+
+- It moves the root transform and nothing else; `AuiView` never moves or deactivates its own
+  object, only `content`, so the two do not meet. A wrist view out of sight is hidden through
+  `rootCanvas.enabled` and `rootCollider.enabled`, never through `content` or its CanvasGroup,
+  which belong to Show/Hide and its tweens.
+- `PostLateUpdate`, not `Update`: tracking data for the frame is final only after VRChat's own
+  late update, and a head-locked panel placed earlier trails the head by a frame.
+- Wrist modes read the hand's tracked POSITION only. The pose is the hand position plus
+  `wristOffset` in head space (x right, y up, z toward the head), facing the head; it shows while
+  the hand is within `wristRange` of the head and the gaze is within `wristShowAngle` of it, and
+  hides past `wristHideAngle` (the gap is the hysteresis). Hand rotation is not used because it
+  differs between controllers and avatar bones differ between rigs. Outside VR (`IsUserInVR`
+  false) a wrist mode behaves as `corner`.
+- `corner`: head rotation times `Euler(+-cornerAngles.y, +-cornerAngles.x, 0)`, at `distance`,
+  facing the head. `follow`: yaw-only heading, `distance` ahead, `followDrop` below eye height;
+  it rests until the heading to the panel is off by more than `followAngle` or the head moved
+  more than `followSlack` from where the rest pose was chosen, then lerps at `followSpeed` until
+  within 1 cm. Looking straight up or down keeps the last pose. `front`: head position plus
+  forward times `distance`, once per show; the same math as `AuiInputPanel.Show`, which is left
+  as it is because that panel is two canvases under a root and not an `AuiView`.
+- After a hide it keeps following through the fade and sleeps `hideDur + 0.05` s later, guarded
+  by a sequence number so a Show inside the fade is not put to sleep.
+- `rootCollider` is enabled only when `interactive`. AUI cannot choose which hand's laser hits a
+  wrist view, so a wrist view with controls can be pressed by the hand it sits on (section 18).
+- On a nested view (`parentView != null`) it sets itself to `none` and disables; the builder
+  does not leave one there anyway (section 11).
+
 ## 9. Generated code: the contract with the author
 
 For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
@@ -732,12 +789,22 @@ constants in `AuiView`.
 
 - Builds under a temporary root in the open scene when the prefab does not exist, otherwise INSIDE
   `PrefabUtility.LoadPrefabContents(path)` after stripping every child and every non-root component
-  except RectTransform, Canvas, GraphicRaycaster, VRCUiShape, BoxCollider, the view class and its
-  backing UdonBehaviour. That keeps the root ids, so a scene instance's overrides (position, author
+  except RectTransform, Canvas, GraphicRaycaster, VRCUiShape, BoxCollider, the view class,
+  `AuiAttach` and the backing UdonBehaviours. That keeps the root ids, so a scene instance's overrides (position, author
   fields) survive a rebuild. Saved with `SaveAsPrefabAsset`, unloaded with `UnloadPrefabContents`.
 - Root: `RectTransform` sized W x H, scale 0.001, world-space Canvas, GraphicRaycaster,
   `VRCUiShape` (without it nothing is clickable in VRChat and nothing tells you), trigger
   BoxCollider W x H x 10. The view component is added with `UdonSharpUndo.AddComponent`.
+- `<view attach>` (BuilderVersion 21): when `AuiViewInfo.HasAttach`, the root gets an `AuiAttach`
+  (`UdonSharpUndo.AddComponent`, reused when already there so its tuned fields and instance
+  overrides survive); when the attribute is gone, an existing one is removed with
+  `UdonSharpEditorUtility.DestroyImmediate`, not `Object.DestroyImmediate`, which would leave its
+  backing UdonBehaviour on the root running a program with no proxy. `FillTables` writes
+  `view.attach` and, on the component, `view`, `rootCanvas`, `rootCollider`, `interactive`
+  (`Map.SignalCount > 0`), `mode`, `corner`, `distance`, and nothing else. `Finish` runs
+  `ApplySyncMode` and `CopyProxyToUdon` on it. The root BoxCollider is disabled when the view is
+  attached and has no signals: a trigger that travels with the player would swallow every click
+  aimed past it. `AuiProgramAssets.EnsurePackageRuntime` covers `AuiAttach.asset`.
 - `Content` child: stretch, CanvasGroup; element 0 (the `<view>`) is this object.
 - Sprites are imported at 100 pixels per unit to cancel `Canvas.referencePixelsPerUnit` (100); a
   14 px slice border is then 14 mm. Setting the canvas reference to 1 was measured not to survive
@@ -760,7 +827,9 @@ constants in `AuiView`.
   and one row per state override, each with duration and ease from the element's `transition`,
   and a channel index so tweens are killed per property.
 - Pages not default are baked inactive with alpha 0. Nested views are `InstantiatePrefab` of the
-  child prefab with its root-only components removed and `parentView` set.
+  child prefab with its root-only components removed and `parentView` set. An `AuiAttach` on the
+  child goes with them (and `child.attach` is cleared): left in place it would carry a piece of
+  the host's layout off to the player's wrist. The analyzer tells the author with `AUI123`.
 - After filling the tables: `ApplySyncMode`, `CopyProxyToUdon` on the view, every signal and every
   nested view, then a check that `elemObjects` reached the Udon heap and that `inputResult`,
   `inputResultId`, `elemObjects`, `auiBakeHash`, `layParent`, `layLangW`, `elemChildView` are exported symbols. `AuditComponents` logs any
@@ -777,7 +846,8 @@ root not view, 105 repeat template count, 106 tab without page, 107 nested view 
 binding type conflict, 109 handler not identifier, 110 missing required attribute, 111 bad value,
 112 element not allowed here, 113 nested cycle, 114 tabs without pages, 115 text and key both, 116
 bad binding syntax, 117 literal text info, 118 item binding outside repeat, 119 unknown icon, 120
-repeat max, 121 unknown component prop, 122 bad prop declaration); 2xx stylesheet (200 syntax,
+repeat max, 121 unknown component prop, 122 bad prop declaration, 123 attach on a nested view
+(warning; the nested instance has no canvas of its own and its attach is dropped)); 2xx stylesheet (200 syntax,
 201 unknown property, 202 bad value, 203 undefined
 variable, 204 unknown state, 205 bad selector, 206 unused class, 207 unknown class, 208 sheet not
 found, 209 bad transition, 210 non-animatable in a state, 211 more than 64 classes, 212 bake-only
@@ -1005,6 +1075,15 @@ for its objects, `AuiCodegen` for its setters and dispatch, `AuiView` for its ru
 the theme for its default look, the grammars for highlighting, tests, README table,
 `tools~/docs/reference/elements.md`.
 
+Add a root attribute that only the builder reads (the `attach` trio is the worked example):
+`AuiSchema.Elements` (the `view` attribute list and its Doc), a field on `AuiViewInfo` if a host or
+the builder needs it, `AuiAnalyzer` (validate it, and give it a `break` case in the per-attribute
+switch), `AuiPrefabBuilder` (`BuildTree` / `FillTables`, the `StripRoot` keep-list for a new root
+component, `BuilderVersion`), `AuiProgramAssets.EnsurePackageRuntime` for a new runtime behaviour,
+`tools~/aui-lsp/Handlers.cs` `AttributeValues` for value completion, the snippets, tests in
+`AuiAnalyzerTests`, README table, section 4 above, `tools~/docs/reference/elements.md`. Codegen
+and the golden file are untouched unless the attribute has to reach generated source.
+
 Add a style property: `AuiSchema.Props` (kind, inherited, animatable), `AuiResolvedStyle` getter,
 the builder's use of it (and `PropId`/`RowValue`/`ApplyProp` if animatable), the grammar list,
 `tools~/docs/reference/properties.md` (including the theme default column).
@@ -1052,3 +1131,13 @@ box's second click on desktop and in VR; laser hover enter/exit reliability on Q
 client raising `OnLanguageChanged`; PlayerData persistence of the language pick across sessions;
 dropdown clicks through the laser (verified structurally, not by a real click); text legibility
 of the default sizes at 2 m; atlas memory on Quest.
+
+`attach` has less behind it than the list above: `AuiAttach` compiles under UdonSharp (every field
+an exported symbol, `_postLateUpdate` an entry point) and the analyzer tests pass, and that is
+all. It has not run in ClientSim or in the real client. Open in particular: where a wrist view
+sits relative to the hand and whether the glance thresholds (`wristRange` 0.6 m, show 24 degrees,
+hide 36) feel right in VR; laser interaction with a wrist view that has controls, since AUI cannot
+choose which hand's laser hits it; jitter of `corner` and wrist views in the real client
+(`PostLateUpdate` is the reasoned choice, not a measured one); how `follow` feels with its default
+angle, slack and speed; the cost of the per-frame update on Quest; component add and remove
+across rebuilds with a scene instance holding overrides.

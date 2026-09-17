@@ -22,6 +22,14 @@ Two things:
 | Language | `LangDemo` | the shipped picker, the service's read-backs, a sentence with three placeholders |
 | Log | (the hub) | everything the pages emitted, newest first, in a repeat |
 
+`Views/Gallery/AttachDemo.*` sits in the same folder and links the same sheet, but it is a view of
+its own and not a gallery page: `attach` only works on an outermost view, and the builder drops it
+from a nested one (warning `AUI123`). Its markup says `attach="none"`, which bakes the `AuiAttach`
+component, and its buttons call `SetAttach` for each mode (none, left wrist, right wrist, corner,
+follow, front), `SetAttachCorner` and `SetAttachDistance`. Drop `AttachDemo.prefab` into the scene
+next to the gallery. The self-test below does not cover it, and attach has not been run in the
+real client yet.
+
 The hub (`AuiGallery`) also carries a self-test (`RunTests`, also reachable as the `_TestRun`
 custom event) that drives each child through its typed API and checks what actually rendered:
 bound text, escaping, placeholders, slider value and label, toggle, `if`, select, runtime
@@ -42,7 +50,7 @@ to `Assets/AUI/Lang/`. Then:
    build itself once the scene has an `AUI Language Service`; `AUI/Rebuild Language Table`
    creates one.
 5. Drop `SettingsDemo.prefab` and `AuiGallery.prefab` into the scene, about 1.2 m up, facing the
-   player.
+   player. `AttachDemo.prefab` goes in the same way, as its own object.
 
 `SettingsDemo.cs` ends with `_Test*` methods that can be sent as custom events from the editor
 to switch languages and pages without a player; the gallery's `_TestRun` runs the whole suite.

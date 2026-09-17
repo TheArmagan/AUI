@@ -57,7 +57,7 @@ would not stop for.
 | `AUI108` | One binding name used with two different types. Rename one |
 | `AUI109` | A handler value is not a C# identifier |
 | `AUI110` | A required attribute is missing (a `<view>` without `name`, for instance) |
-| `AUI111` | An attribute value does not parse for that attribute (a literal passed to a typed nested-view prop included). As a **warning**: `hidden` on an element with `icon=` or `key=`, which bakes at the wrong size; use `if="{flag}"` |
+| `AUI111` | An attribute value does not parse for that attribute (a literal passed to a typed nested-view prop included). As a **warning**: `hidden` on an element with `icon=` or `key=`, which bakes at the wrong size; use `if="{flag}"`. Also as a warning: `attach-corner` on a `follow` or `front` view or on a view without `attach`, and `attach-distance` without `attach`, none of which have any effect |
 | `AUI112` | The element is not allowed there. See [where each element may go](/reference/elements#where-each-element-may-go). Also `select`, `pages` and `tabs` inside a `<repeat>` or `<template>`: their runtime tables are per element, not per row |
 | `AUI113` | Views nest each other in a cycle |
 | `AUI114` | A `<pages>` group nothing drives. Add a `<tabs>`, or select pages from code |
@@ -69,6 +69,7 @@ would not stop for.
 | `AUI120` | A repeat's `max` is outside 1 to 64 |
 | `AUI121` | An attribute that is not a declared `<prop>` on a child that declares props |
 | `AUI122` | Malformed `<prop>` declaration |
+| `AUI123` | **Warning.** The nested view declares `attach` on its `<view>`. A nested view has no canvas of its own to move, so its attach is dropped and it stays where this view lays it out. Place that view in the scene on its own, or remove its `attach`. See [attaching a view](/guide/attaching#nested-views) |
 
 ## 2xx Stylesheet
 

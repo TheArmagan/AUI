@@ -32,6 +32,9 @@ namespace Armagan.AUI.Core
         {
             "Lang", "InputPanel", "Content", "ContentGroup", "ContentRect", "ParentView", "Show", "Hide", "Toggle",
             "IsVisible", "Escape", "Emit", "Start", "Update", "Name", "Enabled", "GameObject", "Transform",
+            // A binding {attach} becomes a property Attach, which C# allows next to the field `attach`
+            // but makes every read of it ambiguous to the person writing the view; the setters are plain collisions.
+            "Attach", "SetAttach", "GetAttach", "SetAttachCorner", "SetAttachDistance", "SetAttachOffset",
         };
 
         public static string Emit(AuiViewInfo info, AuiIndexMap map, AuiCodegenContext ctx, AuiDiagnosticBag d)

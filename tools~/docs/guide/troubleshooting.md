@@ -75,6 +75,30 @@ view. If `scan` is large, something is invalidating the workspace scan repeatedl
 The root canvas lost its `VRCUiShape` or its collider (a rebuild restores both), or a parent
 transform is scaling the view.
 
+## A wrist view never appears
+
+Outside VR there is no wrist: the view sits in its `attach-corner` instead. In VR it shows only
+while the hand is within 0.6 m of the head and the player is looking at it, so raise the hand
+into view. `wristRange`, `wristShowAngle` and `wristHideAngle` on the view's
+[`AuiAttach`](/reference/services#auiattach) component widen that. The view also has to be shown:
+one with `start-hidden` stays hidden until `Show()`.
+
+## `SetAttach` does nothing
+
+The console says the view was built without attach. Add `attach="none"` to its `<view>` and let it
+rebuild: the component that moves the view is baked into the prefab and cannot be added in-world.
+
+## An attached view blocks my laser
+
+It has at least one control, so its collider is on. A display-only attached view has its collider
+turned off. Either drop the controls, or move the view out of the way with `attach-corner`,
+`attach-distance` or the offsets on its `AuiAttach` component.
+
+## An attached view stays where its parent put it
+
+It is nested inside another view, which also reports AUI123. Only an outermost view can follow
+the player; place it in the scene on its own.
+
 ## The inspector shows hundreds of arrays
 
 The view was built by an older version of the package. Rebuild it and the per-view inspector takes

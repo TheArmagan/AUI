@@ -50,7 +50,8 @@ namespace Armagan.AUI.Editor
         //     the compile hash covers the rule table and the per-language widths.
         // 19: <input type="url"> (elemInputType): armed on the panel's VRCUrlInputField.
         // 20: <rawimage> (elemRaw): a RawImage outside the cascade's elemBg.
-        public const int BuilderVersion = 20;
+        // 21: <view attach>: an AuiAttach on the root (AuiView.attach), kept across rebuilds like the view itself.
+        public const int BuilderVersion = 21;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -65,6 +66,7 @@ namespace Armagan.AUI.Editor
             public AuiLanguageTable Lang;
             public AuiFontSet Fonts;
             public AuiView View;
+            public AuiAttach Attach;
             public int N;
             public GameObject[] Objects;
             public RectTransform[] Rects;
@@ -261,7 +263,10 @@ namespace Armagan.AUI.Editor
                 if (comp == null) continue;
                 System.Type t = comp.GetType();
                 if (t == typeof(RectTransform) || t == typeof(Transform) || t == typeof(Canvas) || t == typeof(GraphicRaycaster) ||
-                    t == typeof(VRCUiShape) || t == typeof(BoxCollider) || t == viewType || t == typeof(VRC.Udon.UdonBehaviour)) continue;
+                    t == typeof(VRCUiShape) || t == typeof(BoxCollider) || t == viewType || t == typeof(VRC.Udon.UdonBehaviour) ||
+                    // AuiAttach carries hand-tuned offsets and angles as instance overrides, the same reason the view is kept.
+                    // BuildTree removes it (and its backing UdonBehaviour) when the markup no longer asks for one.
+                    t == typeof(AuiAttach)) continue;
                 Object.DestroyImmediate(comp);
             }
         }
@@ -338,6 +343,18 @@ namespace Armagan.AUI.Editor
 
                 c.View = root.GetComponent(type) as AuiView;
                 if (c.View == null) c.View = (AuiView)UdonSharpUndo.AddComponent(root, type);
+
+                // <view attach>. Present at all (attach="none" included) means the component exists, so
+                // SetAttach has something to drive. UdonSharpEditorUtility.DestroyImmediate, NOT
+                // Object.DestroyImmediate: the latter leaves the backing UdonBehaviour on the root,
+                // running a program with no proxy.
+                var attach = root.GetComponent<AuiAttach>();
+                if (r.Info.HasAttach && attach == null) attach = (AuiAttach)UdonSharpUndo.AddComponent(root, typeof(AuiAttach));
+                else if (!r.Info.HasAttach && attach != null) { UdonSharpEditorUtility.DestroyImmediate(attach); attach = null; }
+                c.Attach = attach;
+                // A display-only attached view never takes a laser: an enabled trigger strapped to the
+                // player's arm swallows every click aimed past it.
+                bc.enabled = attach == null || r.Map.SignalCount > 0;
             }
 
             // Content: what Show/Hide fades and deactivates. Element 0 (the <view>) lives on it.
@@ -1195,9 +1212,14 @@ namespace Armagan.AUI.Editor
             // A nested view is not its own canvas: drop the pieces that only make sense on a root.
             foreach (var comp in new Component[] { inst.GetComponent<VRCUiShape>(), inst.GetComponent<BoxCollider>(), inst.GetComponent<GraphicRaycaster>(), inst.GetComponent<Canvas>() })
                 if (comp != null) Object.DestroyImmediate(comp);
+            // Its attach goes with them (AUI123 told the author). Left in place it would drag a piece of
+            // this view's layout off to the player's wrist.
+            var childAttach = inst.GetComponent<AuiAttach>();
+            if (childAttach != null) UdonSharpEditorUtility.DestroyImmediate(childAttach);
             var child = inst.GetComponent<AuiView>();
             if (child != null)
             {
+                child.attach = null;
                 child.parentView = c.View;
                 EditorUtility.SetDirty(child);
                 // A slot's parked copies have no single generated field; only a plain nested view does.
@@ -1328,6 +1350,21 @@ namespace Armagan.AUI.Editor
             string show = r.Doc.Root.Get("show") ?? rs.Show;
             v.showKind = show == "none" ? AuiView.TRANS_NONE : show == "fade" ? AuiView.TRANS_FADE : show == "fade-slide" ? AuiView.TRANS_FADE_SLIDE : AuiView.TRANS_FADE_SCALE;
             v.startHidden = Flag(r.Doc.Root, "start-hidden");
+
+            // ---- <view attach>: only what the markup says. Offsets, angles and speeds are the author's
+            // to tune on the component and are left exactly as found.
+            v.attach = c.Attach;
+            if (c.Attach != null)
+            {
+                GameObject rootGo = v.gameObject;
+                c.Attach.view = v;
+                c.Attach.rootCanvas = rootGo.GetComponent<Canvas>();
+                c.Attach.rootCollider = rootGo.GetComponent<BoxCollider>();
+                c.Attach.interactive = r.Map.SignalCount > 0;
+                c.Attach.mode = r.Info.Attach;
+                c.Attach.corner = r.Info.AttachCorner;
+                c.Attach.distance = r.Info.AttachDistance;
+            }
 
             // ---- cascade tables (rules, declarations, class ids); the runtime re-resolves from these
             AuiRuleTable rt = r.Rules;
@@ -1509,6 +1546,12 @@ namespace Armagan.AUI.Editor
             AuiProgramAssets.ApplySyncMode(v);
             EditorUtility.SetDirty(v);
             UdonSharpEditorUtility.CopyProxyToUdon(v);
+            if (c.Attach != null)
+            {
+                AuiProgramAssets.ApplySyncMode(c.Attach);
+                EditorUtility.SetDirty(c.Attach);
+                UdonSharpEditorUtility.CopyProxyToUdon(c.Attach);
+            }
             foreach (AuiSignal sig in c.Signals)
             {
                 if (sig == null) continue;

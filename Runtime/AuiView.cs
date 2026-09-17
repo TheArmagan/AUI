@@ -53,6 +53,11 @@ namespace Armagan.AUI
         [HideInInspector] public CanvasGroup contentGroup;
         [HideInInspector] public RectTransform contentRect;
         [HideInInspector] public string auiBakeHash;
+        /// <summary>&lt;view attach&gt;: the sibling that moves this view's root with the player, null when the markup has no attach (BuilderVersion 21).</summary>
+        [HideInInspector] public AuiAttach attach;
+        // ---- attach modes and corners; index into AuiSchema.AttachModes / AttachCorners, same values as AuiAttach.MODE_* / CORNER_*
+        public const int ATTACH_NONE = 0, ATTACH_WRIST_LEFT = 1, ATTACH_WRIST_RIGHT = 2, ATTACH_CORNER = 3, ATTACH_FOLLOW = 4, ATTACH_FRONT = 5;
+        public const int CORNER_BOTTOM_LEFT = 0, CORNER_BOTTOM_RIGHT = 1, CORNER_TOP_LEFT = 2, CORNER_TOP_RIGHT = 3;
 
         [Header("Element tables, index = runtime element index")]
         [HideInInspector] public GameObject[] elemObjects;
@@ -358,6 +363,7 @@ namespace Armagan.AUI
             ScheduleSnap(showDur);
             MarkLayoutDirty();
             WakeChildViews(0);
+            if (attach != null) attach._OnViewShown();
             OnShown();
         }
 
@@ -372,6 +378,7 @@ namespace Armagan.AUI
             ResetPointerStates();
             Exit(contentGroup, contentRect, showKind, hideDur, slideFrom, scaleFrom, contentRect != null ? BasePos(contentRect) : Vector2.zero, ref _fadeH, ref _scaleH, ref _slideH);
             ScheduleSnap(hideDur);
+            if (attach != null) attach._OnViewHidden();
             OnHidden();
         }
 
@@ -386,6 +393,7 @@ namespace Armagan.AUI
             _visible = true;
             MarkLayoutDirty();
             WakeChildViews(0);
+            if (attach != null) attach._OnViewShown();
             OnShown();
         }
 
@@ -400,7 +408,59 @@ namespace Armagan.AUI
             SnapHidden(contentGroup);
             content.SetActive(false);
             _visible = false;
+            if (attach != null) attach._OnViewHidden();
             OnHidden();
+        }
+
+        // ================================================================ attach
+
+        /// <summary>
+        /// Change how the view follows the local player: ATTACH_*. Needs &lt;view attach="..."&gt; in the
+        /// markup (attach="none" is enough), because the component that does the moving is baked.
+        /// </summary>
+        public void SetAttach(int mode)
+        {
+            if (!HasAttach()) return;
+            if (mode < ATTACH_NONE || mode > ATTACH_FRONT) { WarnOnce("attach-mode", "SetAttach(" + mode + ") is not an ATTACH_* value."); return; }
+            attach.mode = mode;
+            attach._OnChanged();
+        }
+
+        /// <summary>ATTACH_*, or ATTACH_NONE for a view built without attach.</summary>
+        public int GetAttach()
+        {
+            return attach != null ? attach.mode : ATTACH_NONE;
+        }
+
+        /// <summary>CORNER_*: where a corner view, or a wrist view on desktop, sits.</summary>
+        public void SetAttachCorner(int corner)
+        {
+            if (!HasAttach()) return;
+            if (corner < CORNER_BOTTOM_LEFT || corner > CORNER_TOP_RIGHT) { WarnOnce("attach-corner", "SetAttachCorner(" + corner + ") is not a CORNER_* value."); return; }
+            attach.corner = corner;
+            attach._OnChanged();
+        }
+
+        /// <summary>Metres from the head for corner, follow and front.</summary>
+        public void SetAttachDistance(float metres)
+        {
+            if (!HasAttach()) return;
+            attach.distance = Mathf.Clamp(metres, 0.2f, 3f);
+            attach._OnChanged();
+        }
+
+        /// <summary>Wrist mode: metres from the hand in head space (x right, y up, z toward the head).</summary>
+        public void SetAttachOffset(Vector3 offset)
+        {
+            if (!HasAttach()) return;
+            attach.wristOffset = offset;
+        }
+
+        private bool HasAttach()
+        {
+            if (attach != null) return true;
+            WarnOnce("attach-missing", "this view was built without attach; add attach=\"none\" to its <view> to set one from code.");
+            return false;
         }
 
         public void Toggle()

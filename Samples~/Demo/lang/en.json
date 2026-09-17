@@ -188,5 +188,19 @@
     "current": "Current language: {code}",
     "next": "Next language",
     "reset": "Forget choice"
+  },
+  "attachdemo": {
+    "title": "Attach to the player",
+    "hint": "Each button calls SetAttach. A wrist view shows while you look at that hand from close by, and sits in the corner on desktop. Front places the panel once; follow recentres after you turn or walk away.",
+    "none": "None",
+    "wristLeft": "Left wrist",
+    "wristRight": "Right wrist",
+    "corner": "Corner",
+    "follow": "Follow",
+    "front": "Front",
+    "distance": "Distance",
+    "metres": "{value} m",
+    "nextCorner": "Next corner",
+    "status": "{modeName}, {cornerName}"
   }
 }

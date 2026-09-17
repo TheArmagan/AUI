@@ -38,6 +38,26 @@ bool IsVisible();
 The transition comes from the `show` style property or the `show` attribute on `<view>`.
 `Hide()` leaves an open modal open behind the scenes.
 
+## Attach
+
+```csharp
+void SetAttach(int mode);              // ATTACH_NONE, ATTACH_WRIST_LEFT, ATTACH_WRIST_RIGHT,
+                                       // ATTACH_CORNER, ATTACH_FOLLOW, ATTACH_FRONT
+int  GetAttach();                      // ATTACH_NONE on a view built without attach
+void SetAttachCorner(int corner);      // CORNER_BOTTOM_LEFT, CORNER_BOTTOM_RIGHT, CORNER_TOP_LEFT, CORNER_TOP_RIGHT
+void SetAttachDistance(float metres);  // corner, follow, front; clamped to 0.2 .. 3
+void SetAttachOffset(Vector3 offset);  // wrist: metres from the hand; x right, y up, z toward the head
+```
+
+These need `attach` on the `<view>`, and `attach="none"` is enough: the attribute is what bakes
+the [`AuiAttach`](/reference/services#auiattach) component that does the moving. On a view built
+without it the setters log one warning and do nothing. A value that is not one of the constants
+logs one warning and is ignored.
+
+A change takes effect at once. Switching to `ATTACH_FRONT` on a visible view places it in front
+of the player right away; on a hidden view it is placed by the next `Show()`.
+See [attaching a view to the player](/guide/attaching).
+
 ## Finding elements
 
 ```csharp
@@ -312,11 +332,14 @@ Available on every view:
 | Transitions | `TRANS_NONE`, `TRANS_FADE`, `TRANS_FADE_SCALE`, `TRANS_FADE_SLIDE`, `TRANS_SLIDE_*`, `TRANS_SCALE` |
 | Pages | `PAGE_CROSSFADE`, `PAGE_SEQUENTIAL` |
 | Display | `DISPLAY_FLEX`, `DISPLAY_NONE` |
+| Attach | `ATTACH_NONE`, `ATTACH_WRIST_LEFT`, `ATTACH_WRIST_RIGHT`, `ATTACH_CORNER`, `ATTACH_FOLLOW`, `ATTACH_FRONT` |
+| Corners | `CORNER_BOTTOM_LEFT`, `CORNER_BOTTOM_RIGHT`, `CORNER_TOP_LEFT`, `CORNER_TOP_RIGHT` |
 | Properties | `PROP_BG`, `PROP_COLOR`, `PROP_ICON`, `PROP_OPACITY`, `PROP_SCALE`, `PROP_GAP`, ... |
 
 ## Fields you may read
 
-`lang` (the `AuiLanguageService`), `inputPanel`, `content`, `contentRect`. Everything else on the
+`lang` (the `AuiLanguageService`), `inputPanel`, `content`, `contentRect`, `attach` (the
+`AuiAttach`, null when the markup has no `attach`). Everything else on the
 base class is builder-owned wiring.
 
 ## Next

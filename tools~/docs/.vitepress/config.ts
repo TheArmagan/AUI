@@ -125,6 +125,7 @@ export default defineConfig({
           text: 'At runtime',
           items: [
             { text: 'Changing a view', link: '/guide/runtime' },
+            { text: 'Attaching to the player', link: '/guide/attaching' },
             { text: 'Theming', link: '/guide/theming' },
             { text: 'Other Udon scripts', link: '/guide/interop' },
             { text: 'Testing', link: '/guide/testing' },

@@ -1,0 +1,38 @@
+<view name="AttachDemo" width="420" height="262" attach="none" attach-distance="0.9">
+  <!-- A free-standing view, NOT a gallery page: a nested view has no canvas of its own, so the
+       builder drops its attach (AUI123). attach="none" bakes the AuiAttach component and leaves the
+       view where the prefab was placed until a button calls SetAttach. -->
+  <link href="Showcase.auis"/>
+
+  <text key="attachdemo.title" class="section"/>
+  <text key="attachdemo.hint" wrap="true" class="hint" style="max-width: 396"/>
+
+  <panel class="grid">
+    <button onclick="ModeNone" key="attachdemo.none" icon="x" class="chip" selected="{isNone}"/>
+    <button onclick="ModeWristLeft" key="attachdemo.wristLeft" class="chip" selected="{isWristLeft}"/>
+    <button onclick="ModeWristRight" key="attachdemo.wristRight" class="chip" selected="{isWristRight}"/>
+    <button onclick="ModeCorner" key="attachdemo.corner" class="chip" selected="{isCorner}"/>
+    <button onclick="ModeFollow" key="attachdemo.follow" class="chip" selected="{isFollow}"/>
+    <button onclick="ModeFront" key="attachdemo.front" class="chip" selected="{isFront}"/>
+  </panel>
+
+  <panel class="setting">
+    <text key="attachdemo.distance"/>
+    <spacer/>
+    <slider
+      bind="{metres}"
+      min="0.3"
+      max="2"
+      step="0.1"
+      decimals="1"
+      format-key="attachdemo.metres"
+      onchange="DistanceChanged"
+    />
+  </panel>
+
+  <panel class="row">
+    <button onclick="NextCorner" key="attachdemo.nextCorner" icon="refresh-cw" class="chip ghost"/>
+    <spacer/>
+    <text key="attachdemo.status" args="{modeName} {cornerName}" class="hint" style="max-width: 240"/>
+  </panel>
+</view>

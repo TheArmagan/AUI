@@ -223,6 +223,10 @@ The transition is the `show` style property or the `show` attribute on `<view>`
 (`none | fade | fade-scale | fade-slide`). `Hide()` leaves an open modal open behind the scenes, so
 the view returns the way you left it.
 
+A view can also travel with the player instead of sitting in the world: on a wrist, in a corner of
+their view, floating in front, or placed in front once. That is the `attach` attribute on `<view>`
+and `SetAttach(ATTACH_*)` from code; see [attaching a view to the player](/guide/attaching).
+
 ## Two things that cannot change in-world
 
 Udon has no API for them:

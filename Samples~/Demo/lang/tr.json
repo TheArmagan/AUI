@@ -188,5 +188,19 @@
     "current": "Geçerli dil: {code}",
     "next": "Sonraki dil",
     "reset": "Seçimi unut"
+  },
+  "attachdemo": {
+    "title": "Oyuncuya bağla",
+    "hint": "Her düğme SetAttach çağırır. Bilek görünümü, o ele yakından baktığında görünür; masaüstünde köşede durur. Ön, paneli bir kez yerleştirir; takip ise sen dönünce ya da uzaklaşınca yeniden ortalanır.",
+    "none": "Yok",
+    "wristLeft": "Sol bilek",
+    "wristRight": "Sağ bilek",
+    "corner": "Köşe",
+    "follow": "Takip",
+    "front": "Ön",
+    "distance": "Mesafe",
+    "metres": "{value} m",
+    "nextCorner": "Sonraki köşe",
+    "status": "{modeName}, {cornerName}"
   }
 }

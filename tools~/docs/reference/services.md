@@ -66,6 +66,40 @@ the builder moves the old text field under `Text Panel` and adds the url one.
 An `<input>` therefore takes **two clicks**: the first arms the panel, the second opens the
 keyboard. You do not call this class yourself.
 
+## AuiAttach
+
+One per attached view, on the view's own root, added by the prefab builder when the markup has
+[`attach`](/reference/elements#view) (`attach="none"` included) and removed again when the
+attribute goes. It moves the view's root with the local player. You do not add it by hand, and
+you switch modes through the view: `SetAttach`, `SetAttachCorner`, `SetAttachDistance`,
+`SetAttachOffset` ([view API](/reference/view-api#attach)).
+
+The builder writes the mode, the corner, the distance and the wiring on every build. The fields
+below are yours: set them on the prefab or on a scene instance, and a rebuild leaves them alone.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `wristOffset` | `(0, 0.07, 0.03)` | wrist: metres from the hand, in head space. x right, y up, z toward the head |
+| `wristRange` | `0.6` | wrist: the hand must be this close to the head (metres) for the view to show |
+| `wristShowAngle` | `24` | wrist: degrees between the gaze and the hand at which the view appears |
+| `wristHideAngle` | `36` | wrist: degrees at which it disappears again. Larger than the show angle so it does not flicker at the edge |
+| `cornerAngles` | `(27, 15)` | corner: degrees from the centre of the player's view, x sideways, y up or down |
+| `followDrop` | `0.12` | follow: metres below eye level |
+| `followAngle` | `38` | follow: the view recentres once the player has turned this far from it (degrees) |
+| `followSlack` | `0.45` | follow: or once they have moved this far from where it was placed for (metres) |
+| `followSpeed` | `5` | follow: higher is snappier, `0` jumps |
+
+How it runs:
+
+- It works in `PostLateUpdate`, after VRChat has finished the frame's tracking, and only while
+  the view is shown. A hidden view, `none`, and a `front` view after its one placement cost
+  nothing.
+- A wrist view out of sight is hidden by disabling the root canvas and collider. The view's own
+  `Show()` / `Hide()` state and its content are not touched.
+- The wrist modes use the hand's position, never its rotation, because that differs between
+  controllers and avatar rigs. Outside VR they behave as `corner`.
+- The root collider is on only when the view has controls.
+
 ## AuiSettings
 
 One per project, at `Assets/AUI/AuiSettings.asset`, found by type. Editor-only: nothing reads it at

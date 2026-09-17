@@ -60,6 +60,7 @@ namespace Armagan.AUI.Core
 
             info.Width = NumberAttr(root, "width", 400, d);
             info.Height = NumberAttr(root, "height", 300, d);
+            AnalyzeAttach(root, info, d);
 
             // <prop name type default/>: a typed binding that exists whether or not the markup uses it.
             foreach (AuiPropDecl p in doc.Props)
@@ -75,6 +76,46 @@ namespace Armagan.AUI.Core
                 if (!AuiSchema.IsIdentifier(ev.Name.Replace('-', '_'))) { d.Error(AuiCodes.BadPropDeclaration, "'" + ev.Name + "' is not a valid event name.", ev.Line, ev.Column, 6); continue; }
                 if (info.FindEvent(ev.Name) != null) { d.Error(AuiCodes.DuplicateId, "Event '" + ev.Name + "' is declared twice.", ev.Line, ev.Column, 6); continue; }
                 info.Events.Add(ev);
+            }
+        }
+
+        /// <summary>
+        /// &lt;view attach attach-corner attach-distance&gt;. The values are validated here rather than in the
+        /// per-attribute switch because they only mean something together: a corner without a mode that
+        /// uses one is a mistake worth a warning, and the model fields feed the builder and AUI123.
+        /// </summary>
+        private static void AnalyzeAttach(AuiNode root, AuiViewInfo info, AuiDiagnosticBag d)
+        {
+            AuiAttribute mode = root.FindAttribute("attach");
+            if (mode != null)
+            {
+                info.HasAttach = true;
+                int m = AuiSchema.IndexOf(AuiSchema.AttachModes, mode.Value);
+                if (m < 0) d.Error(AuiCodes.BadAttributeValue, "attach must be one of " + string.Join(" | ", AuiSchema.AttachModes) + ".", mode.ValueLine, mode.ValueColumn, mode.Value.Length);
+                else info.Attach = m;
+            }
+
+            AuiAttribute corner = root.FindAttribute("attach-corner");
+            if (corner != null)
+            {
+                int c = AuiSchema.IndexOf(AuiSchema.AttachCorners, corner.Value);
+                if (c < 0) d.Error(AuiCodes.BadAttributeValue, "attach-corner must be one of " + string.Join(" | ", AuiSchema.AttachCorners) + ".", corner.ValueLine, corner.ValueColumn, corner.Value.Length);
+                else info.AttachCorner = c;
+                // wrist-left = 1, wrist-right = 2, corner = 3 can end up in a corner; attach="none" keeps the
+                // value for a later SetAttach, so only follow / front / no attach at all are worth a warning.
+                if (c >= 0 && (!info.HasAttach || info.Attach > 3))
+                    d.Warning(AuiCodes.BadAttributeValue, "attach-corner only applies to attach=\"corner\" and to a wrist view on desktop; it is ignored here.", corner.Line, corner.Column, corner.Name.Length);
+            }
+
+            AuiAttribute dist = root.FindAttribute("attach-distance");
+            if (dist != null)
+            {
+                float v;
+                if (!AuiNum.TryParse(dist.Value, out v) || v < AuiSchema.AttachDistanceMin || v > AuiSchema.AttachDistanceMax)
+                    d.Error(AuiCodes.BadAttributeValue, "attach-distance is metres from the head, " + AuiNum.Fmt(AuiSchema.AttachDistanceMin) + " to " + AuiNum.Fmt(AuiSchema.AttachDistanceMax) + ".", dist.ValueLine, dist.ValueColumn, dist.Value.Length);
+                else info.AttachDistance = v;
+                if (!info.HasAttach)
+                    d.Warning(AuiCodes.BadAttributeValue, "attach-distance has no effect without attach.", dist.Line, dist.Column, dist.Name.Length);
             }
         }
 
@@ -333,6 +374,11 @@ namespace Armagan.AUI.Core
                     d.Error(AuiCodes.ElementNotAllowedHere, "A nested view cannot be a repeat template in this version (use a <slot> or <template>).", n.Line, n.Column, n.Tag.Length + 1);
                 info.NestedViews.Add(nv);
                 AuiViewInfo child = ctx.ChildInfo != null ? ctx.ChildInfo(n.Tag) : null;
+                // A NESTED VIEW HAS NO CANVAS OF ITS OWN TO MOVE: the builder strips it, so its attach is
+                // dropped. Said here because the symptom otherwise is a wrist panel that silently sits
+                // wherever its host put it.
+                if (child != null && child.Attach != 0)
+                    d.Warning(AuiCodes.AttachOnNestedView, "<" + n.Tag + "> declares attach=\"" + AuiSchema.AttachModes[child.Attach] + "\", which is ignored when the view is nested; only an outermost view follows the player.", n.Line, n.Column, n.Tag.Length + 1);
                 foreach (AuiAttribute a in n.Attributes)
                 {
                     if (AuiSchema.IsCommonAttribute(a.Name)) { CommonAttribute(n, a, repeat, info, d); continue; }
@@ -686,6 +732,10 @@ namespace Armagan.AUI.Core
                 case "sprites":
                 case "materials":
                     break;   // resolved by the builder (a missing asset logs there)
+                case "attach":
+                case "attach-corner":
+                case "attach-distance":
+                    break;   // validated together in AnalyzeAttach
             }
         }
 

@@ -204,7 +204,7 @@ objects.
 
 | Tag | Attributes | Handler signature |
 |---|---|---|
-| `view` | `name` (= file stem), `width`, `height` (mm), `show`, `start-hidden` | |
+| `view` | `name` (= file stem), `width`, `height` (mm), `show`, `start-hidden`, `attach`, `attach-corner`, `attach-distance` | |
 | `panel` / `div` | | |
 | `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `ellipsis`, `runtime` | |
 | `image` | `src`, `mode=simple\|sliced\|fit` | |
@@ -234,6 +234,18 @@ outside the button; bake it live and push the binding false instead). `view` als
 `sprites`, `materials`, `utilities` (preloads for `SetIcon` / `SetBackground` / `SetMaterial` /
 `AddClass`) and `pool="text:16 panel:8"`. Pointer handlers `onhover`, `onleave`, `onpress`,
 `onrelease` on anything clickable. Inside a repeat or template, bindings are `{item.name}`.
+
+`attach` ties an outermost view to the local player: `wrist-left` / `wrist-right` (at the hand in
+VR, shown while the player looks at that hand; `attach-corner` on desktop), `corner` (head-locked
+in `attach-corner`: `bottom-left`, `bottom-right`, `top-left`, `top-right`), `follow` (floats in
+front and recentres after the player turns or walks away), `front` (placed in front once on
+`Show`, then stays in the world) or `none`. `attach-distance` is metres from the head, 0.2 to 3,
+default 0.6. The attribute being present at all, `attach="none"` included, is what makes the
+builder add an `AuiAttach` component to the prefab root, so `SetAttach(ATTACH_*)`,
+`SetAttachCorner`, `SetAttachDistance` and `SetAttachOffset` have something to drive; its offsets,
+angles and speeds are public fields that survive rebuilds. An attached view with no controls has
+its collider turned off so it never blocks a laser. A nested view's `attach` is ignored (warning
+`AUI123`). `USAGE.md` section 13 has an example per mode.
 
 ## Stylesheet
 
@@ -392,3 +404,9 @@ where these things cannot be seen:
 - The cost of a runtime solve on Quest hardware (measured only in the editor's Udon interpreter:
   about 2 ms for a 42-element view with five nested views).
 - Backdrop clicks on a modal and `shader()` backgrounds in the live client.
+- `attach` as a whole: it compiles under UdonSharp and its analyzer tests pass, and nothing more.
+  Not run in ClientSim or the real client yet. In particular: where a wrist view sits and whether
+  the glance thresholds (hand within 0.6 m, gaze within 24 degrees, hidden past 36) feel right in
+  VR; lasers on a wrist view that has controls (AUI cannot choose which hand's laser hits it);
+  jitter of `corner` and wrist views in the real client; how `follow` feels; and the cost of the
+  per-frame update on Quest.

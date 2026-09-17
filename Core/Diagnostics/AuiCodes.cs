@@ -48,6 +48,7 @@ namespace Armagan.AUI.Core
         public const string RepeatMaxOutOfRange = "AUI120";
         public const string UnknownComponentProp = "AUI121";
         public const string BadPropDeclaration = "AUI122";
+        public const string AttachOnNestedView = "AUI123";
 
         // ---- stylesheet
         public const string StyleSyntax = "AUI200";

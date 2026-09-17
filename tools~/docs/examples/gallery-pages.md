@@ -237,6 +237,26 @@ page:
 public void Kick() { EmitInt("kicked", Score); }
 ```
 
+## AttachDemo
+
+In the gallery's folder, but a view of its own rather than a page: `attach` only works on an
+outermost view, and a nested one has it dropped (AUI123). The markup asks for the component
+without attaching anything yet, and the buttons do the rest:
+
+```aui
+<view name="AttachDemo" width="420" height="262" attach="none" attach-distance="0.9">
+  <button onclick="ModeFollow" key="attachdemo.follow" class="chip" selected="{isFollow}"/>
+</view>
+```
+
+```csharp
+public void ModeFollow() { SetAttach(ATTACH_FOLLOW); }
+public void DistanceChanged(float value) { SetAttachDistance(value); }
+```
+
+Place `AttachDemo.prefab` in the scene next to the gallery. The self-test does not cover it. See
+[attaching a view to the player](/guide/attaching).
+
 ## The self-test
 
 `RunTests` on the hub drives each child through its typed API and checks what rendered: bound text,

@@ -188,5 +188,19 @@
     "current": "現在の言語: {code}",
     "next": "次の言語",
     "reset": "選択を忘れる"
+  },
+  "attachdemo": {
+    "title": "プレイヤーに追従させる",
+    "hint": "各ボタンは SetAttach を呼びます。手首のビューは、その手を近くで見ている間だけ表示され、デスクトップでは画面の隅に出ます。「正面」はパネルを一度だけ配置し、「追従」は向きを変えたり離れたりすると中央に戻ります。",
+    "none": "なし",
+    "wristLeft": "左手首",
+    "wristRight": "右手首",
+    "corner": "画面の隅",
+    "follow": "追従",
+    "front": "正面",
+    "distance": "距離",
+    "metres": "{value} m",
+    "nextCorner": "次の隅",
+    "status": "{modeName}、{cornerName}"
   }
 }

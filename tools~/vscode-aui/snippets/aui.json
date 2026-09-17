@@ -4,6 +4,11 @@
     "body": ["<view name=\"${TM_FILENAME_BASE}\" width=\"${1:300}\" height=\"${2:200}\">", "\t$0", "</view>"],
     "description": "Root of a view file; the name is the file stem"
   },
+  "View (attached)": {
+    "prefix": "view-attach",
+    "body": ["<view name=\"${TM_FILENAME_BASE}\" width=\"${1:150}\" height=\"${2:80}\" attach=\"${3|wrist-left,wrist-right,corner,follow,front,none|}\" attach-distance=\"${4:0.6}\">", "\t$0", "</view>"],
+    "description": "A view tied to the local player: on a wrist, in a corner, following, or placed in front once"
+  },
   "Panel": {
     "prefix": "panel",
     "body": ["<panel class=\"${1:row}\">", "\t$0", "</panel>"],

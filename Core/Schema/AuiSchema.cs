@@ -80,13 +80,29 @@ namespace Armagan.AUI.Core
             "in-elastic", "out-elastic", "in-out-elastic",
         };
 
+        /// <summary>
+        /// &lt;view attach&gt;. THE INDEX IS BAKED: it is AuiAttach.mode on the prefab and the ATTACH_* constants
+        /// on AuiView, so this list is append-only.
+        /// </summary>
+        public static readonly string[] AttachModes = { "none", "wrist-left", "wrist-right", "corner", "follow", "front" };
+        /// <summary>&lt;view attach-corner&gt;. Baked by index like AttachModes; append-only.</summary>
+        public static readonly string[] AttachCorners = { "bottom-left", "bottom-right", "top-left", "top-right" };
+        public const float AttachDistanceMin = 0.2f;
+        public const float AttachDistanceMax = 3f;
+
+        public static int IndexOf(string[] list, string value)
+        {
+            for (int i = 0; i < list.Length; i++) if (list[i] == value) return i;
+            return -1;
+        }
+
         private static readonly string[] NoAttrs = new string[0];
         private static readonly string[] NoEvents = new string[0];
         private static readonly string[] ClickEvents = { "onclick", "onhover", "onleave", "onpress", "onrelease" };
 
         public static readonly AuiElementDef[] Elements =
         {
-            new AuiElementDef { Name = "view", Attributes = new[] { "name", "width", "height", "show", "start-hidden", "icons", "sprites", "materials", "pool", "utilities" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Root of a view file. name must equal the file stem; width/height in mm. icons / sprites / materials / utilities preload names for SetIcon / SetBackground / SetMaterial / AddClass; pool=\"text:16 panel:8\" bakes elements CreateElement(tag, ...) can hand out." },
+            new AuiElementDef { Name = "view", Attributes = new[] { "name", "width", "height", "show", "start-hidden", "icons", "sprites", "materials", "pool", "utilities", "attach", "attach-corner", "attach-distance" }, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Root of a view file. name must equal the file stem; width/height in mm. attach=\"wrist-left | wrist-right | corner | follow | front\" ties the view to the local player (a wrist view falls back to attach-corner on desktop; attach-distance is metres from the head). icons / sprites / materials / utilities preload names for SetIcon / SetBackground / SetMaterial / AddClass; pool=\"text:16 panel:8\" bakes elements CreateElement(tag, ...) can hand out." },
             new AuiElementDef { Name = "panel", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "A container. Direction, gap and padding come from the stylesheet." },
             new AuiElementDef { Name = "div", Attributes = NoAttrs, Events = NoEvents, AllowsChildren = true, AllowsText = false, Doc = "Alias of panel." },
             new AuiElementDef { Name = "text", Attributes = new[] { "key", "text", "args", "wrap", "max-lines", "ellipsis", "runtime" }, Events = NoEvents, AllowsChildren = false, AllowsText = true, Doc = "A label. key= for a translated string, text=\"{binding}\" for a runtime value, or literal content. runtime=\"true\" measures a keyed label as runtime text (for SetText); max-lines caps a wrapped label." },

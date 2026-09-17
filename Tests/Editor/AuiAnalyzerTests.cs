@@ -178,6 +178,80 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void AttachIsReadIntoTheModel()
+        {
+            AuiDiagnosticBag bag;
+            var v = Analyze("<view name=\"Demo\" attach=\"wrist-left\" attach-corner=\"top-right\" attach-distance=\"0.8\"/>", out bag);
+            Assert.AreEqual(0, bag.Items.Count, string.Join("\n", bag.Items));
+            Assert.IsTrue(v.HasAttach);
+            Assert.AreEqual("wrist-left", AuiSchema.AttachModes[v.Attach]);
+            Assert.AreEqual("top-right", AuiSchema.AttachCorners[v.AttachCorner]);
+            Assert.AreEqual(0.8f, v.AttachDistance);
+        }
+
+        [Test]
+        public void AttachNoneStillCountsAsAttached()
+        {
+            // attach="none" is how a view asks for the component so code can SetAttach later; its
+            // corner and distance are kept for that call and are not worth a warning.
+            AuiDiagnosticBag bag;
+            var v = Analyze("<view name=\"Demo\" attach=\"none\" attach-corner=\"top-left\" attach-distance=\"1\"/>", out bag);
+            Assert.AreEqual(0, bag.Items.Count, string.Join("\n", bag.Items));
+            Assert.IsTrue(v.HasAttach);
+            Assert.AreEqual(0, v.Attach);
+        }
+
+        [Test]
+        public void NoAttachIsTheDefault()
+        {
+            AuiDiagnosticBag bag;
+            var v = Analyze("<view name=\"Demo\"/>", out bag);
+            Assert.IsFalse(v.HasAttach);
+            Assert.AreEqual(0, v.Attach);
+            Assert.AreEqual(0.6f, v.AttachDistance);
+        }
+
+        [Test]
+        public void BadAttachValuesAreErrors()
+        {
+            AuiDiagnosticBag bag;
+            Analyze("<view name=\"Demo\" attach=\"ankle\"/>", out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Error && x.Code == AuiCodes.BadAttributeValue), "mode");
+            Analyze("<view name=\"Demo\" attach=\"corner\" attach-corner=\"middle\"/>", out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Error && x.Code == AuiCodes.BadAttributeValue), "corner");
+            Analyze("<view name=\"Demo\" attach=\"follow\" attach-distance=\"9\"/>", out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Error && x.Code == AuiCodes.BadAttributeValue), "distance too far");
+            Analyze("<view name=\"Demo\" attach=\"follow\" attach-distance=\"near\"/>", out bag);
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Error && x.Code == AuiCodes.BadAttributeValue), "distance not a number");
+        }
+
+        [Test]
+        public void AttachDetailsThatCannotApplyWarn()
+        {
+            AuiDiagnosticBag bag;
+            Analyze("<view name=\"Demo\" attach=\"follow\" attach-corner=\"top-left\"/>", out bag);
+            Assert.IsFalse(bag.HasErrors, Errors(bag));
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Warning), "a corner on a follow view");
+            Analyze("<view name=\"Demo\" attach-distance=\"1\"/>", out bag);
+            Assert.IsFalse(bag.HasErrors, Errors(bag));
+            Assert.IsTrue(bag.Items.Any(x => x.Severity == AuiSeverity.Warning), "a distance without attach");
+        }
+
+        [Test]
+        public void NestingAnAttachedViewWarns()
+        {
+            AuiDiagnosticBag bag;
+            var child = new AuiViewInfo { Name = "Hud", HasAttach = true, Attach = 1 };
+            Analyze("<view name=\"Demo\"><Hud/></view>", out bag, new AuiAnalysisContext { FileStem = "Demo", ViewExists = n => true, ChildInfo = n => child });
+            Assert.IsFalse(bag.HasErrors, Errors(bag));
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.AttachOnNestedView && x.Severity == AuiSeverity.Warning));
+
+            var plain = new AuiViewInfo { Name = "Hud" };
+            Analyze("<view name=\"Demo\"><Hud/></view>", out bag, new AuiAnalysisContext { FileStem = "Demo", ViewExists = n => true, ChildInfo = n => plain });
+            Assert.IsFalse(bag.Items.Any(x => x.Code == AuiCodes.AttachOnNestedView));
+        }
+
+        [Test]
         public void NamingHelpers()
         {
             Assert.AreEqual("PlayerName", AuiNaming.Pascal("playerName"));

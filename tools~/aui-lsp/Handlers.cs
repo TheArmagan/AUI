@@ -338,6 +338,20 @@ namespace Armagan.AUI.Lsp
             return stack.Count > 0 ? stack[stack.Count - 1] : null;
         }
 
+        private static string AttachDoc(string mode)
+        {
+            switch (mode)
+            {
+                case "none": return "not attached; keeps the component so SetAttach can turn it on";
+                case "wrist-left": return "at the left hand, shown while the player looks at it (VR); attach-corner on desktop";
+                case "wrist-right": return "at the right hand, shown while the player looks at it (VR); attach-corner on desktop";
+                case "corner": return "head-locked in attach-corner";
+                case "follow": return "floats in front and recentres after the player turns or walks away";
+                case "front": return "placed in front once on Show, then stays in the world";
+            }
+            return null;
+        }
+
         private void AttributeValues(Cursor c, AuiCompileResult r, AuiWorkspace ws, Ctx ctx, string path)
         {
             switch (c.Attribute)
@@ -382,6 +396,12 @@ namespace Armagan.AUI.Lsp
                     break;
                 case "show":
                     foreach (string v in AuiSchema.FindProp("show").EnumValues) ctx.Add(v, CompletionItemKind.EnumMember, null);
+                    break;
+                case "attach":
+                    foreach (string v in AuiSchema.AttachModes) ctx.Add(v, CompletionItemKind.EnumMember, AttachDoc(v));
+                    break;
+                case "attach-corner":
+                    foreach (string v in AuiSchema.AttachCorners) ctx.Add(v, CompletionItemKind.EnumMember, null);
                     break;
                 case "hidden":
                 case "wrap":

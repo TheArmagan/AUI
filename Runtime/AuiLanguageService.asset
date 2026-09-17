@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: AuiLanguageService
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: e0a9a966117d30c40a1555abd4726cfe, type: 2}
+  serializedUdonProgramAsset: {fileID: 11400000, guid: fbaa38ad87d18124e9f0aed523cee86f, type: 2}
   udonAssembly: 
   assemblyError: 
   sourceCsScript: {fileID: 11500000, guid: b42d9aa56733d4c4c8b8bf62c2007688, type: 3}

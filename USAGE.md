@@ -429,6 +429,73 @@ in the way any uGUI canvas does, so rotate the instance to face the player.
 hidden. Transitions run through VRCTween, which does nothing in the editor; there they snap.
 Another script can call these on the typed reference.
 
+### Attaching a view to the player
+
+`attach` on `<view>` ties an outermost view to the local player instead of a place in the world.
+One example per mode:
+
+```aui
+<!-- At the left hand in VR, shown while the player looks at that hand. On desktop there is no
+     wrist, so the view sits in attach-corner instead. -->
+<view name="Hud" width="150" height="80" attach="wrist-left" attach-corner="bottom-left">
+
+<view name="Hud" width="150" height="80" attach="wrist-right" attach-corner="bottom-right">
+
+<!-- Head-locked in a corner of the player's view, for everyone. -->
+<view name="Status" width="150" height="80" attach="corner" attach-corner="top-right" attach-distance="0.6">
+
+<!-- Floats in front at eye level; recentres only after the player turns or walks away. -->
+<view name="Welcome" width="440" height="300" attach="follow" attach-distance="1.2" start-hidden="true">
+
+<!-- Placed straight ahead once, on Show(), and then stays where it was put. -->
+<view name="Notice" width="440" height="300" attach="front" attach-distance="0.8" start-hidden="true">
+
+<!-- Not attached, but built with the component so code can attach it later. -->
+<view name="Panel" width="440" height="300" attach="none">
+```
+
+`attach-corner` is `bottom-left`, `bottom-right`, `top-left` or `top-right`. `attach-distance` is
+metres from the head, 0.2 to 3, default 0.6; it applies to `corner`, `follow` and `front`.
+
+How each mode behaves:
+
+- `wrist-left` / `wrist-right` use the hand's tracked position only. The view sits a few
+  centimetres above the hand, always faces the head, and appears while the hand is within 0.6 m
+  of the head and the player is looking at it (within 24 degrees; it hides again past 36). It does
+  not read the hand's rotation, which differs between controllers and avatar rigs. A view that is
+  out of sight has its canvas and collider disabled; its content and bindings are untouched.
+- `corner` is head-locked: 27 degrees sideways and 15 degrees up or down from the centre of the
+  view, at `attach-distance`.
+- `follow` stays level (yaw only), 0.12 m below eye height. It moves only after the player has
+  turned more than 38 degrees away from it or walked more than 0.45 m, then glides to the new
+  spot.
+- `front` is placed by `Show()` and `ShowInstant()` and is not moved again until the next one.
+
+From code, on a view whose markup has `attach` (`attach="none"` is enough):
+
+```csharp
+SetAttach(ATTACH_FOLLOW);                 // ATTACH_NONE, _WRIST_LEFT, _WRIST_RIGHT, _CORNER, _FOLLOW, _FRONT
+SetAttachCorner(CORNER_TOP_RIGHT);        // CORNER_BOTTOM_LEFT, _BOTTOM_RIGHT, _TOP_LEFT, _TOP_RIGHT
+SetAttachDistance(1.2f);                  // clamped to 0.2 .. 3
+SetAttachOffset(new Vector3(0f, 0.09f, 0.03f));   // wrist: metres from the hand; x right, y up, z toward the head
+int mode = GetAttach();
+```
+
+The attribute is what makes the builder add the `AuiAttach` component to the prefab root. Without
+it `SetAttach` logs one warning and does nothing, because a component cannot be added in-world.
+The component's other numbers (the wrist offset, range and angles, the corner angles, the follow
+drop, angle, slack and speed) are public fields on it; set them in the inspector on the prefab or
+on a scene instance, and they survive rebuilds. The builder rewrites only the mode, the corner and
+the distance.
+
+An attached view costs a per-frame update only while it is shown and moving with the player:
+nothing runs while the view is hidden, in `none`, or after a `front` placement. A view with no
+controls has its root collider turned off so it never stops a laser; a view with controls keeps
+it, and on a wrist it is on only while the view is visible.
+
+A view used inside another view cannot be attached: the nested instance has no canvas of its own,
+so the builder removes its `AuiAttach` and the host gets warning `AUI123`.
+
 ### Changing the layout at runtime
 
 The layout you see in the editor is solved again in-world whenever something that affects it
@@ -720,6 +787,18 @@ you add a runtime feature.
   shorter `boundTextSample` in the settings.
 - Nothing is clickable in the real client but works in the editor: the root canvas lost its
   `VRCUiShape` or collider (a rebuild restores both), or the view is scaled by a parent.
+- A wrist view never appears: outside VR there is no wrist and the view sits in `attach-corner`
+  instead. In VR it shows only while the hand is within 0.6 m of the head and the player is
+  looking at it; raise the hand into view. `wristRange`, `wristShowAngle` and `wristHideAngle` on
+  the `AuiAttach` component widen that. The view must also be shown: a `start-hidden` view stays
+  hidden until `Show()`.
+- `SetAttach` does nothing and the console says the view was built without attach: add
+  `attach="none"` to its `<view>` and let it rebuild. The component that moves the view is baked.
+- An attached view stops lasers aimed past it: it has at least one control, so its collider is
+  on. Remove the controls (a display-only attached view has its collider off), or move it out of
+  the way with `attach-corner`, `attach-distance` or the component's offsets.
+- An attached view stays where its host put it: it is nested in another view (warning `AUI123`).
+  Only an outermost view follows the player.
 - The inspector shows hundreds of arrays: the view was built by an older version; rebuild it and
   the per-view inspector takes over.
 - Two `ArgumentNullException: unityObject` lines per rebuild: UdonSharp's serializer reacting to a
