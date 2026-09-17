@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Armagan.AUI.Core;
 using OmniSharp.Extensions.LanguageServer.Protocol;
@@ -17,7 +18,8 @@ namespace Armagan.AUI.Lsp
     /// wins over the disk), the last compile of every view, and diagnostics publishing.
     ///
     /// The package root is found by walking up from the workspace root for a package.json named
-    /// rest.armagan.aui, then by looking under Packages/. Project settings come from the same
+    /// rest.armagan.aui, then by looking under Packages/, at a "file:" entry in Packages/manifest.json
+    /// and in Library/PackageCache. Project settings come from the same
     /// AuiSettings.asset the Unity editor reads (language folder, default language, component
     /// and icon folders), so both hosts see one workspace. Without the asset the language folder
     /// is Assets/AUI/Lang in any letter case, else every folder called lang.
@@ -92,7 +94,10 @@ namespace Armagan.AUI.Lsp
             catch { return false; }
         }
 
-        /// <summary>The folder itself, Packages/rest.armagan.aui, any package under Packages/, then the same from each parent folder.</summary>
+        /// <summary>
+        /// The folder itself, Packages/rest.armagan.aui, any package under Packages/, a "file:" entry in
+        /// Packages/manifest.json, Library/PackageCache, then the same from each parent folder.
+        /// </summary>
         private static string FindPackageRoot(string root)
         {
             string dir = root;
@@ -105,10 +110,30 @@ namespace Armagan.AUI.Lsp
                     string direct = Path.Combine(packages, "rest.armagan.aui");
                     if (IsAuiPackage(direct)) return direct;
                     foreach (string sub in Directory.GetDirectories(packages)) if (IsAuiPackage(sub)) return sub;
+                    string local = FromManifest(packages);
+                    if (local != null) return local;
+                    string cache = Path.Combine(dir, "Library", "PackageCache");
+                    if (Directory.Exists(cache))
+                        foreach (string sub in Directory.GetDirectories(cache, "rest.armagan.aui*")) if (IsAuiPackage(sub)) return sub;
                 }
                 dir = Path.GetDirectoryName(dir);
             }
             return null;
+        }
+
+        /// <summary>A local package: "rest.armagan.aui": "file:../../AUI" in manifest.json, which Unity resolves against the Packages folder.</summary>
+        private static string FromManifest(string packages)
+        {
+            string manifest = Path.Combine(packages, "manifest.json");
+            if (!File.Exists(manifest)) return null;
+            try
+            {
+                Match m = Regex.Match(File.ReadAllText(manifest), "\"rest\\.armagan\\.aui\"\\s*:\\s*\"file:([^\"]+)\"");
+                if (!m.Success) return null;
+                string p = Path.GetFullPath(Path.Combine(packages, m.Groups[1].Value.Replace("\\\\", "\\")));
+                return IsAuiPackage(p) ? p : null;
+            }
+            catch { return null; }
         }
 
         private static string FindDirectoryIgnoreCase(string parent, string name)
