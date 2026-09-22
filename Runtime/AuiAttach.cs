@@ -1,6 +1,7 @@
 using UdonSharp;
 using UnityEngine;
 using VRC.SDKBase;
+using VRC.SDK3.Rendering;
 
 namespace Armagan.AUI
 {
@@ -56,8 +57,12 @@ namespace Armagan.AUI
         public float wristHideAngle = 36f;
 
         [Header("Corner (desktop, and the wrist fallback)")]
-        [Tooltip("Degrees from the centre of the view: x sideways, y up or down.")]
+        [Tooltip("VR only: degrees from the centre of the view, x sideways, y up or down. A headset has no screen corner, so VR keeps angles.")]
         public Vector2 cornerAngles = new Vector2(27f, 15f);
+        [Tooltip("Desktop: gap between the view and the screen's edges, as a fraction of the screen height.")]
+        public float cornerMargin = 0.03f;
+        [Tooltip("Desktop: the most of the screen's height (and width) the view may take; a bigger view is pushed further away until it fits.")]
+        public float cornerMaxFraction = 0.9f;
 
         [Header("Follow")]
         [Tooltip("Metres below eye level.")]
@@ -170,6 +175,19 @@ namespace Armagan.AUI
 
         private void TickCorner(VRCPlayerApi.TrackingData head)
         {
+            // DESKTOP: FROM THE SCREEN CAMERA'S OWN FRUSTUM. Fixed angles put the view somewhere
+            // different for every FOV slider position and every window shape (a 27 degree yaw is past
+            // the edge at a narrow FOV and well inside it on an ultrawide), so on a flat screen the
+            // corner is computed from VRCCameraSettings.ScreenCamera's FieldOfView (vertical) and
+            // Aspect, every frame, since both can change while the view is up.
+            VRCCameraSettings cam = VRCCameraSettings.ScreenCamera;
+            VRCPlayerApi lp = Networking.LocalPlayer;
+            if (cam != null && !cam.StereoEnabled && (lp == null || !lp.IsUserInVR()))
+            {
+                PlaceScreenCorner(cam);
+                return;
+            }
+
             float yaw = (corner == CORNER_BOTTOM_LEFT || corner == CORNER_TOP_LEFT) ? -cornerAngles.x : cornerAngles.x;
             // Positive pitch looks down in Unity's Euler convention.
             float pitch = (corner == CORNER_BOTTOM_LEFT || corner == CORNER_BOTTOM_RIGHT) ? cornerAngles.y : -cornerAngles.y;
@@ -180,6 +198,50 @@ namespace Armagan.AUI
             // trapezoid (seen in ClientSim at 27 degrees off axis). head.rotation as is: a uGUI canvas is
             // read looking ALONG its +Z, so the head's own forward is already the readable side.
             transform.SetPositionAndRotation(head.position + dir * distance, head.rotation);
+        }
+
+        /// <summary>
+        /// Put the view flush in a corner of the screen camera's frustum, `distance` metres out,
+        /// parallel to the screen. The view's world size is its rect times its scale; if it would take
+        /// more than cornerMaxFraction of the screen at `distance`, it is moved further out (same
+        /// size on screen as any view that just fits) rather than hanging off the edge.
+        /// </summary>
+        private void PlaceScreenCorner(VRCCameraSettings cam)
+        {
+            float tanHalf = Mathf.Tan(cam.FieldOfView * 0.5f * Mathf.Deg2Rad);
+            float aspect = cam.Aspect > 0.01f ? cam.Aspect : 16f / 9f;
+            if (tanHalf <= 0.0001f) return;
+
+            RectTransform rt = (RectTransform)transform;
+            Rect r = rt.rect;
+            Vector3 s = transform.lossyScale;
+            float halfW = r.width * s.x * 0.5f;
+            float halfH = r.height * s.y * 0.5f;
+
+            float d = distance < 0.05f ? 0.05f : distance;
+            float fit = cornerMaxFraction > 0.05f ? cornerMaxFraction : 0.05f;
+            // Screen half-height at d is d * tanHalf; the view may use fit of the full height and width.
+            float needH = (2f * halfH) / (fit * 2f * tanHalf);
+            float needW = (2f * halfW) / (fit * 2f * tanHalf * aspect);
+            if (needH > d) d = needH;
+            if (needW > d) d = needW;
+            // Never inside the near clip plane, or the view vanishes.
+            float near = cam.NearClipPlane * 1.5f;
+            if (d < near) d = near;
+
+            float screenHalfH = d * tanHalf;
+            float screenHalfW = screenHalfH * aspect;
+            float margin = screenHalfH * 2f * cornerMargin;
+
+            float sx = (corner == CORNER_BOTTOM_LEFT || corner == CORNER_TOP_LEFT) ? -1f : 1f;
+            float sy = (corner == CORNER_BOTTOM_LEFT || corner == CORNER_BOTTOM_RIGHT) ? -1f : 1f;
+            float x = sx * (screenHalfW - margin - halfW);
+            float y = sy * (screenHalfH - margin - halfH);
+
+            Quaternion rot = cam.Rotation;
+            Vector3 pos = cam.Position + rot * new Vector3(x, y, d);
+            // Parallel to the screen, read along the camera's forward (a uGUI canvas faces along +Z).
+            transform.SetPositionAndRotation(pos, rot);
         }
 
         private void TickWrist(VRCPlayerApi.TrackingData head, VRCPlayerApi.TrackingData hand)

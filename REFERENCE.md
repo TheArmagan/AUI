@@ -726,7 +726,8 @@ nothing per frame and a followed panel has to; the same escape hatch as `AuiInpu
 its placement). Baked, hidden fields: `view`, `rootCanvas`, `rootCollider`, `interactive` (the
 view has at least one signal), `mode`, `corner`, `distance`. Tuning fields, public and shown,
 never written by the builder: `wristOffset` (0, 0.07, 0.03), `wristRange` 0.6, `wristShowAngle`
-24, `wristHideAngle` 36, `cornerAngles` (27, 15), `followDrop` 0.12, `followAngle` 38,
+24, `wristHideAngle` 36, `cornerAngles` (27, 15, VR only), `cornerMargin` 0.03, `cornerMaxFraction`
+0.9, `followDrop` 0.12, `followAngle` 38,
 `followSlack` 0.45, `followSpeed` 5. Entry points called by the view: `_OnViewShown()` (from
 `Show` / `ShowInstant`), `_OnViewHidden()` (from `Hide` / `HideInstant`), `_OnChanged()` (from the
 `SetAttach*` setters); all of them are safe before its own `Start`.
@@ -743,8 +744,17 @@ never written by the builder: `wristOffset` (0, 0.07, 0.03), `wristRange` 0.6, `
   hides past `wristHideAngle` (the gap is the hysteresis). Hand rotation is not used because it
   differs between controllers and avatar bones differ between rigs. Outside VR (`IsUserInVR`
   false) a wrist mode behaves as `corner`.
-- `corner`: positioned along head rotation times `Euler(+-cornerAngles.y, +-cornerAngles.x, 0)`, at
-  `distance`, and ROTATED AS THE HEAD IS, that is parallel to the view plane, not turned toward
+- `corner` on desktop (`VRCCameraSettings.ScreenCamera` present and not `StereoEnabled`, player not
+  in VR): placed from the screen camera's frustum every frame, since the FOV slider and the window
+  can change while it is up. Half-height at depth d is `d * tan(FieldOfView / 2)` (vertical FOV),
+  half-width that times `Aspect`; the view's world half-size is its rect times `lossyScale`; its
+  centre goes at `(+-(halfScreenW - margin - halfW), +-(halfScreenH - margin - halfH), d)` in camera
+  space, `margin = cornerMargin * screen height`, rotation the camera's. `d` is `distance`, raised
+  until the view takes at most `cornerMaxFraction` of the screen either way, and never under 1.5x
+  the near clip. Fixed angles used to put it a third of the way in at 60 degrees and past the
+  edge at narrow FOVs. Measured in ClientSim at FOV 60 and 100 (16:9): the outer corner lands at
+  viewport (0.983, 0.970), i.e. exactly the margin. In VR: along head rotation times
+  `Euler(+-cornerAngles.y, +-cornerAngles.x, 0)`, at `distance`, and ROTATED AS THE HEAD IS, that is parallel to the view plane, not turned toward
   the eye. Turned toward the eye, a wide desktop FOV sheared the panel into a trapezoid at 27
   degrees off axis (seen in ClientSim). `follow`: yaw-only heading, `distance` ahead, `followDrop` below eye height;
   it rests until the heading to the panel is off by more than `followAngle` or the head moved

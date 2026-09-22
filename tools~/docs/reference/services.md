@@ -83,7 +83,9 @@ below are yours: set them on the prefab or on a scene instance, and a rebuild le
 | `wristRange` | `0.6` | wrist: the hand must be this close to the head (metres) for the view to show |
 | `wristShowAngle` | `24` | wrist: degrees between the gaze and the hand at which the view appears |
 | `wristHideAngle` | `36` | wrist: degrees at which it disappears again. Larger than the show angle so it does not flicker at the edge |
-| `cornerAngles` | `(27, 15)` | corner: degrees from the centre of the player's view, x sideways, y up or down |
+| `cornerAngles` | `(27, 15)` | corner, VR only: degrees from the centre of the player's view, x sideways, y up or down |
+| `cornerMargin` | `0.03` | corner, desktop: gap to the screen's edges, as a fraction of the screen height |
+| `cornerMaxFraction` | `0.9` | corner, desktop: the most of the screen the view may take; a bigger one is pushed further away |
 | `followDrop` | `0.12` | follow: metres below eye level |
 | `followAngle` | `38` | follow: the view recentres once the player has turned this far from it (degrees) |
 | `followSlack` | `0.45` | follow: or once they have moved this far from where it was placed for (metres) |

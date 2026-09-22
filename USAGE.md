@@ -478,9 +478,12 @@ How each mode behaves:
   of the head and the player is looking at it (within 24 degrees; it hides again past 36). It does
   not read the hand's rotation, which differs between controllers and avatar rigs. A view that is
   out of sight has its canvas and collider disabled; its content and bindings are untouched.
-- `corner` is head-locked: 27 degrees sideways and 15 degrees up or down from the centre of the
-  view, at `attach-distance`, parallel to the view plane. `cornerAngles` on the component moves
-  it further out.
+- `corner` is head-locked and parallel to the view plane. On desktop it sits flush in that corner
+  of the screen, whatever the player's FOV and window shape (read every frame from
+  `VRCCameraSettings.ScreenCamera`), `cornerMargin` (3% of the screen height) in from the edges, at
+  `attach-distance`, or further out if the view would otherwise take more than `cornerMaxFraction`
+  (90%) of the screen. In VR, which has no screen corner, it is `cornerAngles` (27, 15) degrees
+  from the centre of the view.
 - `follow` stays level (yaw only), 0.12 m below eye height. It moves only after the player has
   turned more than 38 degrees away from it or walked more than 0.45 m, then glides to the new
   spot.

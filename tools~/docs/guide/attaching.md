@@ -57,11 +57,17 @@ the default 18 mm body text holds very little.
 <view name="Status" width="150" height="80" attach="corner" attach-corner="top-right" attach-distance="0.6">
 ```
 
-Head-locked: 27 degrees sideways and 15 degrees up or down from the centre of the player's view,
-at `attach-distance`, lying parallel to the view so it reads as a flat rectangle rather than one
-turned toward the eye. 27 and 15 degrees is about a third of the way in on a desktop view; raise
-`cornerAngles` on the `AuiAttach` component (37 and 19 reach the corner of a 16:9 view for a panel
-18 cm wide at 0.55 m) if it covers what the player is looking at. Head-locked panels are tiring in VR over a long session, which
+Head-locked, lying parallel to the view so it reads as a flat rectangle rather than one turned
+toward the eye.
+
+On desktop it sits flush in that corner of the screen whatever the player's field of view and
+window shape, `cornerMargin` (3% of the screen height) in from the edges. It is placed at
+`attach-distance`, and pushed further out if the view would otherwise take more than
+`cornerMaxFraction` (90%) of the screen, so a large view shrinks to fit rather than hanging off
+the edge. Changing the FOV or resizing the window moves it on the next frame.
+
+In VR there is no screen corner, so it is `cornerAngles` (27 and 15 degrees) sideways and up or
+down from the centre of the view. Head-locked panels are tiring in VR over a long session, which
 is why the wrist modes only use the corner on desktop.
 
 ## Follow
