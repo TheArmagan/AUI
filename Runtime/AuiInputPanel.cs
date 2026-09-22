@@ -192,11 +192,14 @@ namespace Armagan.AUI
             if (Focused()) { _armedAt = -1f; return; }
             if (Time.time - _armedAt >= clickTimeout)
             {
-                // Nobody clicked: dismiss and tell the view.
-                AuiView t = _target;
-                ClearTarget();
-                CloseInternal(true);
-                if (t != null) t._OnInputCancelled();
+                // Take the panel off screen, but KEEP THE TARGET. isFocused on a TMP field does
+                // not reliably turn true in the live client while VRChat's keyboard is up, so
+                // this timeout fires with the keyboard still open; forgetting the target here
+                // made the player's Done land on nothing (typed, submitted, nothing changed).
+                // The world's InputPanelManager lost collection renames the same way. The
+                // target is forgotten by a submit, Cancel, or the next Open* (which tells the
+                // old view it lost the keyboard), never by a close.
+                CloseInternal(false);
             }
         }
 

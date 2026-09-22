@@ -689,9 +689,13 @@ element and runs `_OnInputResult`. `OpenText(initial, view, elemId)`, `OpenTextM
 (the view calls this one, with the element's `maxlength`; a longer submission is cut in the
 panel rather than through `TMP_InputField.characterLimit`, whose Udon exposure is unverified),
 `Cancel()`, `IsOpen()`; on submit writes `view.inputResult`, `view.inputResultId` and calls
-`view._OnInputResult()`; on timeout or cancel calls `_OnInputCancelled()`, and so does arming it
-for another element while a view was still waiting (that view's waiting state would otherwise
-never clear). `AuiView.Back()` cancels an armed panel before it closes a select. The view hands
+`view._OnInputResult()`; `Cancel` calls `_OnInputCancelled()`, and so does arming it for another
+element while a view was still waiting (that view's waiting state would otherwise never clear).
+**The arm timeout hides the panel and keeps the target**: in the live client a TMP field's
+`isFocused` does not reliably turn true while VRChat's keyboard is up, so the timeout fires with
+the keyboard open, and a target dropped there made every text submit vanish (measured on the
+avtr.zip store's flare editor; the world's InputPanelManager had the same bug with collection
+renames). URL inputs were unaffected because `VRCUrlInputField.isFocused` stops the clock. `AuiView.Back()` cancels an armed panel before it closes a select. The view hands
 the panel the RAW text (zero-width spaces stripped): the stored value is the escaped one, and a
 round trip through the bound setter added one more space after every `<` per edit. Everything the world's InputPanelManager learned is kept: the field
 is never on an inactive object, focus drops with `enabled = false`, `OnValueChanged` while not
