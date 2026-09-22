@@ -132,6 +132,14 @@ namespace Armagan.AUI
         /// <summary>The VRCUrl a url input submitted, written by AuiInputPanel next to inputResult (its text). Udon cannot build one from a string; this is the loadable form.</summary>
         [HideInInspector] public VRCUrl inputResultUrl;
 
+        [Header("Written by AuiColorPicker")]
+        /// <summary>The &lt;colorpicker&gt; behaviour per element, null elsewhere (BuilderVersion 23; older prefabs have no table).</summary>
+        [HideInInspector] public AuiColorPicker[] elemColorPickers;
+        [HideInInspector] public Color colorResult = Color.white;
+        [HideInInspector] public int colorResultElem = -1;
+        /// <summary>True for the value a released press settled on; false for a frame of a drag.</summary>
+        [HideInInspector] public bool colorResultFinal;
+
         [Header("Nesting (baked)")]
         [Tooltip("The view this one is embedded in, if any. Emit() reports to it.")]
         [HideInInspector] public AuiView parentView;
@@ -675,6 +683,9 @@ namespace Armagan.AUI
         public void SetEnabledElem(int elem, bool on)
         {
             if (elem < 0 || elemSignal == null || elem >= elemSignal.Length) return;
+            // A colorpicker has no signal; its own behaviour refuses presses while disabled.
+            if (elemColorPickers != null && elem < elemColorPickers.Length && elemColorPickers[elem] != null)
+                elemColorPickers[elem].SetInteractable(on);
             SetEnabled(elemSignal[elem], on);
         }
 
@@ -997,6 +1008,15 @@ namespace Armagan.AUI
 
         /// <summary>AuiInputPanel writes inputResult / inputResultId then calls this.</summary>
         public virtual void _OnInputResult()
+        {
+        }
+
+        /// <summary>
+        /// A &lt;colorpicker&gt; reported: colorResult, colorResultElem and colorResultFinal (released,
+        /// versus a frame of a drag) are set. The generated override stores the binding and calls
+        /// the element's onchange / oninput.
+        /// </summary>
+        public virtual void _OnColorResult()
         {
         }
 

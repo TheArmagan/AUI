@@ -52,7 +52,8 @@ namespace Armagan.AUI.Editor
         // 20: <rawimage> (elemRaw): a RawImage outside the cascade's elemBg.
         // 21: <view attach>: an AuiAttach on the root (AuiView.attach), kept across rebuilds like the view itself.
         // 22: <icon size> reaches the runtime layout tables; it used to bake right and be re-solved to the sheet's 18.
-        public const int BuilderVersion = 22;
+        // 23: <colorpicker> (elemColorPickers, AuiColorPicker); every view gets the (empty) table.
+        public const int BuilderVersion = 23;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -77,6 +78,7 @@ namespace Armagan.AUI.Editor
             public Button[] Buttons;
             public Slider[] Sliders;
             public RawImage[] Raw;
+            public AuiColorPicker[] ColorPickers;
             public Vector2[] BasePos;
             public int[] Signal, Key, Kind;
             public AuiSignal[] Signals;
@@ -285,6 +287,7 @@ namespace Armagan.AUI.Editor
             c.Buttons = new Button[n];
             c.Sliders = new Slider[n];
             c.Raw = new RawImage[n];
+            c.ColorPickers = new AuiColorPicker[n];
             c.BasePos = new Vector2[n];
             c.Signal = new int[n];
             c.Key = new int[n];
@@ -434,6 +437,7 @@ namespace Armagan.AUI.Editor
                 case "rawimage": BuildRawImage(c, n, e, go, s); break;
                 case "spacer": break;
                 case "slider": BuildSlider(c, n, e, go, s, local); break;
+                case "colorpicker": BuildColorPicker(c, n, e, go, s, local); break;
                 case "input": BuildInput(c, n, e, go, s, local); break;
                 case "select": BuildSelect(c, n, e, go, s, local, row); return; // options handled inside
                 case "page":
@@ -1022,6 +1026,111 @@ namespace Armagan.AUI.Editor
             }
         }
 
+        /// <summary>
+        /// &lt;colorpicker&gt;: the element's own image is the one raycast target (for the EventTrigger);
+        /// under it a saturation/brightness square (a base tinted to the hue, SatRamp and ValRamp
+        /// over it, which compose HSV exactly) and a hue bar on the right, each with a committed
+        /// cursor and a hover dot. Nothing below the root takes a raycast: a cursor that ate the
+        /// press would leave the picker unable to move off the spot it is on.
+        /// </summary>
+        private static void BuildColorPicker(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
+        {
+            ApplyBackground(c, n, e, go.transform, true, s);
+            float minValue;
+            if (!AuiNum.TryParse(n.Get("min-value", "0"), out minValue)) minValue = 0f;
+            minValue = Mathf.Clamp(minValue, 0f, 0.95f);
+
+            float gap = s.Gap > 0f ? s.Gap : 8f;
+            float barW = Mathf.Clamp(local.H * 0.12f, 14f, 28f);
+            AuiBox p = s.Padding;
+
+            RectTransform square = Child(go.transform, "Square");
+            Stretch(square, p.Left, p.Top, p.Right + barW + gap, p.Bottom);
+            Image baseImg = RampImage(square, "Base", null, Color.red);
+            RampImage(square, "Saturation", PackageSprite("SatRamp"), Color.white);
+            RampImage(square, "Value", PackageSprite("ValRamp"), new Color(1f, 1f, 1f, 1f - minValue));
+            RectTransform squareCursor = Marker(c, square, "Cursor", 18f, 18f, true);
+            RectTransform squareHover = Marker(c, square, "Hover", 8f, 8f, false);
+
+            RectTransform hue = Child(go.transform, "Hue");
+            hue.anchorMin = new Vector2(1f, 0f); hue.anchorMax = new Vector2(1f, 1f); hue.pivot = new Vector2(0.5f, 0.5f);
+            hue.offsetMin = new Vector2(-(p.Right + barW), p.Bottom); hue.offsetMax = new Vector2(-p.Right, -p.Top);
+            RampImage(hue, "Bar", PackageSprite("HueBar"), Color.white);
+            RectTransform hueCursor = Marker(c, hue, "Cursor", barW + 8f, 10f, true);
+            RectTransform hueHover = Marker(c, hue, "Hover", barW, 4f, false);
+            if (PackageSprite("HueBar") == null) AuiLog.Warn("the colorpicker ramps are missing from the package Sprites; run AUI/Generate Sprites.");
+
+            if (c.Preview) return;
+            var picker = (AuiColorPicker)UdonSharpUndo.AddComponent(go, typeof(AuiColorPicker));
+            picker.view = c.View;
+            picker.elem = e;
+            picker.square = square;
+            picker.hueBar = hue;
+            picker.squareBase = baseImg;
+            picker.squareCursor = squareCursor;
+            picker.squareHover = squareHover;
+            picker.hueCursor = hueCursor;
+            picker.hueHover = hueHover;
+            picker.minValue = minValue;
+            picker.interactable = n.Get("disabled") != "true";
+            c.ColorPickers[e] = picker;
+
+            // The picker takes the raw pointer events itself: it has no AuiSignal, because the view
+            // would only have to hand every one of them straight back.
+            var trigger = go.AddComponent<EventTrigger>();
+            var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(picker);
+            foreach (var pair in new[] { new { t = EventTriggerType.PointerEnter, m = "_Enter" }, new { t = EventTriggerType.PointerExit, m = "_Exit" },
+                                         new { t = EventTriggerType.PointerDown, m = "_Down" }, new { t = EventTriggerType.PointerUp, m = "_Up" } })
+            {
+                var entry = new EventTrigger.Entry { eventID = pair.t, callback = new EventTrigger.TriggerEvent() };
+                UnityEventTools.AddStringPersistentListener(entry.callback, ub.SendCustomEvent, pair.m);
+                trigger.triggers.Add(entry);
+            }
+        }
+
+        private static Image RampImage(RectTransform parent, string name, Sprite sprite, Color color)
+        {
+            RectTransform rt = Child(parent, name);
+            Stretch(rt);
+            var img = rt.gameObject.AddComponent<Image>();
+            img.sprite = sprite;
+            img.type = Image.Type.Simple;
+            img.color = color;
+            img.raycastTarget = false;
+            return img;
+        }
+
+        /// <summary>A cursor (white ring over a dark one, readable on any colour) or a hover dot, centred in its parent.</summary>
+        private static RectTransform Marker(Ctx c, RectTransform parent, string name, float w, float h, bool ring)
+        {
+            RectTransform rt = Child(parent, name);
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(w, h);
+            var img = rt.gameObject.AddComponent<Image>();
+            img.raycastTarget = false;
+            if (ring)
+            {
+                img.sprite = RoundedSprite(c, Mathf.Min(w, h) * 0.5f, true);
+                img.type = Image.Type.Sliced;
+                img.color = new Color(0f, 0f, 0f, 0.55f);
+                RectTransform inner = Child(rt, "Ring");
+                Stretch(inner, 1.5f, 1.5f, 1.5f, 1.5f);
+                var ii = inner.gameObject.AddComponent<Image>();
+                ii.sprite = RoundedSprite(c, Mathf.Min(w, h) * 0.5f - 1.5f, true);
+                ii.type = Image.Type.Sliced;
+                ii.color = Color.white;
+                ii.raycastTarget = false;
+            }
+            else
+            {
+                img.sprite = PackageSprite("Circle");
+                img.color = new Color(1f, 1f, 1f, 0.8f);
+                rt.gameObject.SetActive(false);
+            }
+            return rt;
+        }
+
         private static void BuildInput(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
         {
             ApplyBackground(c, n, e, go.transform, true);
@@ -1327,7 +1436,7 @@ namespace Armagan.AUI.Editor
             AuiView v = c.View;
             AuiCompileResult r = c.R;
             v.elemObjects = c.Objects; v.elemRects = c.Rects; v.elemGroups = c.Groups; v.elemBg = c.Bg; v.elemBorder = c.Border;
-            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemRaw = c.Raw; v.elemBasePos = c.BasePos;
+            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemRaw = c.Raw; v.elemColorPickers = c.ColorPickers; v.elemBasePos = c.BasePos;
             v.elemSignal = c.Signal; v.elemKey = c.Key; v.elemKind = c.Kind;
             v.sigElem = c.SigElem; v.signals = c.Signals;
             v.auiBakeHash = BakeStamp(r);
@@ -1560,6 +1669,13 @@ namespace Armagan.AUI.Editor
                 EditorUtility.SetDirty(sig);
                 UdonSharpEditorUtility.CopyProxyToUdon(sig);
             }
+            foreach (AuiColorPicker picker in c.ColorPickers)
+            {
+                if (picker == null) continue;
+                AuiProgramAssets.ApplySyncMode(picker);
+                EditorUtility.SetDirty(picker);
+                UdonSharpEditorUtility.CopyProxyToUdon(picker);
+            }
             foreach (AuiView child in c.NestedInstances.Values) UdonSharpEditorUtility.CopyProxyToUdon(child);
             foreach (Selectable sel in root.GetComponentsInChildren<Selectable>(true))
             {
@@ -1574,7 +1690,7 @@ namespace Armagan.AUI.Editor
             if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
             {
                 var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
-                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate" })
+                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate", "elemColorPickers", "colorResult", "colorResultElem", "colorResultFinal" })
                     if (!exports.Contains(must)) AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }
         }

@@ -205,6 +205,13 @@ slider:disabled {
   opacity: 0.4;
 }
 
+/* The square takes what the hue bar and gap leave; gap is the space between them. */
+colorpicker {
+  width: 240;
+  height: 180;
+  gap: 8;
+}
+
 input {
   background: sprite(Rounded8) var(--surface);
   border: var(--border);

@@ -24,6 +24,9 @@ The package ships twelve generated 9-slice sprites, used as element backgrounds.
 | `Border12` | 12 mm corners, outline only |
 | `Border16` | 16 mm corners, outline only |
 | `Border24` | 24 mm corners, outline only |
+| `HueBar` | the colour picker's hue strip, red at the bottom round to red at the top |
+| `SatRamp` | white fading to clear, left to right (the picker's saturation layer) |
+| `ValRamp` | black fading to clear, bottom to top (the picker's brightness layer) |
 
 All are white, so the element's colour is the tint. They are 9-sliced, so a sprite stretches to any
 size without distorting its corners.

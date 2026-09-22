@@ -142,6 +142,40 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void ColorPickerBindsColorAndReportsBothEvents()
+        {
+            const string markup =
+                "<view name=\"Demo\" width=\"400\" height=\"300\">\n" +
+                "  <text text=\"{label}\" style=\"color: {tint}\"/>\n" +
+                "  <colorpicker id=\"pick\" bind=\"{tint}\" min-value=\"0.3\" onchange=\"TintChanged\" oninput=\"TintDragged\"/>\n" +
+                "</view>";
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            string src = Generate(markup, out bag, out map);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items.Where(x => x.Severity == AuiSeverity.Error)));
+            StringAssert.Contains("public Color Tint", src);
+            StringAssert.Contains("SetColorPicker(2, _tint);", src);
+            StringAssert.Contains("public override void _OnColorResult()", src);
+            StringAssert.Contains("if (colorResultElem == 2)", src);
+            StringAssert.Contains("_tint = colorResult;", src);
+            StringAssert.Contains("if (colorResultFinal) TintChanged(colorResult);", src);
+            StringAssert.Contains("if (!colorResultFinal) TintDragged(colorResult);", src);
+            // The other use of the binding repaints; the picker is not written back from its own report.
+            int report = src.IndexOf("_OnColorResult()");
+            StringAssert.Contains("SetStyleBindingC(1", src.Substring(report));
+            StringAssert.DoesNotContain("SetColorPicker", src.Substring(report, src.IndexOf("return;", report) - report));
+        }
+
+        [Test]
+        public void ColorPickerRejectsARepeatAndABadMinValue()
+        {
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            Generate("<view name=\"Demo\" width=\"400\" height=\"300\"><repeat id=\"r\" max=\"2\"><panel><colorpicker bind=\"{item.c}\"/></panel></repeat></view>", out bag, out map);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.ElementNotAllowedHere), string.Join("\n", bag.Items));
+            Generate("<view name=\"Demo\" width=\"400\" height=\"300\"><colorpicker bind=\"{c}\" min-value=\"1\"/></view>", out bag, out map);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.BadAttributeValue), string.Join("\n", bag.Items));
+        }
+
+        [Test]
         public void RawImageRejectsLiteralTexture()
         {
             AuiDiagnosticBag bag; AuiIndexMap map;

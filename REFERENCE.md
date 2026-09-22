@@ -250,6 +250,7 @@ once, so the glyph is stuck outside the button forever, see §15).
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"`; events `onclick onhover onleave onpress onrelease` | any | |
 | `toggle` | `bind="{b}"`, `key`, `icon`, `disabled`; events `onchange` + pointer | any | a Button with a selected state; the icon is the "on" mark |
 | `slider` | `bind="{f}"`, `min`, `max`, `step` (>=1 means whole numbers), `format-key`, `decimals`, `disabled`; `onchange` | none | `format-key` text contains `{value}` |
+| `colorpicker` | `bind="{c}"` (Color), `min-value` (0 to <1), `disabled`; `onchange`, `oninput` | none | a saturation/brightness square beside a hue bar (the `HueBar`/`SatRamp`/`ValRamp` sprites over a base tinted to the hue). No signal and no `KIND`: the builder wires the element's EventTrigger straight to an `AuiColorPicker` behaviour (`elemColorPickers`), which finds the pointer by ray-plane intersection (section 8) and reports through `colorResult`/`colorResultElem`/`colorResultFinal` and `_OnColorResult`. `oninput` per frame of a drag, `onchange` on release, both `void H(Color)`. Not inside a `repeat`/`template` (AUI112); `min-value` outside 0..<1 is AUI111 |
 | `input` | `bind="{s}"`, `type` text/url, `placeholder-key`, `maxlength`, `disabled`; `onsubmit` | none | click arms AuiInputPanel with the element's `maxlength` (baked in `elemInputMax`); the panel cuts a longer submission. `type="url"` (baked in `elemInputType`) arms the panel's `VRCUrlInputField` instead and `onsubmit` takes a `VRCUrl`: Udon cannot build one from a string, so the field's own result is the only loadable form. The bound string gets the URL's text; `GetInputUrl(e)` the last VRCUrl, which the next click hands back to the field |
 | `select` | `bind="{i}"`, `max` (1..32), `disabled`; `onchange` | `option` | popup is baked; `max` bakes that many rows, the ones past the authored options starting inactive and empty for `SetSelectOptionLabel` to fill. The popup resizes to the rows that are showing. Not inside a `repeat`/`template` (nor `pages`/`tabs`): the index map adds the popup and scrim per node, not per row (AUI112) |
 | `option` | `value`, `key` or literal | none | must be under `select`; `value` is a name for the reader and is not baked (the select reports the index) |
@@ -697,6 +698,24 @@ is never on an inactive object, focus drops with `enabled = false`, `OnValueChan
 focused is the submit, the armed panel expires after `clickTimeout`, the component disables itself
 while idle.
 
+`AuiColorPicker`: `<colorpicker>` (BuilderVersion 23). The third per-frame escape hatch after
+`AuiInputPanel` and `AuiAttach`, and for the same reason: Udon clicks carry no coordinates (no
+runtime delegates, no exposed `PointerEventData`), so WHERE the pointer is has to be computed. The
+builder puts an `EventTrigger` on the element whose Enter/Exit/Down/Up call the picker's `_Enter`,
+`_Exit`, `_Down`, `_Up` by string event; `enabled` is true only between Enter and Exit or during a
+drag, and while enabled `Update` intersects the local player's aim with the picker's plane: both
+hand rays in VR (nearest hit wins), the head ray on desktop (VRChat's crosshair). A hit is kept
+only on the square or the bar (a few mm of margin), except during a drag, when any plane hit is
+clamped into the part the drag started on. `_Down` samples before trusting the last frame. The
+colour is held as HSV and only converted on the way out; `SetColor` (from the generated setter)
+keeps the current hue for a grey, so the cursor does not jump to red. A dot follows the ray: the VR
+hand ray starts a little off VRChat's laser by an offset nothing exposes, and the player aims the
+dot. Reports write `view.colorResult`, `colorResultElem` (the element index), `colorResultFinal`
+(release vs a drag frame) and call `view._OnColorResult()`; those fields are exported like
+`inputResult`. `min-value` maps the square's bottom edge to that brightness; the `ValRamp` layer's
+alpha is `1 - min-value` so the drawn square matches. Measured under ClientSim with the desktop ray
+aimed at known points: s and v, and h on the bar, come back exact.
+
 `AuiAttach`: `<view attach>`. A separate behaviour on the view's root because `AuiView` runs
 nothing per frame and a followed panel has to; the same escape hatch as `AuiInputPanel`, with
 `enabled` false whenever there is nothing to move (view hidden, mode `none`, a `front` view after
@@ -777,7 +796,8 @@ For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
 
 Handler signatures the author must provide (a missing one is a plain C# error): `void H()` for
 onclick and pointer events, `void H(bool value)` toggle onchange, `void H(float value)` slider
-onchange, `void H(int value)` select/tabs/pages onchange, `void H(string value)` onsubmit
+onchange, `void H(int value)` select/tabs/pages onchange, `void H(Color value)` colorpicker
+onchange and oninput, `void H(string value)` onsubmit
 (`void H(VRCUrl value)` for `type="url"`; both halves carry `using VRC.SDKBase;`),
 `void H(int row)` onselect; inside a repeat every handler gets `int row` first. The same name
 used twice must have the same signature (AUI108). Binding names that collide with AuiView members
@@ -822,6 +842,15 @@ constants in `AuiView`.
   `ApplySyncMode` and `CopyProxyToUdon` on it. The root BoxCollider is disabled when the view is
   attached and has no signals: a trigger that travels with the player would swallow every click
   aimed past it. `AuiProgramAssets.EnsurePackageRuntime` covers `AuiAttach.asset`.
+- BuilderVersion 23: `<colorpicker>`. `BuildColorPicker` makes the square (Base, Saturation, Value
+  images, a ring cursor, a hover dot) and the Hue bar (Bar, cursor, dot), none of them raycast
+  targets except the element's own background image; adds `AuiColorPicker` with
+  `UdonSharpUndo.AddComponent`, fills its fields and the `EventTrigger`; `FillTables` writes
+  `elemColorPickers` on every view (an empty table on most); `Finish` runs `ApplySyncMode` and
+  `CopyProxyToUdon` on each picker, and the export check covers `elemColorPickers`, `colorResult`,
+  `colorResultElem`, `colorResultFinal`. The ramps are generated by `AUI/Generate Sprites`
+  (`GenerateColorRamps`) with Clamp wrap, and `AuiProgramAssets.EnsurePackageRuntime` covers
+  `AuiColorPicker.asset`.
 - BuilderVersion 22 changes no builder code: `<icon size>` now beats a sheet's fixed icon width
   (section 6, `AuiCompiler.ApplyIconSizes`), and the bump makes every existing prefab rebuild with
   the corrected layout tables even if its compile hash happened not to move.
@@ -1151,6 +1180,12 @@ box's second click on desktop and in VR; laser hover enter/exit reliability on Q
 client raising `OnLanguageChanged`; PlayerData persistence of the language pick across sessions;
 dropdown clicks through the laser (verified structurally, not by a real click); text legibility
 of the default sizes at 2 m; atlas memory on Quest.
+
+`colorpicker`: the ray maths is measured in ClientSim (desktop head ray), not in the real client.
+Open: whether VRChat's laser raises PointerEnter/Down/Up on the picker in VR and on Quest, where
+the hover dot sits against the laser for each hand, whether dragging feels right, and whether the
+ramps read the same under a linear-colour-space world (UI blending in linear space makes the drawn
+square slightly lighter mid-way than the HSV it reports).
 
 `attach` has less behind it than the list above: `AuiAttach` compiles under UdonSharp (every field
 an exported symbol, `_postLateUpdate` an entry point) and the analyzer tests pass, and that is

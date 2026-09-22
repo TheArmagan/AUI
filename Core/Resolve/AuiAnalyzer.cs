@@ -185,7 +185,9 @@ namespace Armagan.AUI.Core
                         // outside WalkRepeat), and select/pages/tabs each have per-node runtime tables
                         // and one generated setter, not one per row. A select in a row compiled clean
                         // and then threw KeyNotFoundException in the prefab builder.
-                        if (inner.Tag == "select" || inner.Tag == "pages" || inner.Tag == "tabs")
+                        // A colorpicker's generated code reports one Color per element and routes
+                        // it by element index; one per row would need the row arithmetic too.
+                        if (inner.Tag == "select" || inner.Tag == "pages" || inner.Tag == "tabs" || inner.Tag == "colorpicker")
                             d.Error(AuiCodes.ElementNotAllowedHere, "<" + inner.Tag + "> cannot be inside a <" + n.Tag + ">; its runtime tables are per element, not per row.", inner.Line, inner.Column, inner.Tag.Length + 1);
                     }
                 info.Repeats.Add(r);
@@ -495,6 +497,7 @@ namespace Armagan.AUI.Core
                 case "slider":
                 case "input":
                 case "select":
+                case "colorpicker":
                     if (n.Get("bind") == null)
                         d.Warning(AuiCodes.MissingRequiredAttribute, "<" + n.Tag + "> without bind=\"{name}\" has no generated property; only its handler will run.", n.Line, n.Column, n.Tag.Length + 1);
                     break;
@@ -621,7 +624,7 @@ namespace Armagan.AUI.Core
                 case "bind":
                 {
                     if (!IsBindingValue(a.Value)) { d.Error(AuiCodes.BadBindingSyntax, "bind= takes a binding: bind=\"{name}\".", a.ValueLine, a.ValueColumn, a.Value.Length); return; }
-                    AuiBindingType t = n.Tag == "toggle" ? AuiBindingType.Bool : n.Tag == "slider" ? AuiBindingType.Float : n.Tag == "input" ? AuiBindingType.String : AuiBindingType.Int;
+                    AuiBindingType t = n.Tag == "toggle" ? AuiBindingType.Bool : n.Tag == "slider" ? AuiBindingType.Float : n.Tag == "input" ? AuiBindingType.String : n.Tag == "colorpicker" ? AuiBindingType.Color : AuiBindingType.Int;
                     AuiBinding b = AddBinding(n, a, t, repeat, info, d);
                     if (b != null)
                     {
@@ -684,6 +687,14 @@ namespace Armagan.AUI.Core
                     float v;
                     if (n.Tag == "repeat" || n.Tag == "template" || n.Tag == "select") break; // validated in the collect passes
                     if (!AuiNum.TryParse(a.Value, out v)) d.Error(AuiCodes.BadAttributeValue, a.Name + " must be a number.", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    break;
+                }
+                case "min-value":
+                {
+                    // A brightness floor: 1 would leave a square of one colour, so it stops short of it.
+                    float v;
+                    if (!AuiNum.TryParse(a.Value, out v) || v < 0f || v >= 1f)
+                        d.Error(AuiCodes.BadAttributeValue, "min-value is a brightness from 0 up to (not including) 1.", a.ValueLine, a.ValueColumn, a.Value.Length);
                     break;
                 }
                 case "mode":
@@ -815,7 +826,10 @@ namespace Armagan.AUI.Core
             switch (a.Name)
             {
                 case "onchange":
-                    h.ParamType = n.Tag == "toggle" ? "bool" : n.Tag == "slider" ? "float" : "int";
+                    h.ParamType = n.Tag == "toggle" ? "bool" : n.Tag == "slider" ? "float" : n.Tag == "colorpicker" ? "Color" : "int";
+                    break;
+                case "oninput":
+                    h.ParamType = "Color";   // only <colorpicker> has it
                     break;
                 case "onsubmit":
                     // A url input's submit is the VRCUrl itself: Udon cannot build one from a string,

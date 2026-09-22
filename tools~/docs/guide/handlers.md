@@ -19,6 +19,7 @@ public void Buy() { }
 | `onhover`, `onleave`, `onpress`, `onrelease` | `button`, `toggle` | `void Name()` |
 | `onchange` | `toggle` | `void Name(bool value)` |
 | `onchange` | `slider` | `void Name(float value)` |
+| `onchange`, `oninput` | `colorpicker` | `void Name(Color value)` |
 | `onchange` | `select` | `void Name(int index)` |
 | `onchange` | `tabs`, `pages` | `void Name(int page)` |
 | `onsubmit` | `input` | `void Name(string value)` |

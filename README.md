@@ -214,6 +214,7 @@ objects.
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"` | `onclick`: `void H()` |
 | `toggle` | `bind="{b}"`, `key`, `icon` | `onchange`: `void H(bool value)` |
 | `slider` | `bind="{f}"`, `min`, `max`, `step`, `format-key`, `decimals` | `onchange`: `void H(float value)` |
+| `colorpicker` | `bind="{c}"` (Color), `min-value` (0..1 brightness floor), `disabled`; not in a repeat | `onchange` (on release) and `oninput` (every frame of a drag): `void H(Color value)` |
 | `input` | `bind="{s}"`, `type` text/url, `placeholder-key`, `maxlength` | `onsubmit`: `void H(string value)`, or `void H(VRCUrl value)` for `type="url"` |
 | `select` | `bind="{i}"`, `max`; children `<option value key/>` | `onchange`: `void H(int value)` |
 | `tabs` / `tab` | `bind="{i}"`, `for`; `<tab page key icon/>` | `onchange`: `void H(int page)` |

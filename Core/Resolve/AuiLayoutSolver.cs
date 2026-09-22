@@ -198,6 +198,7 @@ namespace Armagan.AUI.Core
                 }
                 case "slider":
                 case "input":
+                case "colorpicker":
                     w = 0; h = 0; // theme gives width/height/min-*
                     if (n.Tag == "input") ln.ContentSized = false;
                     break;

@@ -868,7 +868,7 @@ namespace Armagan.AUI.Lsp
             {
                 Name = name,
                 Detail = detail,
-                Kind = n.IsComponentTag ? SymbolKind.Module : n.Tag == "repeat" ? SymbolKind.Array : n.Tag == "pages" || n.Tag == "tabs" ? SymbolKind.Enum : n.Tag == "page" || n.Tag == "tab" ? SymbolKind.EnumMember : n.Tag == "text" ? SymbolKind.String : n.Tag == "button" || n.Tag == "toggle" || n.Tag == "slider" || n.Tag == "input" || n.Tag == "select" ? SymbolKind.Event : SymbolKind.Object,
+                Kind = n.IsComponentTag ? SymbolKind.Module : n.Tag == "repeat" ? SymbolKind.Array : n.Tag == "pages" || n.Tag == "tabs" ? SymbolKind.Enum : n.Tag == "page" || n.Tag == "tab" ? SymbolKind.EnumMember : n.Tag == "text" ? SymbolKind.String : n.Tag == "button" || n.Tag == "toggle" || n.Tag == "slider" || n.Tag == "colorpicker" || n.Tag == "input" || n.Tag == "select" ? SymbolKind.Event : SymbolKind.Object,
                 Range = range,
                 SelectionRange = new Range(range.Start, new Position(range.Start.Line, range.Start.Character + n.Tag.Length + 1)),
                 Children = new Container<DocumentSymbol>(children),

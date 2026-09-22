@@ -22,6 +22,7 @@ The name is camelCase in markup and PascalCase in C#: `{playerName}` gives `Play
 | select `bind`, tabs `bind` | `int` | `int I { get; set; }` |
 | rawimage `texture` | `Texture` | `Texture T { get; set; }` |
 | rawimage `uv` | `Rect` | `Rect R { get; set; }` |
+| colorpicker `bind`, `style="color: {c}"` | `Color` | `Color C { get; set; }` |
 
 Using one name with two different types is an error (AUI108). Pick two names.
 
@@ -29,7 +30,7 @@ An `if` binding starts **true**, so a view renders complete before your code has
 
 ## Two-way controls
 
-A `toggle`, `slider`, `select`, `tabs` or `input` bound to `{x}`:
+A `toggle`, `slider`, `colorpicker`, `select`, `tabs` or `input` bound to `{x}`:
 
 - **Player uses it** → `X` is written, then your `onchange` handler runs.
 - **You set `X` from code** → the control moves and your handler does **not** run.

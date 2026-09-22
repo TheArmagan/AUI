@@ -39,6 +39,11 @@
     "body": ["<slider bind=\"{${1:value}}\" min=\"${2:0}\" max=\"${3:100}\" step=\"${4:1}\" onchange=\"${5:Handler}\"/>"],
     "description": "A horizontal slider bound to a float"
   },
+  "Color picker": {
+    "prefix": "colorpicker",
+    "body": ["<colorpicker bind=\"{${1:color}}\" oninput=\"${2:Dragged}\" onchange=\"${3:Changed}\"/>"],
+    "description": "A saturation/brightness square and hue bar bound to a Color"
+  },
   "Input": {
     "prefix": "input",
     "body": ["<input bind=\"{${1:value}}\" placeholder-key=\"${2:section.hint}\" onsubmit=\"${3:Handler}\"/>"],

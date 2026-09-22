@@ -151,6 +151,18 @@ number formatting (0 by default). An input is a visible box; clicking it parks a
 in front of the player and the second click opens VRChat's keyboard. A select bakes its options as
 a popup that stays inside the view.
 
+A colour picker (a saturation/brightness square beside a hue bar):
+
+```xml
+<colorpicker bind="{tint}" min-value="0.3" oninput="TintDragged" onchange="TintChanged"/>
+```
+
+`oninput` fires every frame of a drag and `onchange` once when the press is released; both take a
+`Color`. `min-value` is the darkest brightness it offers (the square's bottom edge), for colours
+that must stay readable. The pointer position comes from the player's own aim ray (both hands in
+VR, the crosshair on desktop), because a Udon click carries no coordinates; the picker shows a dot
+where that ray lands. Not inside a `repeat` or `template`.
+
 Layout helpers:
 
 ```xml
@@ -171,6 +183,7 @@ property. The type comes from where it is used:
 | `if="{b}"`, `disabled="{b}"`, `selected="{b}"`, toggle `bind` | bool | `bool B` (an `if` binding starts true) |
 | slider `bind` | float | `float F` |
 | select `bind`, tabs `bind` | int | `int I` |
+| colorpicker `bind`, `style="color: {c}"` | Color | `Color C` (starts white) |
 
 Two-way: a toggle, slider, select, tabs or input bound to `{x}` writes `X` back when the player
 uses it and then calls your handler. Setting `X` from code moves the control and does not call the
@@ -198,6 +211,7 @@ A handler attribute names a method you write. Signatures:
 | `onchange` | toggle | `void Name(bool value)` |
 | `onchange` | slider | `void Name(float value)` (per frame while dragging) |
 | `onchange` | select, tabs, pages | `void Name(int value)` |
+| `onchange`, `oninput` | colorpicker | `void Name(Color value)` (`oninput` per frame while dragging, `onchange` on release) |
 | `onsubmit` | input | `void Name(string value)`; `void Name(VRCUrl value)` for `type="url"` |
 | `onselect` | repeat | `void Name(int row)` |
 | any, inside a repeat template | | `int row` is the first parameter |

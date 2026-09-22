@@ -189,6 +189,7 @@ namespace Armagan.AUI.Core
                 EmitRetranslate();
                 EmitAfterStart();
                 EmitInputResult();
+                EmitColorResult();
                 EmitDispatch();
                 EmitChildEvents();
 
@@ -518,6 +519,7 @@ namespace Armagan.AUI.Core
                                 break;
                             }
                             case "input": L("RenderInput(" + ex + ", " + valueExpr + ");"); break;
+                            case "colorpicker": L("SetColorPicker(" + ex + ", " + valueExpr + ");"); break;
                         }
                         break;
                 }
@@ -813,6 +815,13 @@ namespace Armagan.AUI.Core
                     AuiBinding b = BindingFor(n, n.Get("bind") ?? "");
                     lines.Add("RenderInput(" + E(n) + ", " + (b != null ? AuiNaming.Field(b.Name) : "\"\"") + ");");
                 }
+                // A colorpicker is baked on its default hue; show the binding's starting value instead.
+                foreach (AuiNode n in _info.Doc.Nodes)
+                {
+                    if (n.Tag != "colorpicker" || E(n) < 0 || Stride(n) > 0) continue;
+                    AuiBinding b = BindingFor(n, n.Get("bind") ?? "");
+                    if (b != null) lines.Add("SetColorPicker(" + E(n) + ", " + AuiNaming.Field(b.Name) + ");");
+                }
                 foreach (AuiNestedView nv in _info.NestedViews)
                 {
                     if (InTemplate(nv.Node)) continue;   // slot instances are configured after CreateView
@@ -884,6 +893,38 @@ namespace Armagan.AUI.Core
                 L();
             }
 
+            /// <summary>
+            /// A &lt;colorpicker&gt; reports through the view's colorResult fields (written by
+            /// AuiColorPicker, which has no signal). The bound value is stored and every OTHER use
+            /// of the binding repainted; the picker itself is not written back, because its own
+            /// hue would be lost on a round trip through RGB at zero saturation.
+            /// </summary>
+            private void EmitColorResult()
+            {
+                var pickers = new List<AuiNode>();
+                foreach (AuiNode n in _info.Doc.Nodes) if (n.Tag == "colorpicker" && E(n) >= 0 && Stride(n) == 0) pickers.Add(n);
+                if (pickers.Count == 0) return;
+                Open("public override void _OnColorResult()");
+                foreach (AuiNode n in pickers)
+                {
+                    AuiBinding b = BindingFor(n, n.Get("bind") ?? "");
+                    string change = n.Get("onchange"), input = n.Get("oninput");
+                    Open("if (colorResultElem == " + E(n) + ")");
+                    if (b != null)
+                    {
+                        L(AuiNaming.Field(b.Name) + " = colorResult;");
+                        foreach (AuiBindingUse u in b.Uses)
+                            if (u.Node != n) EmitApplyUse(b, u, AuiNaming.Field(b.Name), null);
+                    }
+                    if (change != null) L("if (colorResultFinal) " + change + "(colorResult);");
+                    if (input != null) L("if (!colorResultFinal) " + input + "(colorResult);");
+                    L("return;");
+                    Close();
+                }
+                Close();
+                L();
+            }
+
             private void EmitDispatch()
             {
                 // Group handlers by kind.
@@ -899,7 +940,8 @@ namespace Armagan.AUI.Core
                         case "onchange":
                             if (h.Node.Tag == "toggle") click.Add(h);
                             else if (h.Node.Tag == "slider") value.Add(h);
-                            break; // select/tabs go through their own overrides
+                            break; // select/tabs go through their own overrides, a colorpicker through _OnColorResult
+                        case "oninput": break; // colorpicker: _OnColorResult
                         case "onsubmit": break; // input result path
                         case "onclose": case "onopen": break; // modal path (_OnModalChanged)
                         default: pointer.Add(h); break;

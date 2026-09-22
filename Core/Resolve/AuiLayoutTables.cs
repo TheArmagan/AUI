@@ -136,7 +136,7 @@ namespace Armagan.AUI.Core
             switch (node.Tag)
             {
                 case "text": return LK_TEXT;
-                case "icon": case "image": case "rawimage": case "spacer": case "slider": case "input": return LK_LEAF;
+                case "icon": case "image": case "rawimage": case "spacer": case "slider": case "input": case "colorpicker": return LK_LEAF;
                 case "repeat": return LK_REPEAT;
                 case "template": return LK_CONTAINER;   // hidden; instances are laid out under whatever parent links them
                 case "pages": return LK_PAGES;

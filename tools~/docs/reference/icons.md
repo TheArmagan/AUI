@@ -1,6 +1,6 @@
 # Icons
 
-AUI bundles 43 icons. Use one by file name, without the extension:
+AUI bundles 45 icons. Use one by file name, without the extension:
 
 ```aui
 <icon name="sliders-horizontal" size="22" class="accent"/>
@@ -19,21 +19,22 @@ tints every icon inside it.
 
 ## The bundled set
 
-42 of these are [Lucide](https://lucide.dev) icons; each name below links to its Lucide page.
+42 of these are stock [Lucide](https://lucide.dev) icons; each name below links to its Lucide page.
 
 | | | | |
 |---|---|---|---|
 | [`arrow-up-down`](https://lucide.dev/icons/arrow-up-down) | [`bookmark`](https://lucide.dev/icons/bookmark) | `bookmark-filled` | [`check`](https://lucide.dev/icons/check) |
 | [`chevron-down`](https://lucide.dev/icons/chevron-down) | [`chevron-left`](https://lucide.dev/icons/chevron-left) | [`chevron-right`](https://lucide.dev/icons/chevron-right) | [`chevron-up`](https://lucide.dev/icons/chevron-up) |
-| [`chevrons-left`](https://lucide.dev/icons/chevrons-left) | [`chevrons-right`](https://lucide.dev/icons/chevrons-right) | [`circle-question-mark`](https://lucide.dev/icons/circle-question-mark) | `discord` |
-| [`download`](https://lucide.dev/icons/download) | [`external-link`](https://lucide.dev/icons/external-link) | [`eye`](https://lucide.dev/icons/eye) | [`folder-open`](https://lucide.dev/icons/folder-open) |
-| [`globe`](https://lucide.dev/icons/globe) | [`hard-drive`](https://lucide.dev/icons/hard-drive) | [`headset`](https://lucide.dev/icons/headset) | [`heart`](https://lucide.dev/icons/heart) |
-| `heart-filled` | [`house`](https://lucide.dev/icons/house) | [`info`](https://lucide.dev/icons/info) | [`layout-grid`](https://lucide.dev/icons/layout-grid) |
-| [`library-big`](https://lucide.dev/icons/library-big) | [`lock`](https://lucide.dev/icons/lock) | [`monitor`](https://lucide.dev/icons/monitor) | [`pencil`](https://lucide.dev/icons/pencil) |
-| [`plus`](https://lucide.dev/icons/plus) | [`refresh-cw`](https://lucide.dev/icons/refresh-cw) | [`search`](https://lucide.dev/icons/search) | [`shirt`](https://lucide.dev/icons/shirt) |
-| [`sliders-horizontal`](https://lucide.dev/icons/sliders-horizontal) | [`smartphone`](https://lucide.dev/icons/smartphone) | [`sparkles`](https://lucide.dev/icons/sparkles) | [`tag`](https://lucide.dev/icons/tag) |
-| [`trash-2`](https://lucide.dev/icons/trash-2) | [`triangle-alert`](https://lucide.dev/icons/triangle-alert) | [`user`](https://lucide.dev/icons/user) | [`users`](https://lucide.dev/icons/users) |
-| [`wand-sparkles`](https://lucide.dev/icons/wand-sparkles) | [`x`](https://lucide.dev/icons/x) | [`zap`](https://lucide.dev/icons/zap) | |
+| [`chevrons-left`](https://lucide.dev/icons/chevrons-left) | [`chevrons-right`](https://lucide.dev/icons/chevrons-right) | [`circle-question-mark`](https://lucide.dev/icons/circle-question-mark) | [`clock`](https://lucide.dev/icons/clock) |
+| `discord` | [`download`](https://lucide.dev/icons/download) | [`external-link`](https://lucide.dev/icons/external-link) | [`eye`](https://lucide.dev/icons/eye) |
+| [`folder-open`](https://lucide.dev/icons/folder-open) | [`globe`](https://lucide.dev/icons/globe) | [`hard-drive`](https://lucide.dev/icons/hard-drive) | [`headset`](https://lucide.dev/icons/headset) |
+| [`heart`](https://lucide.dev/icons/heart) | `heart-filled` | [`house`](https://lucide.dev/icons/house) | [`info`](https://lucide.dev/icons/info) |
+| [`layout-grid`](https://lucide.dev/icons/layout-grid) | [`library-big`](https://lucide.dev/icons/library-big) | [`lock`](https://lucide.dev/icons/lock) | [`monitor`](https://lucide.dev/icons/monitor) |
+| [`pencil`](https://lucide.dev/icons/pencil) | [`plus`](https://lucide.dev/icons/plus) | [`refresh-cw`](https://lucide.dev/icons/refresh-cw) | [`search`](https://lucide.dev/icons/search) |
+| [`shirt`](https://lucide.dev/icons/shirt) | [`shopping-bag`](https://lucide.dev/icons/shopping-bag) | [`sliders-horizontal`](https://lucide.dev/icons/sliders-horizontal) | [`smartphone`](https://lucide.dev/icons/smartphone) |
+| [`sparkles`](https://lucide.dev/icons/sparkles) | [`tag`](https://lucide.dev/icons/tag) | [`trash-2`](https://lucide.dev/icons/trash-2) | [`triangle-alert`](https://lucide.dev/icons/triangle-alert) |
+| [`user`](https://lucide.dev/icons/user) | [`users`](https://lucide.dev/icons/users) | [`wand-sparkles`](https://lucide.dev/icons/wand-sparkles) | [`x`](https://lucide.dev/icons/x) |
+| [`zap`](https://lucide.dev/icons/zap) | | | |
 
 Three are not stock Lucide:
 

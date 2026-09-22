@@ -253,6 +253,34 @@ A two-state button. With only an icon it is a square; with a `key` it becomes a 
 
 In the theme, `background` is the track, `color` the fill and the label, `icon-color` the handle.
 
+### `<colorpicker>`
+
+A saturation/brightness square with a hue bar on its right. The player aims at a colour and
+presses; holding and moving drags. A dot shows where the aim lands: in VR the ray starts at the
+tracked hand, which is a little off VRChat's laser, so the player aims the dot rather than the
+laser.
+
+| Attribute | Meaning |
+|---|---|
+| `bind` | `{Color}`, two-way; starts white |
+| `min-value` | the darkest brightness offered, 0 up to (not including) 1; the square's bottom edge |
+| `disabled` | `{binding}` |
+
+| Event | Signature |
+|---|---|
+| `oninput` | `void Name(Color value)`, every frame of a drag |
+| `onchange` | `void Name(Color value)`, once when the press is released |
+
+```aui
+<colorpicker bind="{tint}" min-value="0.3" oninput="TintDragged" onchange="TintChanged"/>
+<text text="{label}" style="color: {tint}"/>
+```
+
+A text that shares the binding follows the drag without a handler. Setting the property from code
+moves the cursors and calls neither event. The theme sizes it 240 by 180; `gap` is the space
+between the square and the bar, `background` the plate behind both. Not inside a `repeat` or
+`template` (AUI112).
+
 ### `<input>`
 
 A text box. Clicking parks an invisible target in front of the player; the second click opens

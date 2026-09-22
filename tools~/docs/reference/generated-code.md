@@ -44,6 +44,7 @@ public bool   IsVip      { get; set; }   // SetActiveElem(...)
 public int    Quality    { get; set; }   // SetSelect(0, value)
 public Texture Cover     { get; set; }   // <rawimage texture>: SetRawTexture(...), starts null
 public Rect   CoverUv    { get; set; }   // <rawimage uv>: SetRawUv(...), starts (0, 0, 1, 1)
+public Color  Tint       { get; set; }   // <colorpicker bind>: SetColorPicker(...), starts white
 ```
 
 Rules: string bindings are always escaped; every setter starts the view first if needed, so writing
@@ -141,6 +142,7 @@ The rest of the file is dispatch, and you only see it if you open it:
 | `_Retranslate()` | calls every render method after a language change |
 | `_AfterStart()` | starts child views, applies initial binding values, reads a slider's authored value back |
 | `_OnInputResult()` | routes a keyboard result to the right binding and handler |
+| `_OnColorResult()` | routes a colour picker's report to its binding, the binding's other uses, and `oninput` / `onchange` |
 | `_Dispatch(id, kind)` | maps a signal to your handler, with repeat-row arithmetic inlined |
 | `_OnChildEvent(child, name)` | routes a nested view's event to your `on-<event>` handler |
 

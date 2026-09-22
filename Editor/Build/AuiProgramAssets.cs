@@ -41,7 +41,7 @@ namespace Armagan.AUI.Editor
         public static void EnsurePackageRuntime()
         {
             string dir = AuiEditorEnv.PackageAssetRoot + "/Runtime/";
-            foreach (string n in new[] { "AuiView", "AuiSignal", "AuiLanguageService", "AuiInputPanel", "AuiAttach" }) Ensure(dir + n + ".cs");
+            foreach (string n in new[] { "AuiView", "AuiSignal", "AuiLanguageService", "AuiInputPanel", "AuiAttach", "AuiColorPicker" }) Ensure(dir + n + ".cs");
         }
 
         /// <summary>

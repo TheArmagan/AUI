@@ -149,6 +149,20 @@ namespace Armagan.AUI
             elemRaw[elem].uvRect = uv;
         }
 
+        /// <summary>Move a &lt;colorpicker&gt; to <paramref name="color"/> without reporting it (no onchange / oninput).</summary>
+        public void SetColorPicker(int elem, Color color)
+        {
+            if (!_started) { _auiStashI = elem; _auiStashC = color; _AuiStart(); elem = _auiStashI; color = _auiStashC; }
+            AuiColorPicker p = GetColorPicker(elem);
+            if (p != null) p.SetColor(color);
+        }
+
+        /// <summary>The &lt;colorpicker&gt; behaviour of an element, or null.</summary>
+        public AuiColorPicker GetColorPicker(int elem)
+        {
+            return elemColorPickers != null && elem >= 0 && elem < elemColorPickers.Length ? elemColorPickers[elem] : null;
+        }
+
         public int RefId(string refName)
         {
             if (refNames == null || refName == null) return -1;

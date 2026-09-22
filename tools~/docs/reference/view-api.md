@@ -83,6 +83,8 @@ int    RefId(string refName);
 void   SetRawTexture(int elem, Texture texture);   // <rawimage>; null hides it
 void   SetRawUv(int elem, Rect uv);                // <rawimage>; 0..1, bottom-left origin
 RawImage GetRawImage(int elem);
+void   SetColorPicker(int elem, Color color);    // <colorpicker>; moves the cursors, fires nothing
+AuiColorPicker GetColorPicker(int elem);        // the picker behaviour, or null
 ```
 
 An icon, sprite or material must be baked into the view: used in its markup or sheets, or
@@ -235,6 +237,10 @@ protected virtual VRCUrl InputUrlSeed(int elem, VRCUrl last);   // hook: the VRC
 public string inputResult;         // written by the input panel before _OnInputResult
 public int    inputResultId;
 public VRCUrl inputResultUrl;      // url inputs only
+
+public Color  colorResult;         // written by a colorpicker before _OnColorResult
+public int    colorResultElem;
+public bool   colorResultFinal;    // true on release, false for a frame of a drag
 ```
 
 The generated `_OnInputResult` sets the bound property and calls `onsubmit`; a url input's
