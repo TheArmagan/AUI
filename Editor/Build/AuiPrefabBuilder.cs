@@ -53,7 +53,9 @@ namespace Armagan.AUI.Editor
         // 21: <view attach>: an AuiAttach on the root (AuiView.attach), kept across rebuilds like the view itself.
         // 22: <icon size> reaches the runtime layout tables; it used to bake right and be re-solved to the sheet's 18.
         // 23: <colorpicker> (elemColorPickers, AuiColorPicker); every view gets the (empty) table.
-        public const int BuilderVersion = 23;
+        // 24: <text rich> bakes TMP richText on; <rawimage mask="circle"> gets a material of its own
+        //     (elemRawMat), re-homed per host when the view is nested. Every view gets the table.
+        public const int BuilderVersion = 24;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -78,6 +80,12 @@ namespace Armagan.AUI.Editor
             public Button[] Buttons;
             public Slider[] Sliders;
             public RawImage[] Raw;
+            // <rawimage mask="circle">: the element's own material (null elsewhere), the asset paths
+            // this build used (anything else in the view's mask folder is stale), and the nested
+            // views whose masks were re-homed into this view's folder (their proxies need copying).
+            public Material[] RawMat;
+            public HashSet<string> MaskPaths = new HashSet<string>();
+            public List<AuiView> MaskViews = new List<AuiView>();
             public AuiColorPicker[] ColorPickers;
             public Vector2[] BasePos;
             public int[] Signal, Key, Kind;
@@ -202,6 +210,8 @@ namespace Armagan.AUI.Editor
                 AuditComponents(root);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
                 if (PrefabUtility.SaveAsPrefabAsset(root, prefabPath) == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
+                // Only after the save: until then the old prefab still pointed at the old materials.
+                CleanCircleMasks(c);
                 RevertInstanceSizeOverrides(prefabPath, sceneViews ?? Object.FindObjectsOfType<AuiView>(true));
                 AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
                 return true;
@@ -287,6 +297,7 @@ namespace Armagan.AUI.Editor
             c.Buttons = new Button[n];
             c.Sliders = new Slider[n];
             c.Raw = new RawImage[n];
+            c.RawMat = new Material[n];
             c.ColorPickers = new AuiColorPicker[n];
             c.BasePos = new Vector2[n];
             c.Signal = new int[n];
@@ -825,7 +836,10 @@ namespace Armagan.AUI.Editor
             t.alignment = Align(s.TextAlign);
             t.enableWordWrapping = wrap;
             t.overflowMode = ellipsis ? TextOverflowModes.Ellipsis : TextOverflowModes.Overflow;
-            t.richText = false;
+            // RICH TEXT IS DECIDED HERE AND NOWHERE ELSE: TextMeshProUGUI.richText is not exposed to
+            // Udon, so a label cannot be switched in-world. Off unless the markup says rich="true";
+            // an unescaped string reaching a label baked off shows its tags as typed, never as markup.
+            t.richText = AuiAnalyzer.IsRichText(n);
             t.raycastTarget = false;
             if (s.LineHeight > 0) t.lineSpacing = (s.LineHeight - 1f) * 100f;
             // max-lines: a wrapped label stops after this many lines (TMP's own cap; with Ellipsis it ends in "...").
@@ -919,6 +933,121 @@ namespace Armagan.AUI.Editor
             // (SetRawTexture toggles it), so a parent's background shows through as the placeholder.
             raw.enabled = false;
             c.Raw[e] = raw;
+            // mask="circle": a shader, never a Mask / RectMask2D (both copy a material per masked
+            // graphic, the cost this package exists to avoid). The material is this element's
+            // alone because the shader needs this element's uvRect (see AuiCircleMask.shader).
+            if (AuiAnalyzer.IsCircleMask(n))
+            {
+                Material m = CircleMaskMaterial(c, e.ToString());
+                if (m != null) { raw.material = m; c.RawMat[e] = m; }
+            }
+        }
+
+        // ---------------------------------------------------------------- circle masks
+
+        public const string CircleMaskDir = GeneratedMaterialDir + "/CircleMask";
+        private static readonly Vector4 WholeUvRect = new Vector4(0f, 0f, 1f, 1f);
+
+        private static Material CircleMaskTemplate()
+        {
+            Material t;
+            if (MaterialCache.TryGetValue("mask:template", out t) && t != null) return t;
+            t = AssetDatabase.LoadAssetAtPath<Material>(AuiEditorEnv.PackageAssetRoot + "/Runtime/Shaders/AuiCircleMask.mat");
+            if (t == null)
+            {
+                // The shipped material is only a template; the shader alone is enough to make one.
+                Shader sh = Shader.Find("AUI/CircleMask");
+                if (sh != null) t = new Material(sh) { name = "AuiCircleMask", hideFlags = HideFlags.DontSave };
+            }
+            if (t == null) AuiLog.Warn("mask=\"circle\": neither Runtime/Shaders/AuiCircleMask.mat nor the AUI/CircleMask shader was found; the image is baked unmasked.");
+            MaterialCache["mask:template"] = t;
+            return t;
+        }
+
+        /// <summary>
+        /// ONE MATERIAL PER MASKED ELEMENT, as an asset under CircleMask/&lt;View&gt;/&lt;name&gt;.mat.
+        /// AuiView.SetRawUv writes the element's uvRect into it, and a uGUI Graphic has no
+        /// per-instance material (Graphic.material is the asset itself, and a CanvasRenderer ignores
+        /// MaterialPropertyBlocks), so two elements sharing one would draw each other's circle.
+        /// Baked rather than copied in-world because Material's constructor is not something this
+        /// package has verified Udon exposes, and SetVector is. The name is stable across rebuilds
+        /// (element index, or node and row for a nested copy), so the asset and its GUID survive and
+        /// the prefab diff stays empty. The preview writes no assets: it shares the template, which
+        /// is right because the preview never sets a uv.
+        /// </summary>
+        private static Material CircleMaskMaterial(Ctx c, string name)
+        {
+            Material template = CircleMaskTemplate();
+            if (template == null) return null;
+            if (c.Preview) return template;
+            string dir = CircleMaskDir + "/" + c.R.ViewName;
+            string path = dir + "/" + name + ".mat";
+            Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                Directory.CreateDirectory(dir);
+                // hideFlags cleared: the fallback template is DontSave, and an asset must not be.
+                m = new Material(template) { name = name, hideFlags = HideFlags.None };
+                AssetDatabase.CreateAsset(m, path);
+            }
+            else
+            {
+                bool changed = false;
+                if (m.shader != template.shader) { m.shader = template.shader; changed = true; }
+                // PLAY MODE IN THE EDITOR WRITES INTO THIS ASSET: SetRawUv changes the material the
+                // RawImage references, which is the file. Reset it to the whole texture on every
+                // build, and only when it differs, so a build after a play session is the only diff.
+                if (m.GetVector("_AuiUvRect") != WholeUvRect) { m.SetVector("_AuiUvRect", WholeUvRect); changed = true; }
+                if (changed) { EditorUtility.SetDirty(m); AssetDatabase.SaveAssetIfDirty(m); }
+            }
+            c.MaskPaths.Add(path);
+            return m;
+        }
+
+        /// <summary>
+        /// A NESTED VIEW'S MASKS ARE COPIED INTO THE HOST. The child prefab carries one material per
+        /// masked element, and every instance of that prefab references the same files: two copies
+        /// of a card in one host (two nested tags, or a slot's parked copies) would move each
+        /// other's circle with every SetRawUv. Each AuiView in the instance (the child and any view
+        /// nested in it) gets host-owned materials named by the host node, row and view, set on both
+        /// the RawImage and the view's elemRawMat, as prefab-instance overrides the host saves.
+        /// </summary>
+        private static void RehomeCircleMasks(Ctx c, GameObject inst, AuiNode n, int row)
+        {
+            AuiView[] views = inst.GetComponentsInChildren<AuiView>(true);
+            for (int k = 0; k < views.Length; k++)
+            {
+                AuiView v = views[k];
+                if (v.elemRawMat == null || v.elemRaw == null) continue;
+                bool any = false;
+                for (int i = 0; i < v.elemRawMat.Length && i < v.elemRaw.Length; i++)
+                {
+                    if (v.elemRawMat[i] == null || v.elemRaw[i] == null) continue;
+                    Material m = CircleMaskMaterial(c, "n" + n.Index + "r" + row + "_" + k + "_" + i);
+                    if (m == null) continue;
+                    v.elemRawMat[i] = m;
+                    v.elemRaw[i].material = m;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(v.elemRaw[i]);
+                    any = true;
+                }
+                if (!any) continue;
+                EditorUtility.SetDirty(v);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(v);
+                c.MaskViews.Add(v);
+            }
+        }
+
+        /// <summary>Delete this view's mask materials that the build just saved did not use (an element removed, renumbered, or unmasked).</summary>
+        private static void CleanCircleMasks(Ctx c)
+        {
+            string dir = CircleMaskDir + "/" + c.R.ViewName;
+            if (!AssetDatabase.IsValidFolder(dir)) return;
+            foreach (string guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
+            {
+                string p = AssetDatabase.GUIDToAssetPath(guid);
+                if (!c.MaskPaths.Contains(p)) AssetDatabase.DeleteAsset(p);
+            }
+            if (c.MaskPaths.Count == 0) AssetDatabase.DeleteAsset(dir);
         }
 
         /// <summary>Icon + label inside a button-like element, laid out left to right inside the padding.</summary>
@@ -1336,6 +1465,7 @@ namespace Armagan.AUI.Editor
                 AuiRepeatInfo rep = c.R.Info.RepeatContaining(n);
                 if (rep == null || !rep.IsTemplate) c.NestedInstances[nv] = child;
             }
+            RehomeCircleMasks(c, inst, n, row);
             // Element index reserved by the map for the component node
             int e = c.R.Map.Elem(n, row);
             if (e >= 0)
@@ -1436,7 +1566,7 @@ namespace Armagan.AUI.Editor
             AuiView v = c.View;
             AuiCompileResult r = c.R;
             v.elemObjects = c.Objects; v.elemRects = c.Rects; v.elemGroups = c.Groups; v.elemBg = c.Bg; v.elemBorder = c.Border;
-            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemRaw = c.Raw; v.elemColorPickers = c.ColorPickers; v.elemBasePos = c.BasePos;
+            v.elemIcon = c.Icon; v.elemText = c.Text; v.elemButtons = c.Buttons; v.elemSliders = c.Sliders; v.elemRaw = c.Raw; v.elemRawMat = c.RawMat; v.elemColorPickers = c.ColorPickers; v.elemBasePos = c.BasePos;
             v.elemSignal = c.Signal; v.elemKey = c.Key; v.elemKind = c.Kind;
             v.sigElem = c.SigElem; v.signals = c.Signals;
             v.auiBakeHash = BakeStamp(r);
@@ -1677,6 +1807,9 @@ namespace Armagan.AUI.Editor
                 UdonSharpEditorUtility.CopyProxyToUdon(picker);
             }
             foreach (AuiView child in c.NestedInstances.Values) UdonSharpEditorUtility.CopyProxyToUdon(child);
+            // Re-homed masks changed elemRawMat on nested views a slot parks too, which are not in
+            // NestedInstances; without the copy the heap keeps the child prefab's shared materials.
+            foreach (AuiView mv in c.MaskViews) UdonSharpEditorUtility.CopyProxyToUdon(mv);
             foreach (Selectable sel in root.GetComponentsInChildren<Selectable>(true))
             {
                 var nav = sel.navigation; nav.mode = Navigation.Mode.None; sel.navigation = nav;
@@ -1690,7 +1823,7 @@ namespace Armagan.AUI.Editor
             if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
             {
                 var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
-                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate", "elemColorPickers", "colorResult", "colorResultElem", "colorResultFinal" })
+                foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "elemRawMat", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate", "elemColorPickers", "colorResult", "colorResultElem", "colorResultFinal" })
                     if (!exports.Contains(must)) AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }
         }

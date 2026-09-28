@@ -74,6 +74,7 @@ Star classes are style-only, so `GetElements(".*p-8")` returns nothing.
 
 ```csharp
 void   SetText(int elem, string value);   // escaped for you; on an <input> it is also the value the keyboard reopens with
+void   SetRichText(int elem, string value);   // NOT escaped: tags render on a <text rich="true">, show as typed elsewhere; never a player's string
 string GetText(int elem);
 void   SetIcon(int elem, string iconName);
 void   SetBackground(int elem, string spriteName);
@@ -81,7 +82,7 @@ void   SetMaterial(int elem, string materialName);   // null clears it
 Sprite IconSprite(string iconName);
 int    RefId(string refName);
 void   SetRawTexture(int elem, Texture texture);   // <rawimage>; null hides it
-void   SetRawUv(int elem, Rect uv);                // <rawimage>; 0..1, bottom-left origin
+void   SetRawUv(int elem, Rect uv);                // <rawimage>; 0..1, bottom-left origin; keeps a mask="circle" centred on the element
 RawImage GetRawImage(int elem);
 void   SetColorPicker(int elem, Color color);    // <colorpicker>; moves the cursors, fires nothing
 AuiColorPicker GetColorPicker(int elem);        // the picker behaviour, or null

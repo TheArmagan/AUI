@@ -49,6 +49,8 @@ namespace Armagan.AUI.Core
         public const string UnknownComponentProp = "AUI121";
         public const string BadPropDeclaration = "AUI122";
         public const string AttachOnNestedView = "AUI123";
+        /// <summary>A binding feeds a &lt;text rich="true"&gt; and something else too, so it stays escaped and the rich label shows its tags as typed.</summary>
+        public const string RichBindingShared = "AUI124";
 
         // ---- stylesheet
         public const string StyleSyntax = "AUI200";

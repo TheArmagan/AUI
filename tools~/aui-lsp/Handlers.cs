@@ -403,10 +403,14 @@ namespace Armagan.AUI.Lsp
                 case "attach-corner":
                     foreach (string v in AuiSchema.AttachCorners) ctx.Add(v, CompletionItemKind.EnumMember, null);
                     break;
+                case "mask":
+                    foreach (string v in AuiSchema.RawImageMasks) ctx.Add(v, CompletionItemKind.EnumMember, v == "circle" ? "cut to a circle by a shader (no Mask component)" : null);
+                    break;
                 case "hidden":
                 case "wrap":
                 case "ellipsis":
                 case "runtime":
+                case "rich":
                 case "start-hidden":
                 case "dismissable":
                     foreach (string v in new[] { "true", "false" }) ctx.Add(v, CompletionItemKind.EnumMember, null);

@@ -184,6 +184,55 @@ namespace Armagan.AUI.Tests
         }
 
         [Test]
+        public void RichTextBindingIsNotEscaped()
+        {
+            const string markup =
+                "<view name=\"Demo\" width=\"400\" height=\"300\">\n" +
+                "  <text rich=\"true\" text=\"{bio}\"/>\n" +
+                "  <text text=\"{status}\"/>\n" +
+                "  <repeat id=\"rows\" max=\"2\"><panel><text rich=\"true\" text=\"{item.line}\"/></panel></repeat>\n" +
+                "</view>";
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            string src = Generate(markup, out bag, out map);
+            Assert.IsFalse(bag.HasErrors, string.Join("\n", bag.Items.Where(x => x.Severity == AuiSeverity.Error)));
+            Assert.IsFalse(bag.Items.Any(x => x.Code == AuiCodes.RichBindingShared), string.Join("\n", bag.Items));
+            StringAssert.Contains("public string Bio", src);
+            StringAssert.Contains("_bio = EnsureStartedS(value);", src);
+            // A plain binding beside it keeps the old contract.
+            StringAssert.Contains("_status = Escape(EnsureStartedS(value));", src);
+            int set = src.IndexOf("public void SetRowsLine(int row, string value)");
+            Assert.IsTrue(set >= 0, src);
+            int next = src.IndexOf("public ", set + 1);
+            string body = next > set ? src.Substring(set, next - set) : src.Substring(set);
+            StringAssert.DoesNotContain("Escape(", body);
+            StringAssert.Contains(", value);", body);
+        }
+
+        [Test]
+        public void RichTextBindingSharedWithAPlainUseStaysEscaped()
+        {
+            const string markup =
+                "<view name=\"Demo\" width=\"400\" height=\"300\">\n" +
+                "  <text rich=\"true\" text=\"{bio}\"/>\n" +
+                "  <text text=\"{bio}\"/>\n" +
+                "</view>";
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            string src = Generate(markup, out bag, out map);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.RichBindingShared), string.Join("\n", bag.Items));
+            StringAssert.Contains("_bio = Escape(EnsureStartedS(value));", src);
+        }
+
+        [Test]
+        public void RawImageMaskTakesCircleOrNone()
+        {
+            AuiDiagnosticBag bag; AuiIndexMap map;
+            Generate("<view name=\"Demo\" width=\"400\" height=\"300\"><rawimage texture=\"{t}\" mask=\"circle\"/><rawimage texture=\"{u}\" mask=\"none\"/></view>", out bag, out map);
+            Assert.IsFalse(bag.Items.Any(x => x.Code == AuiCodes.BadAttributeValue || x.Code == AuiCodes.UnknownAttribute), string.Join("\n", bag.Items));
+            Generate("<view name=\"Demo\" width=\"400\" height=\"300\"><rawimage texture=\"{t}\" mask=\"rounded\"/></view>", out bag, out map);
+            Assert.IsTrue(bag.Items.Any(x => x.Code == AuiCodes.BadAttributeValue), string.Join("\n", bag.Items));
+        }
+
+        [Test]
         public void GoldenFile()
         {
             AuiDiagnosticBag bag; AuiIndexMap map;

@@ -73,6 +73,11 @@ namespace Armagan.AUI
         // materials and colour tweens into elemBg, and a texture set from code would be replaced
         // by the next state change. Nothing in the cascade reads this table.
         [HideInInspector] public RawImage[] elemRaw;
+        // <rawimage mask="circle">: the element's OWN material (AUI/CircleMask), null elsewhere
+        // (BuilderVersion 24; older prefabs have no table). SetRawUv writes the uvRect into it,
+        // because the shader has to undo the crop to find the element's centre. One per element
+        // and per nested copy, never shared, or one element's uv would move another's circle.
+        [HideInInspector] public Material[] elemRawMat;
         [HideInInspector] public Vector2[] elemBasePos;
         [HideInInspector] public int[] elemSignal;   // signal id or -1
         [HideInInspector] public int[] elemKey;      // translation key index or -1 (text label, input placeholder, slider format)

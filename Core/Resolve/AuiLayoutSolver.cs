@@ -284,6 +284,10 @@ namespace Armagan.AUI.Core
                 contentSized = true;
             }
             else candidates.Add(n.Text ?? "");
+            // A rich label draws its tags as formatting, not as glyphs; measured with them it baked a
+            // box wider by every "<b>" and "</color=...>" in the string. The bound sample has none.
+            bool rich = AuiAnalyzer.IsRichText(n);
+            if (rich) for (int i = 0; i < candidates.Count; i++) candidates[i] = StripRichTags(candidates[i]);
 
             w = 0; h = 0;
             foreach (string t in candidates)
@@ -309,6 +313,7 @@ namespace Armagan.AUI.Core
                 if (key != null && t == null) { ln.LangW[l] = w; ln.LangH[l] = h; continue; }
                 if (key != null) t = StripPlaceholders(t, n);
                 else t = n.Get("text") != null ? _ctx.BoundTextSample : (n.Text ?? "");
+                if (rich) t = StripRichTags(t);
                 float tw, th;
                 _ctx.Measurer.Measure(t, size, weight, wrap ? maxW : 0, wrap, out tw, out th);
                 if (maxW > 0 && tw > maxW) tw = maxW;
@@ -359,6 +364,29 @@ namespace Armagan.AUI.Core
                 if (c < 0) { sb.Append(t, i, t.Length - i); break; }
                 sb.Append(t, i, o - i);
                 sb.Append(_ctx.BoundTextSample.Length > 6 ? _ctx.BoundTextSample.Substring(0, 6) : _ctx.BoundTextSample);
+                i = c + 1;
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// The text a &lt;text rich="true"&gt; shows, for measuring: every &lt;...&gt; run removed. An
+        /// approximation on purpose: a size tag's effect is not modelled (the label is still
+        /// re-measured by TMP in-world once code writes it), and a literal "a &lt; b &gt; c" in a rich
+        /// label measures short, which it also renders as a (broken) tag.
+        /// </summary>
+        private static string StripRichTags(string t)
+        {
+            if (t == null || t.IndexOf('<') < 0) return t;
+            var sb = new System.Text.StringBuilder(t.Length);
+            int i = 0;
+            while (i < t.Length)
+            {
+                int o = t.IndexOf('<', i);
+                if (o < 0) { sb.Append(t, i, t.Length - i); break; }
+                int c = t.IndexOf('>', o + 1);
+                if (c < 0) { sb.Append(t, i, t.Length - i); break; }
+                sb.Append(t, i, o - i);
                 i = c + 1;
             }
             return sb.ToString();

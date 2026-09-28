@@ -59,6 +59,7 @@ Runtime/                      asmdef Armagan.AUI (autoReferenced) + Armagan.AUI.
   AuiSettings.cs              ScriptableObject: project configuration (lang folder, default language, fonts, ranges)
   AuiFontSet.cs               ScriptableObject: the baked font assets
   Views/AuiLanguagePicker.*   the built-in language picker view (aui, cs, g.cs, asset, prefab)
+  Shaders/AuiCircleMask.*     <rawimage mask="circle">: the AUI/CircleMask UI shader and the template material the builder copies
 Core/                         asmdef Armagan.AUI.Core (editor platform, noEngineReferences)
   Schema/AuiSchema.cs         element, attribute, event and style-property tables; the single source of truth
   Parsing/AuiParser.cs        markup parser with positions and recovery
@@ -243,8 +244,9 @@ once, so the glyph is stuck outside the button forever, see §15).
 | Tag | Attributes | Children | Notes |
 |---|---|---|---|
 | `panel`, `div` | | any | plain container |
-| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `max-lines`, `ellipsis`, `runtime` | none | exactly one of key / text / literal content; `args` only with `key`; `max-lines` is TMP's `maxVisibleLines` on a wrapped text; `runtime` measures a keyed label like a bound one (for `SetText` from code); `wrap` with no width wraps at the available width |
+| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `max-lines`, `ellipsis`, `runtime`, `rich` | none | exactly one of key / text / literal content; `args` only with `key`; `max-lines` is TMP's `maxVisibleLines` on a wrapped text; `runtime` measures a keyed label like a bound one (for `SetText` from code); `wrap` with no width wraps at the available width; `rich` (flag) bakes TMP `richText` on and leaves the `text=` binding unescaped when nothing else reads it (below) |
 | `image` | `src` (relative to the .aui), `mode` simple/sliced/fit | none | src must import as a Sprite |
+| `rawimage` | `texture="{t}"` (Texture), `uv="{r}"` (Rect), `mask` none/circle | none | a runtime texture in a `RawImage` (`elemRaw`), baked disabled until a texture arrives; `texture`/`uv` take bindings only. `mask="circle"` draws it with the `AUI/CircleMask` shader through a material of the element's own (below) |
 | `icon` | `name` (Lucide file stem), `size` | none | tinted by `icon-color` |
 | `spacer` | `size` | none | grows when no size |
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"`; events `onclick onhover onleave onpress onrelease` | any | |
@@ -275,6 +277,38 @@ attribute takes the child's type. Handler attributes name a method; signatures a
 
 Elements that get a pointer signal: every clickable tag, any element with a `:hover`/`:pressed`
 rule or a pointer handler, and a repeat template root when the repeat has `onselect`.
+
+Rich text (`<text rich="true">`, BuilderVersion 24). Every label is baked with TMP `richText =
+false` and every string binding is escaped, so a player's string cannot open a tag; `rich` is the
+opt-out for one label. `TextMeshProUGUI.richText` is not exposed to Udon, so the flag is decided at
+bake (`BuildText`) and never changes in-world. `AuiAnalyzer.IsRichText` is the one definition the
+builder, the solver and codegen read. What reaches the label:
+
+- literal content and a `key`'s translations are trusted and render as markup;
+- the `text=` binding is unescaped only when `AuiBinding.IsRich`: every use of it is the `text=`
+  of a rich label. A binding is stored once for all its uses, so one plain use anywhere (another
+  label, `args`, `class`, an input, a nested view's prop) keeps it escaped for all, and the rich
+  label shows its tags as typed; `AUI124` warns at the rich label. The host of a nested view
+  always passes an escaped value, so a child's rich prop set through a host attribute shows its
+  tags; set it on the child from code instead;
+- `args` values are always escaped: the translation's markup renders, the values filled into it
+  do not;
+- `SetText` escapes on a rich label as on any other; `SetRichText` is the unescaped call.
+
+The layout solver measures a rich label's keyed or literal text with every `<...>` run removed
+(`StripRichTags`), so the baked box is not widened by the tags; a `size` tag's effect is not
+modelled, and a runtime write is re-measured by TMP itself.
+
+Circle mask (`<rawimage mask="circle">`, BuilderVersion 24). NOT a `Mask` or `RectMask2D`: a
+`Mask` makes uGUI instantiate a stencil copy of every masked graphic's material, and the worlds AUI
+ships into ban both. `Runtime/Shaders/AuiCircleMask.shader` is UI-Default (stencil block,
+`UNITY_UI_CLIP_RECT`, `UNITY_UI_ALPHACLIP` kept) with the alpha multiplied by a circle of radius 0.5
+in the element's own quad space, anti-aliased over one pixel with `fwidth` (target 3.0). RawImage
+writes `uvRect` into the vertex UVs, so a circle computed from `TEXCOORD0` would follow the crop; it
+fills no second UV channel and the vertex colour is 8 bits, too coarse for a tile rect. The rect
+therefore reaches the shader as `_AuiUvRect` on a material, which is why every masked element has
+its own (section 11) and why `SetRawUv` writes it (section 8). A non-square element gets an ellipse.
+`Runtime/Shaders/AuiCircleMask.mat` is the template the builder copies.
 
 ## 5. Stylesheet reference (.auis)
 
@@ -592,7 +626,9 @@ and moving with the player.
 `contentGroup`, `contentRect`, `auiBakeHash`, `attach` (the sibling `AuiAttach`, null when the
 markup has no `attach`; BuilderVersion 21); element tables indexed by runtime element index:
 `elemObjects`, `elemRects`, `elemGroups`, `elemBg`, `elemBorder`, `elemIcon`, `elemText`,
-`elemButtons`, `elemSliders`, `elemBasePos`, `elemSignal`, `elemKey`, `elemKind`; signal tables
+`elemButtons`, `elemSliders`, `elemRaw`, `elemRawMat` (a `mask="circle"` rawimage's own material,
+null elsewhere; BuilderVersion 24, older prefabs have none), `elemBasePos`, `elemSignal`,
+`elemKey`, `elemKind`; signal tables
 `sigElem`, `signals`; style rows `styleRangeStart/Count[sig * 5 + state]`, `styleProp`,
 `styleValue`, `styleSprite`, `styleDur`, `styleEase`, `styleChannel`, `channelCount`; view
 transition `showKind`, `showDur`, `hideDur`, `slideFrom`, `scaleFrom`, `startHidden`; pages
@@ -617,7 +653,10 @@ Public API: `Show()`, `Hide()`, `ShowInstant()`, `HideInstant()`, `Toggle()`, `I
 `GetPage(group)`, `SelectPage(group, page, notify)`; `GetRepeatCount(r)`, `SetRepeatCount(r, n)`,
 `RowElem(r, row, offset)` (-1 for a bad index, never an exception); `GetSelect(s)`,
 `SetSelect(s, i)`, `SetSelectOptionLabel(s, i, label)`, `SetSelectOptionCount(s, n)`,
-`CloseSelect()`; `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v, decimals)` (culture-free: a `.`
+`CloseSelect()`; `SetText(elem, s)` (escaped) and `SetRichText(elem, s)` (not escaped: markup on a
+`rich` label, the tags as typed on any other, an input keeps `SetText`'s rule);
+`SetRawTexture(elem, t)`, `SetRawUv(elem, r)` (also writes `_AuiUvRect` into `elemRawMat[elem]`
+when there is one, so author code keeps the circle centred too); `Escape(s)`, `Fill1..Fill4`, `FormatNumber(v, decimals)` (culture-free: a `.`
 whatever the client's locale, so it can feed a style binding), `InputMaxLength(elem)`,
 `InputType(elem)`, `GetInputUrl(elem)` / `SetInputUrl(elem, url)`, `OpenInput(elem)` (arm the
 panel from code, as a click would) and the hook `InputUrlSeed(elem, last)` (what a url input
@@ -782,7 +821,11 @@ For `Foo.aui`, `Foo.g.cs` contains, inside `namespace Armagan.AUI.Generated`:
   `EnsureStartedS/I/F/B(value)` first, which starts a not-yet-started view and returns the
   caller's value even when the view's `OnStart` wrote the same property meanwhile (see §15 on
   Udon argument slots), escapes strings (zero-width space after every `<`), stores, and pushes
-  to every use:
+  to every use. The exception is a rich binding (`AuiBinding.IsRich`, section 4): the same
+  property name and type, no `Escape` call, and a `// rich:` comment line above the store so the
+  difference shows in the `.g.cs`; the repeat setter `Set<Id><Field>(row, value)` of a rich item
+  binding writes `value` into its labels as given, with the same comment. Views without `rich`
+  generate byte-identical code. The pushes per use:
   re-renders texts, `SetActiveElem` for `if`, `SetEnabledElem` for `disabled`, `SetSelected` for
   `selected`, `SetToggle`, slider `SetValueWithoutNotify` + label render, `SetSelect`,
   `SelectPage(..., false)`, `RenderInput`, child property. Setting from code never fires a handler.
@@ -865,6 +908,27 @@ constants in `AuiView`.
   `colorResultElem`, `colorResultFinal`. The ramps are generated by `AUI/Generate Sprites`
   (`GenerateColorRamps`) with Clamp wrap, and `AuiProgramAssets.EnsurePackageRuntime` covers
   `AuiColorPicker.asset`.
+- BuilderVersion 24: `<text rich>` and `<rawimage mask="circle">`. `BuildText` sets
+  `richText = AuiAnalyzer.IsRichText(n)`; button, tab, option, input and slider labels stay off.
+  `BuildRawImage` gives a masked element a material of its own (`CircleMaskMaterial`), an asset at
+  `Assets/AUI/Generated/Materials/CircleMask/<View>/<element>.mat` copied from
+  `Runtime/Shaders/AuiCircleMask.mat` (or made from the `AUI/CircleMask` shader if the template is
+  missing), assigned to the `RawImage` and written to `elemRawMat`. One per element and per repeat
+  row because `SetRawUv` writes the element's rect into it: a uGUI Graphic has no per-instance
+  material (`Graphic.material` is the asset, and a `CanvasRenderer` ignores property blocks), so a
+  shared one would draw every element with the last rect written. Baked rather than copied
+  in-world because the `Material` constructor's Udon exposure is unverified and `SetVector` is.
+  The name is the element index, stable across rebuilds, so the GUID and the prefab diff survive;
+  an existing asset has its `_AuiUvRect` reset to (0, 0, 1, 1) when a play session wrote into it
+  (play mode in the editor writes into the file, since the material IS the file). A NESTED view's
+  masks are re-homed (`RehomeCircleMasks`): every `AuiView` in the instantiated child prefab gets
+  host-owned copies named `n<node>r<row>_<view>_<element>.mat` under the host's folder, set on
+  both the `RawImage` and the child's `elemRawMat` as prefab-instance overrides, and `Finish` runs
+  `CopyProxyToUdon` on those views (a slot's parked copies are not in `NestedInstances`). Without
+  that, two copies of one card in a host would share the child prefab's materials. After a
+  successful save `CleanCircleMasks` deletes every material in the view's folder this build did
+  not use, and the folder when none is left. The preview writes no asset and uses the template.
+  `elemRawMat` joins the export check.
 - BuilderVersion 22 changes no builder code: `<icon size>` now beats a sheet's fixed icon width
   (section 6, `AuiCompiler.ApplyIconSizes`), and the bump makes every existing prefab rebuild with
   the corrected layout tables even if its compile hash happened not to move.
@@ -910,7 +974,8 @@ binding type conflict, 109 handler not identifier, 110 missing required attribut
 112 element not allowed here, 113 nested cycle, 114 tabs without pages, 115 text and key both, 116
 bad binding syntax, 117 literal text info, 118 item binding outside repeat, 119 unknown icon, 120
 repeat max, 121 unknown component prop, 122 bad prop declaration, 123 attach on a nested view
-(warning; the nested instance has no canvas of its own and its attach is dropped)); 2xx stylesheet (200 syntax,
+(warning; the nested instance has no canvas of its own and its attach is dropped), 124 a rich
+label's binding is shared with a plain use and stays escaped (warning)); 2xx stylesheet (200 syntax,
 201 unknown property, 202 bad value, 203 undefined
 variable, 204 unknown state, 205 bad selector, 206 unused class, 207 unknown class, 208 sheet not
 found, 209 bad transition, 210 non-animatable in a state, 211 more than 64 classes, 212 bake-only
@@ -1039,7 +1104,8 @@ after touching any of them.
   temporary; the baker must keep using the existing object, or the fallback wiring throws
   `ArgumentNullException: target` after the atlases are already written.
 - `TextMeshProUGUI.richText` and `.rectTransform` are not exposed to Udon. Untrusted text is
-  escaped with a zero-width space after `<`; rect transforms are baked. `string[i]` DOES compile:
+  escaped with a zero-width space after `<`; rect transforms are baked, and so is rich text: a
+  `<text rich="true">` is the only way a label gets `richText` on, and it cannot change in-world. `string[i]` DOES compile:
   `SystemString.__get_Chars` is not in the node list, but UdonSharp lowers the indexer to
   `ToCharArray(i, 1)[0]`, one `char[1]` allocation per access (an earlier version of this list
   said it fails). Hot paths (`ParseColor`, `ColorToHex`, `SubstituteVars`) take one `ToCharArray`
@@ -1200,6 +1266,16 @@ Open: whether VRChat's laser raises PointerEnter/Down/Up on the picker in VR and
 the hover dot sits against the laser for each hand, whether dragging feels right, and whether the
 ramps read the same under a linear-colour-space world (UI blending in linear space makes the drawn
 square slightly lighter mid-way than the HSV it reports).
+
+`rich` and `mask="circle"` (BuilderVersion 24) were written without a Unity compile and have run
+nowhere yet. Open: that `AUI/CircleMask` compiles for PC and Android (it needs target 3.0 for
+`fwidth`) and draws a clean circle on a masked rawimage with and without a `uv` tile, on Quest
+too; that `SetRawUv`'s `SetVector` moves the circle in-world (a CanvasRenderer is expected to draw
+with the material as it is at draw time, not a batched copy, but it is not measured); that the
+re-homed materials of a nested view survive the host's save as instance overrides and reach the
+heap; that the per-element material costs one batch break per masked element, which is the
+expected price; that TMP renders a rich label's tags in the live client and the stripped-tag
+measurement gives the box the label needs.
 
 `attach` has less behind it than the list above: `AuiAttach` compiles under UdonSharp (every field
 an exported symbol, `_postLateUpdate` an entry point) and the analyzer tests pass, and that is

@@ -24,7 +24,8 @@ namespace Armagan.AUI.Core
     ///   - every handler named in the markup must exist with the signature the analyzer derived
     ///     (a missing one is a plain C# error naming the method);
     ///   - bindings are properties (PlayerName = ...) and repeat rows are SetRowsName(row, v);
-    ///   - string values are escaped once when set and stored escaped.
+    ///   - string values are escaped once when set and stored escaped, except a binding that only
+    ///     &lt;text rich="true"&gt; labels read (AuiBinding.IsRich), which is stored as given.
     /// </summary>
     public static class AuiCodegen
     {
@@ -426,7 +427,10 @@ namespace Armagan.AUI.Core
                     // EnsureStartedX starts a not-yet-started view and returns the value the CALLER
                     // passed, even when OnStart wrote this same property meanwhile (see AuiView).
                     string started = "EnsureStarted" + StashSuffix(b.Type) + "(value)";
-                    L(f + " = " + (b.Type == AuiBindingType.String ? "Escape(" + started + ")" : started) + ";");
+                    // A binding only rich labels read is stored as given, so its tags render
+                    // (AuiBinding.IsRich); the comment makes the missing Escape visible in the .g.cs.
+                    if (b.IsRich) L("// rich: stored WITHOUT Escape; only <text rich=\"true\"> labels read it");
+                    L(f + " = " + (b.Type == AuiBindingType.String && !b.IsRich ? "Escape(" + started + ")" : started) + ";");
                     foreach (AuiBindingUse u in b.Uses) EmitApplyUse(b, u, f, null);
                     Close();
                     Close();
@@ -567,13 +571,17 @@ namespace Armagan.AUI.Core
                         }
                         else L("if (!_started) { _auiStashI = row; " + stash + " = value; _AuiStart(); row = _auiStashI; value = " + stash + "; }");
                         L("if (row < 0 || row >= " + r.Max + ") return;");
-                        string val = b.Type == AuiBindingType.String ? "Escape(value)" : "value";
+                        // A rich item binding goes into its labels as given (AuiBinding.IsRich); it is
+                        // never `stored`, since a stored one feeds args= and is therefore not rich.
+                        bool escape = b.Type == AuiBindingType.String && !b.IsRich;
+                        if (b.IsRich) L("// rich: written WITHOUT Escape; only <text rich=\"true\"> labels read it");
+                        string val = escape ? "Escape(value)" : "value";
                         if (stored)
                         {
                             L("_" + AuiNaming.Identifier(r.Id) + "_" + b.Name + "[row] = " + val + ";");
                             val = "_" + AuiNaming.Identifier(r.Id) + "_" + b.Name + "[row]";
                         }
-                        else if (b.Type == AuiBindingType.String)
+                        else if (escape)
                         {
                             L("string v = Escape(value);");
                             val = "v";

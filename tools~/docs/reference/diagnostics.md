@@ -70,6 +70,7 @@ would not stop for.
 | `AUI121` | An attribute that is not a declared `<prop>` on a child that declares props |
 | `AUI122` | Malformed `<prop>` declaration |
 | `AUI123` | **Warning.** The nested view declares `attach` on its `<view>`. A nested view has no canvas of its own to move, so its attach is dropped and it stays where this view lays it out. Place that view in the scene on its own, or remove its `attach`. See [attaching a view](/guide/attaching#nested-views) |
+| `AUI124` | **Warning.** A `<text rich="true">` label's `text=` binding is also used somewhere that is not a rich label (another label, `args=`, `class`, an input, a nested view's prop). A binding is stored once for all its uses, so it stays escaped and the rich label shows its tags as typed. Give the rich label a binding of its own. See [rich text](/reference/elements#rich-text) |
 
 ## 2xx Stylesheet
 

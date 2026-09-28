@@ -111,6 +111,7 @@ Flexible space. Grows to fill what is left, which is how you push things apart.
 | `max-lines` | number | cap the line count of a wrapped text (with `ellipsis`, the last line ends in `...`) |
 | `ellipsis` | `true`, `false` | show `...` when truncated |
 | `runtime` | flag | measured and re-measured as runtime text (like `text=`), for a keyed label you will `SetText` from code |
+| `rich` | flag | render TextMeshPro tags (`<b>`, `<i>`, `<color=#E0A86A>`, `<size=120%>`). Off by default |
 
 `key`, `text` and literal content are mutually exclusive (AUI115). Literal content is reported as
 info AUI117, since it will never be translated. A `wrap="true"` text with no `width` or `max-width`
@@ -123,6 +124,36 @@ wraps at the width its parent gives it.
 <text wrap="true" max-lines="3" ellipsis="true" key="shop.blurb" style="max-width: 300"/>
 <text>Debug build</text>
 ```
+
+#### Rich text
+
+Every label is baked with TMP rich text **off**, and every string a binding receives is escaped (a
+zero-width space after each `<`), so nothing a player typed can open a tag. `rich="true"` turns
+both off for one label:
+
+```aui
+<text rich="true" key="shop.sale"/>               <!-- "<b>50%</b> off" in the language file -->
+<text rich="true" text="{bio}" wrap="true"/>      <!-- Bio = "<color=#E0A86A>VIP</color> since 2024" -->
+<text rich="true">Built with <b>AUI</b></text>
+```
+
+- The flag is baked into the TMP component. Udon cannot switch `richText`, so a label is rich or
+  not for the life of the prefab.
+- The label's `text=` binding is stored and pushed **without** escaping. The property keeps its
+  name (`Bio`); the generated setter just has no `Escape` call, and a `// rich:` comment above it
+  says so.
+- Only when **every** use of that binding is a rich label's `text=`. If the same binding also feeds
+  a plain label, an `args=` list, a `class`, an input or a nested view's prop, the whole binding
+  stays escaped and the rich label shows its tags as typed (warning AUI124). Give the rich label a
+  binding of its own.
+- `args=` values are always escaped, rich label or not: the translation's own markup renders, the
+  values filled into it do not.
+- `SetText(E_ID, s)` still escapes on a rich label. `SetRichText(E_ID, s)` writes without escaping.
+
+::: danger Never bind a player's string to a rich label
+Anything that reaches a rich label is markup. A display name, a chat line or a keyboard submission
+belongs on a plain label.
+:::
 
 ### `<icon>`
 
@@ -166,9 +197,22 @@ is set, so a background on its parent shows as the placeholder.
 |---|---|
 | `texture` | `{binding}` of type `Texture` |
 | `uv` | `{binding}` of type `Rect`: the region shown, 0 to 1 with a bottom-left origin. Starts as `(0, 0, 1, 1)` |
+| `mask` | `none` (default) or `circle`: cut the image to a circle |
 
-Both attributes take a binding; a literal is an error. Give it a `width` and `height` in the
+`texture` and `uv` take a binding; a literal is an error. Give it a `width` and `height` in the
 stylesheet, otherwise it is 64 by 64. Allowed inside a `<repeat>`.
+
+`mask="circle"` is drawn by a shader (`AUI/CircleMask`), not a `Mask` or `RectMask2D` component:
+those make uGUI copy a material for every masked graphic. The circle is the element's own box, not
+the `uv` crop, so a tile of a sprite sheet is centred like a whole texture. An element that is not
+square gets an ellipse. The builder gives each masked element (each repeat row, each nested copy)
+a material of its own under `Assets/AUI/Generated/Materials/CircleMask/<View>/`, because the shader
+has to know that element's `uv`; `SetRawUv` writes it there. In the editor's play mode that write
+lands in the asset file, and the next build puts it back.
+
+```aui
+<rawimage texture="{avatar}" mask="circle" style="width: 48; height: 48"/>
+```
 
 ```aui
 <repeat id="results" max="10" class="grid">

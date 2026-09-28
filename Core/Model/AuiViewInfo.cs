@@ -43,6 +43,36 @@ namespace Armagan.AUI.Core
         /// <summary>Declared through &lt;prop&gt; (typed up front, visible to hosts even when unused in the markup).</summary>
         public bool IsProp;
 
+        /// <summary>
+        /// A string binding whose EVERY use is the text= of a &lt;text rich="true"&gt;: the generated
+        /// setter stores and pushes it without Escape, so its TMP tags render. The value is stored
+        /// once for all uses, so a single plain use anywhere (a second label, an args list, a
+        /// class, an input, a nested view's prop) keeps the whole binding escaped: a raw copy
+        /// there would let a string open a tag in a label that never asked for markup. The
+        /// analyzer reports that case (AUI124). A &lt;prop&gt; with no uses is never rich.
+        /// </summary>
+        public bool IsRich
+        {
+            get
+            {
+                if (Type != AuiBindingType.String || Uses.Count == 0) return false;
+                foreach (AuiBindingUse u in Uses)
+                    if (u.Attribute != "text" || !AuiAnalyzer.IsRichText(u.Node)) return false;
+                return true;
+            }
+        }
+
+        /// <summary>At least one use is a rich label, whether or not the binding as a whole is (see <see cref="IsRich"/>).</summary>
+        public bool HasRichUse
+        {
+            get
+            {
+                foreach (AuiBindingUse u in Uses)
+                    if (u.Attribute == "text" && AuiAnalyzer.IsRichText(u.Node)) return true;
+                return false;
+            }
+        }
+
         /// <summary>PascalCase name for the generated member.</summary>
         public string PropertyName
         {

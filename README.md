@@ -115,7 +115,8 @@ public partial class SettingsDemo : AuiView
 ```
 
 The property setters fan out to every element that uses the binding; a string is escaped once
-(a zero-width space after every `<`) so untrusted text can never open a rich-text tag. A control
+(a zero-width space after every `<`) so untrusted text can never open a rich-text tag; the one
+exception is a binding only `<text rich="true">` labels read, which is stored as given. A control
 bound to `{x}` writes `X` back when the player uses it, then calls the handler; setting `X` from
 code moves the control silently. Repeats use methods because Udon has no per-row objects:
 `RowsCount = 3; SetRowsName(0, "first");`.
@@ -206,9 +207,9 @@ objects.
 |---|---|---|
 | `view` | `name` (= file stem), `width`, `height` (mm), `show`, `start-hidden`, `attach`, `attach-corner`, `attach-distance` | |
 | `panel` / `div` | | |
-| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `ellipsis`, `runtime` | |
+| `text` | `key`, `text="{s}"`, `args="{a} {b}"`, `wrap`, `ellipsis`, `runtime`, `rich` (TMP tags render; its `text=` binding is not escaped when nothing else uses it, AUI124 otherwise; never bind a player's string to it) | |
 | `image` | `src`, `mode=simple\|sliced\|fit` | |
-| `rawimage` | `texture="{t}"` (Texture), `uv="{r}"` (Rect); set from code, hidden while null | |
+| `rawimage` | `texture="{t}"` (Texture), `uv="{r}"` (Rect), `mask="circle"` (a shader, not a Mask component; the circle follows the element, not the uv crop); set from code, hidden while null | |
 | `icon` | `name` (Lucide file name), `size` | |
 | `spacer` | `size` (fixed) or none (grows) | |
 | `button` | `key`, `icon`, `disabled="{b}"`, `selected="{b}"` | `onclick`: `void H()` |

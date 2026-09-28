@@ -37,8 +37,35 @@ namespace Armagan.AUI.Core
 
             var ids = new Dictionary<string, AuiNode>();
             foreach (AuiNode n in doc.Nodes) AnalyzeNode(n, ctx, info, ids, d);
+            CheckRichBindings(info, d);
 
             return info;
+        }
+
+        /// <summary>
+        /// A rich label's binding is left unescaped only when nothing else reads it (AuiBinding.IsRich).
+        /// When something does, the binding stays escaped for everyone and the rich label shows its
+        /// tags as typed; say so at the rich label, where the author expected markup.
+        /// </summary>
+        private static void CheckRichBindings(AuiViewInfo info, AuiDiagnosticBag d)
+        {
+            var all = new List<AuiBinding>(info.Bindings);
+            foreach (AuiRepeatInfo r in info.Repeats) all.AddRange(r.ItemBindings);
+            foreach (AuiBinding b in all)
+            {
+                if (!b.HasRichUse || b.IsRich) continue;
+                AuiBindingUse other = null;
+                foreach (AuiBindingUse u in b.Uses)
+                    if (u.Attribute != "text" || !IsRichText(u.Node)) { other = u; break; }
+                foreach (AuiBindingUse u in b.Uses)
+                {
+                    if (u.Attribute != "text" || !IsRichText(u.Node)) continue;
+                    AuiAttribute a = u.Node.FindAttribute("text");
+                    string where = other != null ? "<" + other.Node.Tag + " " + other.Attribute + "=\"...\"> on line " + other.Node.Line : "a non-string use";
+                    d.Warning(AuiCodes.RichBindingShared, "{" + (b.IsItem ? "item." : "") + b.Name + "} also feeds " + where + ", so it stays escaped and this rich label shows its tags as typed. Give the rich label a binding of its own.",
+                        a != null ? a.ValueLine : u.Node.Line, a != null ? a.ValueColumn : u.Node.Column, a != null ? a.Value.Length : 5);
+                }
+            }
         }
 
         // ---------------------------------------------------------------- root
@@ -711,9 +738,14 @@ namespace Armagan.AUI.Core
                             d.Warning(AuiCodes.BadAttributeValue, "maxlength is ignored on a url input; VRChat's URL field owns the text.", n.FindAttribute("maxlength").Line, n.FindAttribute("maxlength").Column, 9);
                     }
                     break;
+                case "mask":
+                    if (AuiSchema.IndexOf(AuiSchema.RawImageMasks, a.Value) < 0)
+                        d.Error(AuiCodes.BadAttributeValue, "mask must be one of " + string.Join(" | ", AuiSchema.RawImageMasks) + ".", a.ValueLine, a.ValueColumn, a.Value.Length);
+                    break;
                 case "wrap":
                 case "ellipsis":
                 case "runtime":
+                case "rich":
                 case "start-hidden":
                     if (a.Value != "true" && a.Value != "false" && a.Value != "")
                         d.Error(AuiCodes.BadAttributeValue, a.Name + " is a flag: true or false.", a.ValueLine, a.ValueColumn, a.Value.Length);
@@ -755,6 +787,24 @@ namespace Armagan.AUI.Core
         public static bool IsBindingValue(string v)
         {
             return v != null && v.Length > 2 && v[0] == '{' && v[v.Length - 1] == '}';
+        }
+
+        /// <summary>
+        /// &lt;text rich="true"&gt;: baked with TMP rich text on, and its text= binding left unescaped
+        /// when nothing else shares it (AuiBinding.IsRich). One definition for the builder, the
+        /// solver and codegen, so the three cannot disagree on what "rich" means.
+        /// </summary>
+        public static bool IsRichText(AuiNode n)
+        {
+            if (n == null || n.Tag != "text") return false;
+            string v = n.Get("rich");
+            return v != null && v != "false";
+        }
+
+        /// <summary>&lt;rawimage mask="circle"&gt;: drawn with the AUI/CircleMask shader through a material of its own.</summary>
+        public static bool IsCircleMask(AuiNode n)
+        {
+            return n != null && n.Tag == "rawimage" && n.Get("mask") == "circle";
         }
 
         /// <summary>&lt;input type="url"&gt;: armed on VRChat's VRCUrlInputField, submits a VRCUrl.</summary>

@@ -47,8 +47,14 @@ public Rect   CoverUv    { get; set; }   // <rawimage uv>: SetRawUv(...), starts
 public Color  Tint       { get; set; }   // <colorpicker bind>: SetColorPicker(...), starts white
 ```
 
-Rules: string bindings are always escaped; every setter starts the view first if needed, so writing
-before `Start` is safe; setting from code never calls your handler.
+Rules: string bindings are escaped (see the exception below); every setter starts the view first if
+needed, so writing before `Start` is safe; setting from code never calls your handler.
+
+The one exception is a binding whose every use is the `text=` of a `<text rich="true">`: its setter
+stores and pushes the value **without** `Escape`, so the tags render, and carries a `// rich:`
+comment saying so. Its name and type do not change (`string Bio { get; set; }`, or
+`SetBoardBio(int row, string value)` in a repeat). A binding that also feeds anything else stays
+escaped everywhere (AUI124). See [rich text](/reference/elements#rich-text).
 
 The type comes from where the binding is used. See [bindings](/guide/bindings#the-type-comes-from-where-it-is-used).
 

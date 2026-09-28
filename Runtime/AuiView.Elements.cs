@@ -77,7 +77,7 @@ namespace Armagan.AUI
 
         // ================================================================ content
 
-        /// <summary>Write a label (escaped so it can never open a rich-text tag) and re-measure it.</summary>
+        /// <summary>Write a label (escaped so it can never open a rich-text tag, even on a rich label) and re-measure it. SetRichText is the unescaped form.</summary>
         public void SetText(int elem, string value)
         {
             if (!_started) { _auiStashI = elem; _auiStashS = value; _AuiStart(); elem = _auiStashI; value = _auiStashS; }
@@ -86,6 +86,21 @@ namespace Armagan.AUI
             // reopens with in step, or the next click brings the previous text back.
             if (elemKind != null && elem >= 0 && elem < elemKind.Length && elemKind[elem] == KIND_INPUT) { RenderInput(elem, escaped); return; }
             SetElemText(elem, escaped);
+        }
+
+        /// <summary>
+        /// Write a label WITHOUT escaping, so its TMP tags render, and re-measure it. Markup only
+        /// renders on a label baked with &lt;text rich="true"&gt;: richText cannot be switched from Udon,
+        /// so on any other label the tags show as typed, which is also why this is safe to call on
+        /// one. Never pass it a string a player typed; SetText is the call for those.
+        /// </summary>
+        public void SetRichText(int elem, string value)
+        {
+            if (!_started) { _auiStashI = elem; _auiStashS = value; _AuiStart(); elem = _auiStashI; value = _auiStashS; }
+            if (value == null) value = "";
+            // An input's label is never rich and its value round-trips to the keyboard: it keeps SetText's rule.
+            if (elemKind != null && elem >= 0 && elem < elemKind.Length && elemKind[elem] == KIND_INPUT) { RenderInput(elem, Escape(value)); return; }
+            SetElemText(elem, value);
         }
 
         public string GetText(int elem)
@@ -147,6 +162,11 @@ namespace Armagan.AUI
             if (!_started) { _auiStashI = elem; _auiStashR = uv; _AuiStart(); elem = _auiStashI; uv = _auiStashR; }
             if (elemRaw == null || elem < 0 || elem >= elemRaw.Length || elemRaw[elem] == null) return;
             elemRaw[elem].uvRect = uv;
+            // mask="circle": RawImage bakes uvRect into the vertex UVs, so the shader cannot tell the
+            // element's centre from the crop's without the rect itself. Pushed here rather than in
+            // the generated setter so author code calling SetRawUv keeps the circle right too.
+            if (elemRawMat != null && elem < elemRawMat.Length && elemRawMat[elem] != null)
+                elemRawMat[elem].SetVector("_AuiUvRect", new Vector4(uv.x, uv.y, uv.width, uv.height));
         }
 
         /// <summary>Move a &lt;colorpicker&gt; to <paramref name="color"/> without reporting it (no onchange / oninput).</summary>
