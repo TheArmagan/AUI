@@ -55,7 +55,10 @@ namespace Armagan.AUI.Editor
         // 23: <colorpicker> (elemColorPickers, AuiColorPicker); every view gets the (empty) table.
         // 24: <text rich> bakes TMP richText on; <rawimage mask="circle"> gets a material of its own
         //     (elemRawMat), re-homed per host when the view is nested. Every view gets the table.
-        public const int BuilderVersion = 24;
+        // 25: <colorpicker> reads the pointer from invisible uGUI sliders (AuiColorPicker.rows /
+        //     hueSlider, ROWS strips over the square), not from a ray: the VR laser is not the hand's
+        //     forward. The root's EventTrigger is gone.
+        public const int BuilderVersion = 25;
 
         public static string BakeStamp(AuiCompileResult r)
         {
@@ -1156,11 +1159,11 @@ namespace Armagan.AUI.Editor
         }
 
         /// <summary>
-        /// &lt;colorpicker&gt;: the element's own image is the one raycast target (for the EventTrigger);
-        /// under it a saturation/brightness square (a base tinted to the hue, SatRamp and ValRamp
-        /// over it, which compose HSV exactly) and a hue bar on the right, each with a committed
-        /// cursor and a hover dot. Nothing below the root takes a raycast: a cursor that ate the
-        /// press would leave the picker unable to move off the spot it is on.
+        /// &lt;colorpicker&gt;: a saturation/brightness square (a base tinted to the hue, SatRamp and
+        /// ValRamp over it, which compose HSV exactly) and a hue bar on the right, each with a
+        /// committed cursor and a hover dot, and over each the invisible pointer sliders that are
+        /// the only raycast targets besides the background. A cursor that ate the press would leave
+        /// the picker unable to move off the spot it is on, so none of the drawn parts takes one.
         /// </summary>
         private static void BuildColorPicker(Ctx c, AuiNode n, int e, GameObject go, AuiResolvedStyle s, AuiRect local)
         {
@@ -1204,11 +1207,70 @@ namespace Armagan.AUI.Editor
             picker.interactable = n.Get("disabled") != "true";
             c.ColorPickers[e] = picker;
 
-            // The picker takes the raw pointer events itself: it has no AuiSignal, because the view
-            // would only have to hand every one of them straight back.
-            var trigger = go.AddComponent<EventTrigger>();
+            // WHERE THE POINTER IS comes from uGUI, not from a ray (BuilderVersion 25): invisible
+            // sliders over the two parts, whose own OnPointerDown / OnDrag read the event's position.
+            // The VR laser does not leave the hand along TrackingData's forward, so a computed ray
+            // only met the picker where the player's finger touched it. See AuiColorPicker.
+            // The picker takes the raw events itself: it has no AuiSignal, because the view would
+            // only have to hand every one of them straight back.
             var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(picker);
-            foreach (var pair in new[] { new { t = EventTriggerType.PointerEnter, m = "_Enter" }, new { t = EventTriggerType.PointerExit, m = "_Exit" },
+            int rowCount = AuiColorPicker.ROWS;
+            var rows = new Slider[rowCount];
+            for (int i = 0; i < rowCount; i++)
+            {
+                // Bottom row first: row i covers [i/N, (i+1)/N] of the square's height.
+                Slider row = PointerSlider(square, "Row " + i, Slider.Direction.LeftToRight,
+                                           new Vector2(0f, (float)i / rowCount), new Vector2(1f, (float)(i + 1) / rowCount));
+                PointerEvents(row.gameObject, ub, "_R" + i);
+                UnityEventTools.AddStringPersistentListener(row.onValueChanged, ub.SendCustomEvent, "_Moved");
+                row.interactable = picker.interactable;
+                rows[i] = row;
+            }
+            picker.rows = rows;
+
+            Slider hueSlider = PointerSlider(hue, "Pointer", Slider.Direction.BottomToTop, Vector2.zero, Vector2.one);
+            PointerEvents(hueSlider.gameObject, ub, "_HueEnter");
+            UnityEventTools.AddStringPersistentListener(hueSlider.onValueChanged, ub.SendCustomEvent, "_Moved");
+            hueSlider.interactable = picker.interactable;
+            picker.hueSlider = hueSlider;
+        }
+
+        /// <summary>
+        /// An invisible slider over part of a colorpicker, there only to turn the pointer into a
+        /// 0..1 value. Its raycast target is a transparent image; its handle is an empty rect whose
+        /// parent (the slider itself) is the area the value is measured across.
+        /// </summary>
+        private static Slider PointerSlider(RectTransform parent, string name, Slider.Direction dir, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            RectTransform rt = Child(parent, name);
+            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var img = rt.gameObject.AddComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0f);
+            img.raycastTarget = true;
+
+            // The slider BEFORE the EventTrigger added by PointerEvents: uGUI calls a GameObject's
+            // handlers in component order, so the value has moved when the picker's _Down reads it.
+            var slider = rt.gameObject.AddComponent<Slider>();
+            RectTransform handle = Child(rt, "Handle");
+            handle.sizeDelta = Vector2.zero;
+            slider.handleRect = handle;
+            slider.targetGraphic = img;
+            slider.transition = Selectable.Transition.None;
+            var nav = slider.navigation; nav.mode = Navigation.Mode.None; slider.navigation = nav;
+            slider.direction = dir;
+            slider.minValue = 0f;
+            slider.maxValue = 1f;
+            slider.wholeNumbers = false;
+            slider.value = 0f;
+            return slider;
+        }
+
+        /// <summary>Enter (its own event, so the picker knows which part or row), Exit, Down and Up.</summary>
+        private static void PointerEvents(GameObject go, VRC.Udon.UdonBehaviour ub, string enter)
+        {
+            var trigger = go.AddComponent<EventTrigger>();
+            foreach (var pair in new[] { new { t = EventTriggerType.PointerEnter, m = enter }, new { t = EventTriggerType.PointerExit, m = "_Exit" },
                                          new { t = EventTriggerType.PointerDown, m = "_Down" }, new { t = EventTriggerType.PointerUp, m = "_Up" } })
             {
                 var entry = new EventTrigger.Entry { eventID = pair.t, callback = new EventTrigger.TriggerEvent() };

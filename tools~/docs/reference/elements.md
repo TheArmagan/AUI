@@ -300,9 +300,9 @@ In the theme, `background` is the track, `color` the fill and the label, `icon-c
 ### `<colorpicker>`
 
 A saturation/brightness square with a hue bar on its right. The player aims at a colour and
-presses; holding and moving drags. A dot shows where the aim lands: in VR the ray starts at the
-tracked hand, which is a little off VRChat's laser, so the player aims the dot rather than the
-laser.
+presses; holding and moving drags. The position comes from invisible uGUI sliders over the two
+parts, so it is wherever VRChat's laser or the desktop crosshair actually is. Brightness has 32
+steps. On desktop a dot shows where the crosshair lands; VR has the laser's own dot.
 
 | Attribute | Meaning |
 |---|---|
