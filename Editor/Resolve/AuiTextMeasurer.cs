@@ -46,7 +46,9 @@ namespace Armagan.AUI.Editor
                 TMP_FontAsset f = set.ForWeight(weight);
                 if (f != null) return f;
             }
-            return TMP_Settings.defaultFontAsset;
+            // TMP_Settings.instance is null while TMP Essentials are missing or not yet loadable
+            // (first import of a project); defaultFontAsset would throw instead of returning null.
+            return TMP_Settings.instance != null ? TMP_Settings.defaultFontAsset : null;
         }
 
         /// <summary>Drop every cached measurement; call after fonts are rebaked or reimported.</summary>
