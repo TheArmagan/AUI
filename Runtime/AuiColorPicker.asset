@@ -12,7 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: AuiColorPicker
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: 68cb179e6395ebf498a9599718a9dc4b, type: 2}
+  serializedUdonProgramAsset: {fileID: 11400000, guid: 5aa26d94fdc1f844bb83b5591a7448c8,
+    type: 2}
   udonAssembly: 
   assemblyError: 
   sourceCsScript: {fileID: 11500000, guid: 602978ef4ce6cf64192af9be2fbd7cdb, type: 3}
