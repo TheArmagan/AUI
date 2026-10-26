@@ -194,7 +194,7 @@ namespace Armagan.AUI.Generated
         private void Render_25()
         {
             if (elemText[25] == null || elemSliders[25] == null || lang == null || elemKey[25] < 0) return;
-            elemText[25].text = lang.Get(elemKey[25]).Replace("{value}", FormatNumber(elemSliders[25].value, 1));
+            elemText[25].text = lang.Get(elemKey[25]).Replace("{value}", RtlArg(FormatNumber(elemSliders[25].value, 1)));
         }
 
         public override void _Retranslate()

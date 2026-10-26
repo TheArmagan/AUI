@@ -9,6 +9,8 @@ namespace Armagan.AUI.Core
         public string File;
         public string Name;      // native display name from the reserved key "_name"
         public AuiJson.Result Data;
+        /// <summary>Written right to left (AuiRtl.IsRtlCode). Its values are already shaped.</summary>
+        public bool Rtl;
 
         public const string NameKey = "_name";
 
@@ -17,6 +19,19 @@ namespace Armagan.AUI.Core
             var lf = new AuiLanguageFile { Code = code, File = file, Data = AuiJson.Flatten(text, file) };
             string name;
             lf.Name = lf.Data.Values.TryGetValue(NameKey, out name) ? name : code;
+            lf.Rtl = AuiRtl.IsRtlCode(code);
+            if (lf.Rtl)
+            {
+                // SHAPED HERE, ONCE, so everything downstream sees what TMP will draw: the runtime
+                // table, the font baker's charset (the presentation forms, not the base letters)
+                // and the measurer's widths. Values are logical order for an isRightToLeftText
+                // label; the language's own name is shown in a left-to-right picker label, so it
+                // goes in visual order.
+                var keys = new List<string>(lf.Data.Values.Keys);
+                foreach (string k in keys)
+                    if (k != NameKey) lf.Data.Values[k] = AuiRtl.Prepare(lf.Data.Values[k]);
+                lf.Name = AuiRtl.ToVisual(lf.Name);
+            }
             return lf;
         }
 
@@ -124,6 +139,14 @@ namespace Armagan.AUI.Core
         {
             var a = new string[Languages.Count];
             for (int i = 0; i < a.Length; i++) a[i] = Languages[i].Name;
+            return a;
+        }
+
+        /// <summary>Per language in table order: written right to left.</summary>
+        public bool[] Rtl()
+        {
+            var a = new bool[Languages.Count];
+            for (int i = 0; i < a.Length; i++) a[i] = Languages[i].Rtl;
             return a;
         }
 

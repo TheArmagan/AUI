@@ -749,7 +749,8 @@ namespace Armagan.AUI.Core
                     int.TryParse(n.Get("decimals") ?? "0", out decimals);
                     Open("private void " + RenderName(n) + "(" + (inRow ? "int row" : "") + ")");
                     L("if (elemText[" + ex + "] == null || elemSliders[" + ex + "] == null || lang == null || elemKey[" + ex + "] < 0) return;");
-                    L("elemText[" + ex + "].text = lang.Get(elemKey[" + ex + "]).Replace(\"{value}\", FormatNumber(elemSliders[" + ex + "].value, " + decimals + "));");
+                    // RtlArg: a right-to-left label draws the number from the right, so it goes in reversed.
+                    L("elemText[" + ex + "].text = lang.Get(elemKey[" + ex + "]).Replace(\"{value}\", RtlArg(FormatNumber(elemSliders[" + ex + "].value, " + decimals + ")));");
                     Close();
                 }
                 L();

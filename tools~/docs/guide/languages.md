@@ -146,7 +146,30 @@ Extended, Greek, Cyrillic, punctuation, currency, arrows, CJK punctuation and fu
 of the box).
 
 Each Inter weight gets an atlas; characters Inter does not have fall back to Noto JP, then KR, then
-SC. The result is `AuiFontSet.asset`, assigned to the settings.
+SC, then Noto Sans Arabic. The result is `AuiFontSet.asset`, assigned to the settings.
+
+## Right-to-left languages
+
+A file whose code is Arabic, Persian, Hebrew, Urdu, Pashto, Uyghur, Yiddish or Sorani (`ar`, `fa`,
+`he`, `ur`, `ps`, `ug`, `yi`, `ckb`, with or without a region) is treated as right to left. Write it
+in plain Unicode, as you would type it; AUI does the rest:
+
+- **Letters are joined at bake time.** TextMeshPro does not shape Arabic script, so every value is
+  converted to its contextual presentation forms (and lam-alef ligatures) when the file is read.
+  The font bake then holds exactly those forms.
+- **Keyed labels draw right to left and right-aligned** while that language is current. A label the
+  stylesheet aligns left is drawn right-aligned instead; centred and right stay as they are.
+- **Latin and numbers inside a sentence read the right way round.** `VIP`, `avtr.zip` or `500` in
+  an Arabic string are prepared for the right-to-left label, and a value filled into a
+  `{placeholder}` (a player name, a count) is reversed for it at runtime.
+- **Bound text is untouched.** A label that shows a binding rather than a key (a player name, a
+  document fetched at runtime) stays left to right, so English content in an Arabic UI still reads.
+- The language's `_name` is stored ready for a left-to-right label, so a language picker chip
+  shows it correctly.
+
+What it does not do: the **layout is not mirrored**. A row still runs left to right (a rail on the
+left stays on the left); only the text inside each label reads right to left. Arabic in runtime
+strings (an Arabic player name) is drawn unshaped.
 
 Re-run `AUI/Bake Fonts` whenever a language file gains characters the atlases lack. **Boxes instead
 of letters in-world is the symptom.** AUI600 warns when the charset has changed since the last

@@ -37,6 +37,11 @@ namespace Armagan.AUI
         // the inspector and editing it by hand would desync the key indices views carry.
         [HideInInspector] public string[] langCodes;
         [HideInInspector] public string[] langNames;
+        /// <summary>
+        /// Per language: written right to left. Its values were shaped at bake (Core AuiRtl), and
+        /// views turn isRightToLeftText on for keyed labels while it is the current language.
+        /// </summary>
+        [HideInInspector] public bool[] langRtl;
         [HideInInspector] public int defaultLang;
         [HideInInspector] public int keyCount;
         [HideInInspector] public string[] keys;
@@ -63,6 +68,14 @@ namespace Armagan.AUI
         {
             EnsureInit();
             return langCodes != null && _lang >= 0 && _lang < langCodes.Length ? langCodes[_lang] : "";
+        }
+
+        /// <summary>Whether the current language is written right to left.</summary>
+        public bool IsRtl()
+        {
+            EnsureInit();
+            // Empty off the heap on a table baked before the field existed: read as left to right.
+            return langRtl != null && _lang >= 0 && _lang < langRtl.Length && langRtl[_lang];
         }
 
         public int LanguageCount()

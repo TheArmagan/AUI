@@ -30,7 +30,14 @@ namespace Armagan.AUI.Editor
         private const int Padding = 6;
 
         private static readonly string[] Weights = { "Regular", "Medium", "SemiBold", "Bold" };
-        private static readonly string[] Cjk = { "JP", "KR", "SC" };
+        // The static fallbacks after Inter, in order: name in the atlas, source file with "{w}" for
+        // the weight. Arabic is last: it only takes what the CJK fonts did not, which for an Arabic
+        // file is the presentation forms AuiRtl shaped the strings into.
+        private static readonly string[] Cjk = { "JP", "KR", "SC", "Arabic" };
+        private static readonly string[] CjkFiles =
+        {
+            "NotoSansJP-{w}.otf", "NotoSansKR-{w}.otf", "NotoSansSC-{w}.otf", "NotoSansArabic-{w}.ttf",
+        };
 
         [MenuItem("AUI/Bake Fonts", false, 4)]
         public static void Bake()
@@ -69,11 +76,13 @@ namespace Armagan.AUI.Editor
                     string cw = w == 0 ? "Regular" : "Bold";
                     uint[] left = missing;
                     var chain = new List<TMP_FontAsset>();
-                    foreach (string lang in Cjk)
+                    for (int f = 0; f < Cjk.Length; f++)
                     {
+                        string lang = Cjk[f];
                         if (left.Length == 0) break;
-                        Font cjkSrc = Source("NotoSans" + lang + "-" + cw + ".otf");
-                        if (cjkSrc == null) { AuiLog.Warn(AuiCodes.FontSourceMissing + " font source missing: Fonts/src/NotoSans" + lang + "-" + cw + ".otf"); continue; }
+                        string file = CjkFiles[f].Replace("{w}", cw);
+                        Font cjkSrc = Source(file);
+                        if (cjkSrc == null) { AuiLog.Warn(AuiCodes.FontSourceMissing + " font source missing: Fonts/src/" + file); continue; }
                         uint[] stillMissing;
                         TMP_FontAsset fa = BakeStatic(cjkSrc, "AUI Noto " + lang + " " + cw, left, 2048, out stillMissing);
                         if (fa.characterTable.Count > 0) chain.Add(fa);

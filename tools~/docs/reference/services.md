@@ -16,6 +16,7 @@ int    GetLanguage();
 string GetLanguageCode();
 int    LanguageCount();
 string LanguageName(int index);      // the native name, from the file's "_name"
+bool   IsRtl();                      // the current language is written right to left
 
 void SetLanguage(int index);
 void SetLanguageByCode(string code);
@@ -133,7 +134,7 @@ edit it by hand.
 | Field | Meaning |
 |---|---|
 | `regular`, `medium`, `semiBold`, `bold` | one static atlas per Inter weight |
-| `cjkRegular`, `cjkBold` | Noto JP, KR and SC atlases, in fallback priority order |
+| `cjkRegular`, `cjkBold` | Noto JP, KR, SC and Arabic atlases, in fallback priority order (the name predates Arabic) |
 | `dynamicLatin`, `dynamicCjk` | dynamic atlases for runtime strings such as player names |
 | `bakedCharCount`, `bakedHash` | what the last bake covered; drives the AUI600 staleness warning |
 

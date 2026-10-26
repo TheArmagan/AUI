@@ -59,7 +59,8 @@ namespace Armagan.AUI.Editor
             if (svc == null) return;
             AuiLanguageTable table = AuiEditorEnv.LanguageTable(settings, ws, null);
             if (Same(svc.langCodes, table.Codes()) && Same(svc.langNames, table.Names()) && svc.defaultLang == table.DefaultLanguage &&
-                svc.keyCount == table.KeyCount && Same(svc.keys, table.Keys.ToArray()) && Same(svc.values, table.Flat()))
+                svc.keyCount == table.KeyCount && Same(svc.keys, table.Keys.ToArray()) && Same(svc.values, table.Flat()) &&
+                SameB(svc.langRtl, table.Rtl()))
                 return;
             Apply(svc, table);
             AuiLog.Info("language table rebaked onto '" + svc.name + "': " + table.KeyCount + " key(s).");
@@ -89,12 +90,20 @@ namespace Armagan.AUI.Editor
             return true;
         }
 
+        private static bool SameB(bool[] a, bool[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
+        }
+
         public static void Apply(AuiLanguageService svc, AuiLanguageTable table)
         {
             if (svc == null) return;
             Undo.RecordObject(svc, "Bake language table");
             svc.langCodes = table.Codes();
             svc.langNames = table.Names();
+            svc.langRtl = table.Rtl();
             svc.defaultLang = table.DefaultLanguage;
             svc.keyCount = table.KeyCount;
             svc.keys = table.Keys.ToArray();

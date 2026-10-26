@@ -1135,10 +1135,20 @@ namespace Armagan.AUI
         public virtual void _Retranslate()
         {
             if (lang == null || elemKey == null || elemText == null) return;
+            // Before any text is written: the generated renders that run after base call Fill*,
+            // which reverse their values only while this is true.
+            _rtl = lang.IsRtl();
             for (int e = 0; e < elemKey.Length; e++)
             {
                 if (elemKey[e] < 0 || elemText[e] == null) continue;
                 int k = elemKind != null ? elemKind[e] : KIND_NONE;
+                // An input's box shows what the player typed once there is any, so it stays
+                // left to right; everything else keyed follows the language.
+                if (k != KIND_INPUT)
+                {
+                    ((TMP_Text)elemText[e]).isRightToLeftText = _rtl;
+                    ApplyDirAlign(e);
+                }
                 if (k == KIND_INPUT || k == KIND_SLIDER) continue; // rendered by generated code with their value
                 elemText[e].text = lang.Get(elemKey[e]);
             }
@@ -1168,30 +1178,93 @@ namespace Armagan.AUI
             return s.Replace("<", "<​");
         }
 
+        // ---------------------------------------------------------------- right to left
+        //
+        // A right-to-left language's strings were shaped at bake (Core AuiRtl) and are drawn by a
+        // label with isRightToLeftText on, which places characters from the right in logical order.
+        // Two things only the runtime knows are fixed here: a value filled into a {placeholder}
+        // (a player name, a number) would read backwards, so it goes in reversed; and a label the
+        // stylesheet aligns left reads from the wrong edge, so it is drawn right-aligned instead.
+
+        private bool _rtl;
+
+        /// <summary>The style's horizontal alignment per element (0 left, 1 centre, 2 right); -1 not read yet.</summary>
+        private int[] _alignBase;
+
+        /// <summary>Whether this view is drawing a right-to-left language.</summary>
+        public bool IsRtl() { return _rtl; }
+
+        /// <summary>A value for a keyed label: reversed while the language is right to left.</summary>
+        public string RtlArg(string v)
+        {
+            if (v == null) return "";
+            if (!_rtl || v.Length < 2) return v;
+            // Not System.Array.Reverse: built by hand from ToCharArray (String's indexer is not exposed).
+            char[] a = v.ToCharArray();
+            char[] r = new char[a.Length];
+            for (int i = 0; i < a.Length; i++) r[a.Length - 1 - i] = a[i];
+            return new string(r);
+        }
+
+        private void EnsureAlignBase()
+        {
+            if (_alignBase != null || elemText == null) return;
+            _alignBase = new int[elemText.Length];
+            for (int i = 0; i < _alignBase.Length; i++) _alignBase[i] = -1;
+        }
+
+        /// <summary>The cascade's text-align for an element; the direction is applied on top.</summary>
+        private void SetAlignBase(int e, int align)
+        {
+            EnsureAlignBase();
+            if (_alignBase == null || e < 0 || e >= _alignBase.Length) return;
+            _alignBase[e] = align;
+            ApplyDirAlign(e);
+        }
+
+        private void ApplyDirAlign(int e)
+        {
+            EnsureAlignBase();
+            if (_alignBase == null || e < 0 || e >= _alignBase.Length || elemText[e] == null) return;
+            TMP_Text t = (TMP_Text)elemText[e];
+            int b = _alignBase[e];
+            if (b < 0)
+            {
+                // Not set by the cascade since the bake: read what the builder baked.
+                int h = ((int)t.alignment) & 0xFF;
+                b = h == 2 ? 1 : h == 4 ? 2 : h == 1 ? 0 : -2;
+                _alignBase[e] = b;
+            }
+            if (b < 0) return;   // justified, flush: left alone
+            bool keyed = elemKey != null && e < elemKey.Length && elemKey[e] >= 0;
+            int a = (b == 0 && _rtl && keyed) ? 2 : b;
+            t.alignment = a == 2 ? TextAlignmentOptions.Right : a == 1 ? TextAlignmentOptions.Center : TextAlignmentOptions.Left;
+        }
+
         // A null template (a halted language service answers null across the behaviour boundary)
         // must render as nothing, not halt this view as well.
         public string Fill1(string t, string n0, string v0)
         {
             if (t == null) return "";
-            return t.Replace(n0, v0 == null ? "" : v0);
+            return t.Replace(n0, RtlArg(v0));
         }
 
         public string Fill2(string t, string n0, string v0, string n1, string v1)
         {
             if (t == null) return "";
-            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1);
+            return t.Replace(n0, RtlArg(v0)).Replace(n1, RtlArg(v1));
         }
 
         public string Fill3(string t, string n0, string v0, string n1, string v1, string n2, string v2)
         {
             if (t == null) return "";
-            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1).Replace(n2, v2 == null ? "" : v2);
+            return t.Replace(n0, RtlArg(v0)).Replace(n1, RtlArg(v1)).Replace(n2, RtlArg(v2));
         }
 
         public string Fill4(string t, string n0, string v0, string n1, string v1, string n2, string v2, string n3, string v3)
         {
             if (t == null) return "";
-            return t.Replace(n0, v0 == null ? "" : v0).Replace(n1, v1 == null ? "" : v1).Replace(n2, v2 == null ? "" : v2).Replace(n3, v3 == null ? "" : v3);
+            return t.Replace(n0, RtlArg(v0)).Replace(n1, RtlArg(v1)).Replace(n2, RtlArg(v2)).Replace(n3, RtlArg(v3));
         }
 
         /// <summary>

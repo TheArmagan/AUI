@@ -15,7 +15,7 @@ namespace Armagan.AUI
         public TMP_FontAsset semiBold;
         public TMP_FontAsset bold;
 
-        [Tooltip("CJK fallbacks in priority order (JP, KR, SC by default).")]
+        [Tooltip("Static fallbacks after Inter, in priority order (Noto JP, KR, SC, then Arabic). The name is historical: Arabic is in this chain too.")]
         public TMP_FontAsset[] cjkRegular = new TMP_FontAsset[0];
         public TMP_FontAsset[] cjkBold = new TMP_FontAsset[0];
 

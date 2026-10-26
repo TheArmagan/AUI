@@ -596,7 +596,9 @@ namespace Armagan.AUI
             }
             if (prop == PROP_TEXT_ALIGN)
             {
-                if (elemText[e] != null) ((TMP_Text)elemText[e]).alignment = v.x > 1.5f ? TextAlignmentOptions.Right : v.x > 0.5f ? TextAlignmentOptions.Center : TextAlignmentOptions.Left;
+                // Through the direction: a left-aligned keyed label draws right-aligned in a
+                // right-to-left language (AuiView.ApplyDirAlign).
+                if (elemText[e] != null) SetAlignBase(e, v.x > 1.5f ? 2 : v.x > 0.5f ? 1 : 0);
                 return false;
             }
             if (prop == PROP_LINE_HEIGHT)

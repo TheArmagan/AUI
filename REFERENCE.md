@@ -590,10 +590,36 @@ Fonts (`AuiFontBaker`): the charset is every code point (surrogate pairs combine
 CJK Extension B count) of every language string, every literal text, `extraCharacters`,
 `boundTextSample` and the `unicodeRanges` (`0400-04FF`; `U+` and `0x` prefixes are stripped, a
 range that does not parse is logged and skipped). Static Inter atlases per weight fall through
-Noto JP/KR/SC, then a capped dynamic Inter atlas (`dynamicLatin`), then a capped dynamic Noto JP
-atlas (`dynamicCjk`) for runtime strings. `bakedHash` is the charset hash; the language table
-builder compares it against a fresh collection whenever it rebakes the scene's service and warns
-AUI600 once per distinct charset.
+Noto JP/KR/SC/Arabic (`Cjk` / `CjkFiles` in the baker; the Arabic sources are `.ttf`), then a
+capped dynamic Inter atlas (`dynamicLatin`), then a capped dynamic Noto JP atlas (`dynamicCjk`) for
+runtime strings. `bakedHash` is the charset hash; the language table builder compares it against a
+fresh collection whenever it rebakes the scene's service and warns AUI600 once per distinct
+charset.
+
+Right to left (`Core/I18n/AuiRtl.cs`, BuilderVersion unchanged). `AuiRtl.IsRtlCode` (base code ar,
+fa, he, ur, ps, ug, yi, ckb) sets `AuiLanguageFile.Rtl`, and `AuiLanguageFile.Load` rewrites every
+value of such a file with `AuiRtl.Prepare`, so the table, the charset and the measurer all see the
+prepared text, never the source:
+
+- **Shaping.** TMP draws code points as they come and does not shape Arabic, so each letter
+  becomes its Presentation Forms-B (a few Persian letters: Forms-A) isolated/final/initial/medial
+  form from its neighbours, harakat transparent, lam + alef as one ligature.
+- **Order.** Measured (2026-10-26): `isRightToLeftText` lays a line out from the right edge in
+  LOGICAL order and wraps correctly, lines in reading order. So values stay logical; only strong-LTR
+  runs (Latin, digits, Greek, Cyrillic, CJK, with the neutrals between them) are written backwards,
+  because TMP places those right to left too. A `{identifier}` placeholder is one LTR atom kept
+  whole; a `<tag>` is never reversed and ends a run. Paired brackets outside runs are mirrored.
+- `_name` goes through `AuiRtl.ToVisual` (shaped, whole line reversed): it is shown by bound,
+  left-to-right labels (a picker chip).
+
+The service carries `langRtl` (baked; `IsRtl()`). `AuiView._Retranslate` reads it into `_rtl`
+before any render and sets `isRightToLeftText` on every keyed label but an input's (an input shows
+typed text once there is any), and `ApplyDirAlign` draws a left-aligned keyed label right-aligned.
+The cascade's text-align goes through `SetAlignBase`, so a class change keeps the direction; an
+element the cascade never touched is read off the baked alignment once. `Fill1..Fill4` and the
+generated slider format render pass values through `RtlArg` (reversed while `_rtl`), because a
+runtime value is LTR content inside an RTL label. Bound labels are untouched. Not done: mirrored
+layout, shaping of runtime strings.
 
 `AuiLanguageTable` merges everything: sorted codes, sorted keys, `Flat()` = `values[lang * keyCount
 + key]`, `""` for missing. `Check()` raises AUI303 unknown key, AUI301 missing in the default

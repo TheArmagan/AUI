@@ -323,9 +323,14 @@ The host gets a typed `child<ViewName>` field per nested view. See
 string Escape(string s);              // makes untrusted text safe for TMP rich text
 string FormatNumber(float v, int decimals);
 string Fill1(string t, string n0, string v0);   // Fill1..Fill4 fill {placeholder}s
+bool   IsRtl();                       // the current language is right to left
+string RtlArg(string v);              // v reversed for a right-to-left keyed label, else v
 ```
 
 `Escape` is applied automatically to every string binding and to `SetText`, so you rarely call it.
+`Fill1`..`Fill4` and slider format labels already pass their values through `RtlArg`; call it
+yourself only when you write a keyed label's text from code with a value spliced in. See
+[right-to-left languages](/guide/languages#right-to-left-languages).
 
 ## Constants
 
