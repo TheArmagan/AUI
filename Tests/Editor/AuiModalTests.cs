@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Armagan.AUI.Core;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace Armagan.AUI.Tests
 {
@@ -102,6 +104,109 @@ namespace Armagan.AUI.Tests
             Assert.IsTrue(r.Info.Modals[0].StartOpen);
             Assert.IsFalse(r.Info.Modals[0].Dismissable);
             Assert.IsNull(r.Info.Modals[0].Binding);
+        }
+
+        // ---- runtime: a bare AuiView with two stacked modals, driven as plain C#
+
+        private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        private static void Set(AuiView v, string field, object value)
+        {
+            FieldInfo f = typeof(AuiView).GetField(field, Private);
+            Assert.IsNotNull(f, field);
+            f.SetValue(v, value);
+        }
+
+        private static T Get<T>(AuiView v, string field)
+        {
+            return (T)typeof(AuiView).GetField(field, Private).GetValue(v);
+        }
+
+        /// <summary>Elements: 0 root, 1 and 2 modal 0's scrim and body, 3 and 4 modal 1's. Tweens on, the real client's branch.</summary>
+        private static AuiView StackedModals(GameObject root)
+        {
+            const int n = 5;
+            var v = root.AddComponent<AuiView>();
+            v.elemObjects = new GameObject[n];
+            v.elemRects = new RectTransform[n];
+            v.elemGroups = new CanvasGroup[n];
+            v.elemBasePos = new Vector2[n];
+            v.elemSignal = new int[n];
+            v.elemSubtreeEnd = new int[n];
+            for (int e = 0; e < n; e++)
+            {
+                v.elemSignal[e] = -1;
+                v.elemSubtreeEnd[e] = e + 1;
+                if (e == 0) continue;
+                var go = new GameObject("e" + e, typeof(RectTransform));
+                go.transform.SetParent(root.transform, false);
+                v.elemObjects[e] = go;
+                v.elemRects[e] = (RectTransform)go.transform;
+                v.elemGroups[e] = go.AddComponent<CanvasGroup>();
+            }
+            v.modalElem = new[] { 2, 4 };
+            v.modalScrimElem = new[] { 1, 3 };
+            v.modalKind = new[] { AuiView.TRANS_FADE_SCALE, AuiView.TRANS_FADE_SCALE };
+            v.modalDismissable = new[] { true, true };
+            v.modalStartOpen = new[] { false, false };
+            Set(v, "_started", true);
+            Set(v, "_tweensCached", true);
+            Set(v, "_tweensOk", true);
+            Set(v, "_openSelect", -1);
+            Set(v, "_hover", new bool[0]);
+            Set(v, "_press", new bool[0]);
+            typeof(AuiView).GetMethod("_AuiModalsInit", Private).Invoke(v, null);
+            return v;
+        }
+
+        [Test]
+        public void ClosingTheUpperModalStopsTakingClicksBeforeItsSnap()
+        {
+            var root = new GameObject("modals", typeof(RectTransform));
+            try
+            {
+                AuiView v = StackedModals(root);
+                v.SetModal(0, true, false);
+                v.SetModal(1, true, false);
+                Assert.IsTrue(v.elemGroups[4].blocksRaycasts, "an open body takes clicks");
+
+                v.SetModal(1, false, false);
+
+                // No snap has run: this is the 0.18 s of the exit fade, and all of the time after it
+                // if the snap never lands. An alpha 0 body with raycasts on still eats every click.
+                Assert.IsFalse(v.elemGroups[4].blocksRaycasts, "the closing body must not cover the modal below it");
+                Assert.IsFalse(v.elemGroups[4].interactable, "nor may its invisible buttons fire");
+                Assert.IsFalse(v.elemGroups[3].blocksRaycasts, "nor its backdrop");
+                Assert.IsTrue(v.elemGroups[2].blocksRaycasts, "the modal below keeps its clicks");
+                Assert.AreEqual(0, v.TopModal());
+            }
+            finally { Object.DestroyImmediate(root); }
+        }
+
+        [Test]
+        public void AnEarlySnapLeavesTheClosedModalAloneAndADueOneDeactivatesIt()
+        {
+            var root = new GameObject("modals", typeof(RectTransform));
+            try
+            {
+                AuiView v = StackedModals(root);
+                v.SetModal(0, true, false);
+                v.SetModal(1, true, false);
+                v.SetModal(1, false, false);
+
+                float[] due = Get<float[]>(v, "_modalSnapAt");
+                due[0] = Time.time - 1f;
+                due[1] = Time.time + 10f;
+                v._ModalSnap();
+                Assert.IsTrue(v.elemObjects[4].activeSelf, "a snap ahead of the due time must not cut the exit short");
+
+                due[1] = Time.time - 1f;
+                v._ModalSnap();
+                Assert.IsFalse(v.elemObjects[4].activeSelf, "closed body");
+                Assert.IsFalse(v.elemObjects[3].activeSelf, "closed backdrop");
+                Assert.IsTrue(v.elemObjects[2].activeSelf, "the open modal stays");
+            }
+            finally { Object.DestroyImmediate(root); }
         }
     }
 }

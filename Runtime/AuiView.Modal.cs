@@ -99,6 +99,13 @@ namespace Armagan.AUI
                     elemGroups[scrim].interactable = false;
                     if (Tweens()) VRCTween.TweenFade(elemGroups[scrim], 0f, modalDur, VRCTweenEase.InQuad); else elemGroups[scrim].alpha = 0f;
                 }
+                // Off now, not at the snap, as Hide and PageExit do. Exit only fades, so a closing body
+                // otherwise stays on top taking clicks; nothing else protects the modal below it.
+                if (elemGroups[body] != null)
+                {
+                    elemGroups[body].blocksRaycasts = false;
+                    elemGroups[body].interactable = false;
+                }
                 VRCTweenHandle a = new VRCTweenHandle(), b = new VRCTweenHandle(), c = new VRCTweenHandle();
                 Exit(elemGroups[body], elemRects[body], modalKind[modal], modalDur, new Vector2(0f, -16f), 0.94f, elemBasePos[body], ref a, ref b, ref c);
                 ResetPointerStatesUnder(body);
@@ -117,13 +124,29 @@ namespace Armagan.AUI
             _modalDepth = w;
         }
 
-        /// <summary>Trails every open/close: closed modals are deactivated once their exit tween is over.</summary>
+        /// <summary>
+        /// Trails every open/close: closed modals are deactivated once their exit tween is over.
+        ///
+        /// A SNAP THAT FINDS A MODAL NOT DUE MUST BOOK ANOTHER. "Not due" does not prove a newer snap
+        /// is coming: this can be the modal's own and last one, fired early. Udon's scheduler adds
+        /// Time.deltaTime in UdonManager.Update, and a click arrives from EventSystem.Update, which
+        /// runs before it (order -1000 against 0), so the event is booked one frame's delta behind
+        /// the Time.time recorded as due. Measured with tweens on: 6 of 12 closes from a click
+        /// skipped their only snap, 0 of 12 from LateUpdate. The closed modal then stayed active
+        /// on top of the one below it, invisible, until the next open or close.
+        /// </summary>
         public void _ModalSnap()
         {
             if (_modalOpen == null || _modalSnapAt == null) return;
+            float rearm = 0f;
             for (int m = 0; m < _modalOpen.Length; m++)
             {
-                if (Time.time + 0.005f < _modalSnapAt[m]) continue;   // a newer open/close is still animating
+                float left = _modalSnapAt[m] - Time.time;
+                if (left > 0.005f)   // still animating
+                {
+                    if (left > rearm) rearm = left;
+                    continue;
+                }
                 int body = modalElem[m], scrim = modalScrimElem[m];
                 if (_modalOpen[m])
                 {
@@ -145,6 +168,7 @@ namespace Armagan.AUI
                     elemObjects[scrim].SetActive(false);
                 }
             }
+            if (rearm > 0f) SendCustomEventDelayedSeconds(nameof(_ModalSnap), rearm);
         }
 
         /// <summary>Generated: writes the enabled binding and calls onopen / onclose.</summary>

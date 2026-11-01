@@ -698,10 +698,18 @@ the setters warn once and return; `GetAttach` answers `ATTACH_NONE`);
 
 Snaps are guarded by due time, not by sequence number: `_PageSnap` and `_ModalSnap` take no
 arguments, so `SelectPage` and `SetModal` record `Time.time + delay` per group / per modal and a
-snap that fires before that time leaves the group alone (a newer change is still animating and
-its own snap follows). In sequential page mode the snap is scheduled after BOTH durations, the
-exit and the enter; at one duration it fired 20 ms into the enter fade and snapped the page to
-full alpha over a tween still climbing from zero.
+snap that fires before that time leaves the group alone and books another for the time left. It
+must not assume a newer snap follows: the one it is may be the last, fired early. Udon's delayed
+clock adds `Time.deltaTime` in `UdonManager.Update`, which runs after `EventSystem.Update` (order 0
+against -1000), so anything a click books lands one frame's delta before the `Time.time` it
+recorded. Measured with tweens forced on and the click sent before the Update scripts: 6 of 12
+closes skipped their only snap, and 0 of 12 when sent after them. In sequential page mode the snap
+is scheduled after BOTH durations, the exit and the enter; at one duration it fired 20 ms into the
+enter fade and snapped the page to full alpha over a tween still climbing from zero.
+
+A closing modal body drops `blocksRaycasts` and `interactable` at the start of its exit, like
+`Hide` and `PageExit`. `Exit` only fades, so an open modal under it is reachable at once and a
+late snap can never leave an invisible body taking its clicks.
 
 Author hooks (override in your `.cs`): `OnStart()` after wiring and initial values,
 `OnRetranslate()` after a language switch, `OnShown()`, `OnHidden()`. `Emit("name")` in a nested
@@ -1156,7 +1164,9 @@ after touching any of them.
 - ClientSim does not raise `OnLanguageChanged`; the override exists for the live client only.
 - VRCTween does not animate under ClientSim and stops when its object is deactivated. The service
   probes for tweens; views apply final states instantly until the probe lands and always trail a
-  transition with a snap.
+  transition with a snap. A test under ClientSim therefore never runs the tween branches, and a
+  click sent by `button.onClick.Invoke()` from outside the frame's Update never shows the
+  one-frame booking offset; force the tween flags and send it before the Update scripts.
 - Overwriting a prefab that holds UdonSharp components with `SaveAsPrefabAsset` throws
   `ArgumentNullException: unityObject` from `UdonSharpBehaviour.OnBeforeSerialize` (0 errors on a
   fresh save, 18 on an overwrite, measured). Rebuilding inside `LoadPrefabContents` keeps the root

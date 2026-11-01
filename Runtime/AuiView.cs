@@ -789,10 +789,19 @@ namespace Armagan.AUI
         public void _PageSnap()
         {
             if (_broken || _pageSnapAt == null) return;
+            // Books another snap for a group that is not due, because this may be its last one, fired
+            // early: a tab click is booked one frame behind Time.time (see _ModalSnap). Skipping left
+            // the old page active and faded out for good.
+            float rearm = 0f;
             for (int g = 0; g < pageGroupStart.Length; g++)
             {
                 if (_pagePending[g] >= 0) continue; // still waiting for the sequential enter
-                if (Time.time + 0.005f < _pageSnapAt[g]) continue; // a newer change is still in flight; its own snap follows
+                float left = _pageSnapAt[g] - Time.time;
+                if (left > 0.005f) // a change is still in flight
+                {
+                    if (left > rearm) rearm = left;
+                    continue;
+                }
                 int start = pageGroupStart[g];
                 for (int p = 0; p < pageGroupCount[g]; p++)
                 {
@@ -802,6 +811,7 @@ namespace Armagan.AUI
                     else PageHideInstant(e);
                 }
             }
+            if (rearm > 0f) SendCustomEventDelayedSeconds(nameof(_PageSnap), rearm);
         }
 
         private void PageEnter(int pageIndex)
