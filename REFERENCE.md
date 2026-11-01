@@ -768,7 +768,12 @@ element while a view was still waiting (that view's waiting state would otherwis
 `isFocused` does not reliably turn true while VRChat's keyboard is up, so the timeout fires with
 the keyboard open, and a target dropped there made every text submit vanish (measured on the
 avtr.zip store's flare editor; the world's InputPanelManager had the same bug with collection
-renames). URL inputs were unaffected because `VRCUrlInputField.isFocused` stops the clock. `AuiView.Back()` cancels an armed panel before it closes a select. The view hands
+renames). URL inputs were unaffected because `VRCUrlInputField.isFocused` stops the clock.
+**Focus turns the collider off**: the click has landed, and with the clock stopped nothing else
+was sure to close the panel, because a keyboard closed with nothing typed raises no value change
+and `On End Edit` is unreliable on a TMP field. The invisible 2 x 1.4 m target then stayed in the
+air swallowing clicks until the player walked 3 m away. The canvas, field and mode stay, so Done
+still lands. `AuiView.Back()` cancels an armed panel before it closes a select. The view hands
 the panel the RAW text (zero-width spaces stripped): the stored value is the escaped one, and a
 round trip through the bound setter added one more space after every `<` per edit. Everything the world's InputPanelManager learned is kept: the field
 is never on an inactive object, focus drops with `enabled = false`, `OnValueChanged` while not

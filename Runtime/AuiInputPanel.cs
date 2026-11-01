@@ -26,7 +26,7 @@ namespace Armagan.AUI
     /// Opening ARMS the panel; the player's own click on it is what opens the keyboard (a
     /// second click, which the owner accepted as the price of a native keyboard). An armed
     /// panel nobody clicks would silently eat every click aimed through it, so it expires
-    /// after clickTimeout seconds; the clock stops the moment the field has focus.
+    /// after clickTimeout seconds; the moment the field has focus the collider goes off instead.
     ///
     /// TMP_InputField exposes no focus API to Udon, so focus is dropped with enabled = false
     /// (Unity's OnDisable deactivates the field). On End Edit is not raised reliably by
@@ -189,7 +189,18 @@ namespace Armagan.AUI
                 return;
             }
             if (_armedAt < 0f) return;
-            if (Focused()) { _armedAt = -1f; return; }
+            if (Focused())
+            {
+                // THE CLICK LANDED, SO THE TARGET'S JOB IS DONE. Dropping the collider here is what
+                // keeps it from staying up: End Edit is unreliable and a keyboard closed with nothing
+                // typed raises no value change, so nothing else may ever close this panel. It would
+                // then sit invisibly in the air eating every click aimed through it until the player
+                // walked 3 m away, which reads as a world UI that only works from some directions.
+                // Only the collider: the field and its mode must live on for Done to land.
+                _armedAt = -1f;
+                DisableColliders();
+                return;
+            }
             if (Time.time - _armedAt >= clickTimeout)
             {
                 // Take the panel off screen, but KEEP THE TARGET. isFocused on a TMP field does
@@ -257,8 +268,13 @@ namespace Armagan.AUI
         private void HideAll()
         {
             if (canvas != null) canvas.enabled = false;
-            if (clickCollider != null) clickCollider.enabled = false;
             if (urlCanvas != null) urlCanvas.enabled = false;
+            DisableColliders();
+        }
+
+        private void DisableColliders()
+        {
+            if (clickCollider != null) clickCollider.enabled = false;
             if (urlCollider != null) urlCollider.enabled = false;
         }
 
