@@ -72,6 +72,9 @@ repository is being made public.) **The licence is MPL-2.0** (`LICENSE`, the can
 mozilla.org; never edit it), copyright Kıraç Armağan Önal. `package.json` and the VS Code
 extension's `package.json` both say `MPL-2.0`. Describe it as MPL-2.0, never as MIT or as "free to
 do anything with": the MPL keeps changed AUI files open while a world using AUI stays closed.
+The fonts and icons are third-party (`THIRD_PARTY_NOTICES.md`; licence texts beside them in
+`Fonts/src/` and `Icons/`). A new font or icon set needs its licence file added beside it and a
+row in that notice before it is committed.
 
 Releasing: bump `version` in `package.json`, commit, push a tag `vX.Y.Z` with the same number.
 `.github/workflows/release.yml` runs `.github/scripts/build_release.py` (the VPM `.zip` with

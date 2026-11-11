@@ -177,3 +177,7 @@ In practice: you can use AUI in any world, free or paid, and your own views, scr
 of your project stay yours under whatever terms you like. If you distribute AUI with changes to
 its own files, those changed files have to stay under the MPL and their source has to be
 available. This paragraph is a summary, not the licence; the `LICENSE` file is what applies.
+
+The bundled fonts (Inter, Noto Sans) and icons (Lucide, one Simple Icons logo) are not AUI's and
+keep their own licences (SIL OFL 1.1, ISC, CC0); `THIRD_PARTY_NOTICES.md` lists which file is
+under which.
