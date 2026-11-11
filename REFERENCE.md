@@ -225,6 +225,17 @@ reverts (`RevertInstanceSizeOverrides`) need the imported prefab, so inside a le
 collected in `AuiPrefabBuilder.DeferredReverts` and run after the stop. `AuiBuildQueue.BatchImports`
 (EditorPrefs, per project) turns the batching off for a comparison. Numbers in section 15.
 
+The same pass refreshes the baked tables of placed views (`RefreshBakedTables`, 0.2.1). An Udon
+program's variables serialize as one blob, so a world builder that wires a reference into a placed
+view (`CopyProxyToUdon`) overrides every variable, `elemKey` included, and later rebuilds never
+reach it: after a key is added the instance's labels show neighbouring strings. An instance with an
+override on its view or its UdonBehaviour is reverted to the prefab, then gets back every reference
+to a live scene object outside the view and the view class's public non-reference fields;
+references into its own children come from the prefab (a rebuild re-creates them, so the
+instance's copies are dead). A view nested one level down in a wrapper prefab that is not itself a
+view (a world's own prefab holding a console) is refreshed in that wrapper asset first, then in the
+scene. A view nested in another view is left to its parent's rebuild.
+
 When a drain ends with the queue empty and no generated source waiting for a reload, the
 `[AuiAfterBuild]` hooks run (`AuiBuildHooks`, found through `TypeCache`), each only if one of its
 views is in the built set, which is kept in SessionState across the reloads of a multi-drain build

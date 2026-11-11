@@ -1,7 +1,7 @@
 {
   "name": "rest.armagan.aui",
   "displayName": "AUI",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "unity": "2022.3",
   "description": "Baked, i18n-first UI engine for UdonSharp worlds. HTML-like markup and a small stylesheet compile in the editor to a plain uGUI hierarchy with generated UdonSharp wiring.",
   "author": {
