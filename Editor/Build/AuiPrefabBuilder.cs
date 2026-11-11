@@ -305,7 +305,111 @@ namespace Armagan.AUI.Editor
                     PrefabUtility.RevertPropertyOverride(so.FindProperty("m_Size"), InteractionMode.AutomatedAction);
                     PrefabUtility.RevertPropertyOverride(so.FindProperty("m_Center"), InteractionMode.AutomatedAction);
                 }
+                RefreshBakedTables(v);
             }
+
+            // The same view placed one level down, inside a world's own wrapper prefab (the
+            // search's AvtrSearchPanel holds AvtrConsole): the wrapper carries its own frozen copy,
+            // so it is refreshed in the wrapper asset first, then in the scene. A wrapper that is
+            // itself an AUI view is left alone: its own rebuild, which the queue schedules for
+            // every view nesting a rebuilt one, writes the nested tables fresh.
+            var fixedWrappers = new HashSet<string>();
+            foreach (AuiView v in sceneViews)
+            {
+                if (v == null) continue;
+                GameObject inst = v.gameObject;
+                if (PrefabUtility.IsOutermostPrefabInstanceRoot(inst)) continue;
+                if (PrefabUtility.GetNearestPrefabInstanceRoot(inst) != inst) continue;
+                if (PrefabUtility.GetCorrespondingObjectFromOriginalSource(inst) != asset) continue;
+                GameObject src = PrefabUtility.GetCorrespondingObjectFromSource(inst);
+                if (src == null || src.transform.root.GetComponent<AuiView>() != null) continue;
+                string wrapper = AssetDatabase.GetAssetPath(src);
+                if (wrapper.Length > 0 && wrapper != prefabPath && fixedWrappers.Add(wrapper))
+                {
+                    GameObject contents = PrefabUtility.LoadPrefabContents(wrapper);
+                    try
+                    {
+                        foreach (AuiView inner in contents.GetComponentsInChildren<AuiView>(true))
+                            if (PrefabUtility.GetNearestPrefabInstanceRoot(inner.gameObject) == inner.gameObject &&
+                                PrefabUtility.GetCorrespondingObjectFromOriginalSource(inner.gameObject) == asset)
+                                RefreshBakedTables(inner);
+                        PrefabUtility.SaveAsPrefabAsset(contents, wrapper);
+                    }
+                    finally { PrefabUtility.UnloadPrefabContents(contents); }
+                }
+                RefreshBakedTables(v);
+            }
+        }
+
+        /// <summary>
+        /// THE BAKED TABLES ARE THE PREFAB'S, NEVER AN INSTANCE'S. An Udon program's variables are
+        /// serialized as ONE blob, so the moment a world's builder wires a reference into a placed
+        /// view (CopyProxyToUdon), the instance overrides every variable, the baked tables
+        /// included. The next rebuild then never reaches it: after a language key is added, the
+        /// instance keeps the old elemKey and every keyed label shows a neighbouring string ("{0}"
+        /// in the wrong place). Measured on five placed views at once, 2026-11-11.
+        ///
+        /// So an overridden instance is reverted to the prefab and only what the world gave it is
+        /// put back: every reference to a live scene object outside the view (the author's wiring,
+        /// on any field), and the view class's own public non-reference fields (author settings;
+        /// generated binding state is private). Everything else, the tables and every reference
+        /// into the view's own children, comes from the fresh prefab.
+        /// </summary>
+        public static void RefreshBakedTables(AuiView v)
+        {
+            if (v == null) return;
+            var ub = UdonSharpEditorUtility.GetBackingUdonBehaviour(v);
+            if (ub == null) return;
+
+            bool overridden = false;
+            foreach (var o in PrefabUtility.GetObjectOverrides(v.gameObject, false))
+                if (o.instanceObject == ub || o.instanceObject == v) { overridden = true; break; }
+            if (!overridden) return;
+
+            UdonSharpEditorUtility.CopyUdonToProxy(v);
+            var keepFields = new List<System.Reflection.FieldInfo>();
+            var keepValues = new List<object>();
+            const System.Reflection.BindingFlags Flags = System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.DeclaredOnly;
+            for (System.Type t = v.GetType(); t != null && t != typeof(UdonSharpBehaviour); t = t.BaseType)
+            {
+                foreach (var f in t.GetFields(Flags))
+                {
+                    if (f.IsLiteral || f.IsInitOnly) continue;
+                    object val = f.GetValue(v);
+                    // A reference is kept only when it is a LIVE scene object outside the view.
+                    // One into the view's own children comes from the prefab: a rebuild
+                    // re-creates those children, so the instance's copy is a dead (null) reference
+                    // (the generated child* fields of a nesting view went null this way).
+                    bool isRef = val is Object || val is Object[] || typeof(Object).IsAssignableFrom(f.FieldType) ||
+                                 typeof(Object[]).IsAssignableFrom(f.FieldType);
+                    bool keep = isRef ? PointsOutside(val, v.transform) : (t != typeof(AuiView) && f.IsPublic);
+                    if (keep) { keepFields.Add(f); keepValues.Add(val); }
+                }
+            }
+
+            PrefabUtility.RevertObjectOverride(ub, InteractionMode.AutomatedAction);
+            PrefabUtility.RevertObjectOverride(v, InteractionMode.AutomatedAction);
+            UdonSharpEditorUtility.CopyUdonToProxy(v);
+            for (int i = 0; i < keepFields.Count; i++) keepFields[i].SetValue(v, keepValues[i]);
+            UdonSharpEditorUtility.CopyProxyToUdon(v);
+            EditorUtility.SetDirty(v);
+            EditorUtility.SetDirty(ub);
+        }
+
+        /// <summary>A scene object (or an array holding one) that is not part of this view.</summary>
+        private static bool PointsOutside(object val, Transform root)
+        {
+            if (val is Object[] arr)
+            {
+                foreach (Object e in arr) if (PointsOutside(e, root)) return true;
+                return false;
+            }
+            Transform t = null;
+            if (val is GameObject go && go != null) t = go.transform;
+            else if (val is Component c && c != null) t = c.transform;
+            return t != null && t.gameObject.scene.IsValid() && !t.IsChildOf(root);
         }
 
         /// <summary>Remove every child and every component the builder does not own on the root, keeping what carries scene overrides.</summary>
