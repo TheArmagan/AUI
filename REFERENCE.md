@@ -130,15 +130,19 @@ AuiBuildQueue.Drain (delayCall / InitializeOnLoad / DrainNow)
    |          -> if anything was written: AssetDatabase.Refresh, STOP; the queue resumes after the reload
    |  step B  AuiProgramAssets.Ensure(Name.cs) for EVERY queued view, then ONE UdonSharp CompileSync
    |          if any program asset is new or empty
-   |          AuiPrefabBuilder.Build: skip when prefab's auiBakeHash == hash:BuilderVersion (unless forced)
+   |          AuiPrefabBuilder.Build: skip when prefab's auiBakeHash == hash:BuilderVersion (unless this path is forced)
+   |          one StartAssetEditing/StopAssetEditing per depth level; a built view forces the views nesting it
    |  after   AuiLanguageTableBuilder.ApplyIfChanged: rebake the scene's service when its table differs (every drain)
+   |  done    queue empty and no source pending: [AuiAfterBuild] hooks, then AuiBuildQueue.Built
    v
 Name.prefab (root: Canvas + GraphicRaycaster + VRCUiShape + BoxCollider + the view; Content child; elements)
 ```
 
 Cost: the importer logs `[AUI] import path: T ms` (with "cached compile" when the result was
 reused) and the drain logs `[AUI] drain: N view(s), M built, T ms (scan, compile with K cached,
-udonsharp, build)`. The first build of a view pays one UdonSharp compile (seconds) for the whole
+udonsharp, build of which batched import, language table, hooks)`; each `built` line adds the
+view's phases (load, tree, tables, finish, audit, save, revert). The same numbers are kept in
+SessionState (`AuiDrainRecord`) for `AUI/Build Status`. The first build of a view pays one UdonSharp compile (seconds) for the whole
 drain, not one per view. The source header hash covers the generated source only, so a
 layout-only change does not rewrite `Foo.g.cs` and does not force a reload; the prefab stamp
 covers layout and styles too.
@@ -198,8 +202,36 @@ Why two phases: an importer cannot write a source file, and adding the view comp
 class to exist and UdonSharp to have compiled it. Children (nested views) are built before parents;
 a parent whose child prefab is missing stays queued (not counted as an attempt) and the child is
 added to the queue at the end of the drain, after `Save`, which used to overwrite it. A path that
-fails four times is dropped with AUI503 naming the step it was stuck on. `AuiBuildQueue.Forced` is
-set by `AUI/Rebuild All Views` and rebuilds even when the hash matches. Bump
+fails four times is dropped with AUI503 naming the step it was stuck on.
+
+Force is a set of paths in SessionState (`AuiBuildQueue.IsForced`), not one flag: it used to be a
+bool, and the inspector's "Rebuild view" forced whatever else was queued with it. `Force Rebuild
+All Views`, `Rebuild Selected Views`, the inspector, the preview window and `Bake Fonts` force
+their own paths; `Rebuild All Views` and the postprocessor force nothing. A path leaves the set
+when it leaves the queue.
+
+A view that was actually rebuilt (not skipped) forces every view that nests it, read off the
+imported `AuiViewAsset.childViews`. The parent's prefab carries overrides on objects inside the
+child's instance (placement, `parentView`, re-homed circle masks) and the child's rebuild replaced
+those objects, while the parent's own hash did not move. Parents already in the drain are later in
+its depth order and are built in it; the others go to the next drain. Each parent, once built,
+forces its own parents.
+
+Saves are batched by depth level. `SaveAsPrefabAsset` makes Unity re-import every prefab nesting
+the saved one and re-merge the open scene's instances before it returns; views at one depth never
+nest each other, so a level's builds run inside one `StartAssetEditing` and the import happens
+once at its `StopAssetEditing`, before the next level instantiates them. The scene-instance size
+reverts (`RevertInstanceSizeOverrides`) need the imported prefab, so inside a level they are
+collected in `AuiPrefabBuilder.DeferredReverts` and run after the stop. `AuiBuildQueue.BatchImports`
+(EditorPrefs, per project) turns the batching off for a comparison. Numbers in section 15.
+
+When a drain ends with the queue empty and no generated source waiting for a reload, the
+`[AuiAfterBuild]` hooks run (`AuiBuildHooks`, found through `TypeCache`), each only if one of its
+views is in the built set, which is kept in SessionState across the reloads of a multi-drain build
+and cleared when the hooks have run. Then `AuiBuildQueue.Built` is raised with the same
+`AuiBuildReport`. A hook that throws is logged; a build a hook starts does not re-enter the hooks.
+
+Bump
 `AuiPrefabBuilder.BuilderVersion` whenever the builder's output changes without the markup
 changing; it is part of the stamp.
 
@@ -237,7 +269,7 @@ not read any of it, so the golden file is unaffected. Runtime behaviour is in se
 
 Common attributes on every element: `id` (identifier; becomes `E_ID` / `S_ID` constants),
 `class` (space separated), `style` (inline declarations), `if="{bool}"` (SetActive from a
-binding; the binding defaults to true), `hidden` (baked inactive — **not** on an element with an
+binding; the binding defaults to true), `hidden` (baked inactive; **not** on an element with an
 `icon=` or a `key=`; the baker does not lay out a hidden subtree and an icon's offset is written
 once, so the glyph is stuck outside the button forever, see §15).
 
@@ -528,8 +560,8 @@ positions on the cross axis (stretch fills unless the child has an explicit size
 text and content-sized children shrink proportionally (floor 24 mm) before a warning AUI400 is
 raised. `wrap: true` rows break into lines. Out-of-flow children (`display: none`, `hidden`,
 `position: absolute`, `anchor`) take no space; `display: none` and `hidden` are not laid out at
-all — and neither is anything inside them, which is what makes a baked-hidden icon permanent
-(§15) — the others go through one placement routine (`LayoutAbsolute`): an explicit size wins, two
+all, and neither is anything inside them, which is what makes a baked-hidden icon permanent
+(§15). The others go through one placement routine (`LayoutAbsolute`): an explicit size wins, two
 opposite edges stretch, otherwise the intrinsic size; a set edge pins that side, otherwise the
 anchor centres. `pages` children fill. A repeat lays out instance 0 and records `Instances[]`
 offsets for the clones; a column repeat stretches rows to its width; with zero rows the box is
@@ -1119,6 +1151,24 @@ after touching any of them.
 
 ## 15. Measured platform facts that shaped decisions
 
+- **A prefab save is slow in proportion to what nests it, not to its own size.** Measured
+  2026-11-11 on the avtr.zip world (23 views, the LowPoly scene open, `Force Rebuild All Views`):
+  77 of the drain's 79 s were inside `SaveAsPrefabAsset`. A prefab nothing nests saved in about
+  0.2 s (`DoppelgangerToggle`, 4 elements: 190 ms); a 9-element pager nested by six console screens
+  and by the world's search prefabs took 5 s, because Unity re-imports every nesting prefab and
+  re-merges the scene's instances before the call returns. With one `StartAssetEditing` per depth
+  level the same rebuild took 35.6 s (build work 9 s, the three level imports 24 s), and
+  `Rebuild All Views` with nothing changed 2 s (23 skipped). Each prefab's build phases are small
+  next to that (tree 3 to 430 ms, load 5 to 410 ms). The remaining cost is the three imports and
+  grows with how much of the scene instantiates AUI prefabs.
+- `UdonSharpProgramAsset.SerializedProgramAsset.RetrieveProgram()` deserializes the whole program:
+  43 to 57 ms for these views, the same on the second call. The builder asked for it six times per
+  view; `AuiProgramAssets.Program` keeps it per asset until UdonSharp compiles again (and the start
+  of every drain), which took the `finish` phase from 50 to 170 ms down to 1 to 8 ms.
+- `ArgumentNullException ... unityObject` from `UdonSharpBehaviour.OnBeforeSerialize` /
+  `OnAfterDeserialize` during a prefab import is not AUI's: it appears twice per full rebuild with
+  the batching on or off, from a world prefab Unity re-serializes while propagating, and the
+  builds it interrupts are complete (every nested instance's bake hash matched its source after).
 - A ScriptedImporter cannot emit a `.cs` file, and `UdonSharpEditorUtility.RunBehaviourSetup`
   needs a compiled program asset and an Undo context, so the build is a post-reload queue.
 - UdonSharp compiles partial classes (one program asset per type, pointing at `Name.cs`) and
@@ -1194,7 +1244,7 @@ after touching any of them.
   Icons` fixes files imported before the package compiled.
 - **`<select max="N">` reserved nothing at all until BuilderVersion 16, and said nothing about
   it.** The analyzer parsed and range-checked `max`, the schema and this document both described
-  it as reserving runtime-filled rows, and `ControlsDemo` shipped using it — but the index map
+  it as reserving runtime-filled rows, and `ControlsDemo` shipped using it, but the index map
   walks a select's authored children and only those, and the builder wrote `selectOptionCount`
   from `Options.Count`. A select with one `<option>` and `max="20"` therefore had exactly one
   row, and `SetSelectOptionLabel` dropped every index past 0 through its `index >=
@@ -1215,21 +1265,21 @@ after touching any of them.
 - **`hidden` on an element that carries an icon bakes the icon at the wrong offset, permanently.**
   A clickable's icon and label are not layout elements: `BuildClickableContent` anchors the icon
   left-middle (pivot 0, anchor 0/0.5) and writes its offset once, and `ApplyLayout` only touches
-  elements the solver owns — it forces anchor (0,1) and pivot (0.5,0.5), which is not what an
-  icon carries — so nothing moves an icon after the bake, ever. `Place()` returns before
+  elements the solver owns (it forces anchor (0,1) and pivot (0.5,0.5), which is not what an
+  icon carries), so nothing moves an icon after the bake, ever. `Place()` returns before
   descending into a hidden element, so a button baked hidden is 0 x 0 when its glyph is placed,
   and a centred single child of a zero-wide content box lands at `(0 - 18) / 2 = -9`. Showing it
   later resizes the button and leaves the glyph nine millimetres outside its own left edge; no
   relayout can put it back, because the icon is not something a relayout writes. Measured in
   avtr.zip: all three arrows on all four pagers, plus every icon-only stepper on four screens.
-  Two things narrow it. Only **icon-only** clickables break this way — one with a label as well
+  Two things narrow it. Only **icon-only** clickables break this way: one with a label as well
   puts its icon at the padding, which does not depend on the width. And a **keyed** clickable
   baked hidden fails differently and recoverably: TMP measures nothing on an inactive object, so
   the label solves at zero width and the button collapses to its own padding (a blank accent
   square where "Search these" should be), which `_AuiWake` re-measures when the page enters.
   Until the baker places the subtree of a hidden element, the authoring rule is: **do not bake
   `hidden` on anything with an `icon=` or a `key=`.** Bake it live and let the model push the
-  binding false — a host pushes its child's props from `_AfterStart` anyway, so `hidden` is
+  binding false. A host pushes its child's props from `_AfterStart` anyway, so `hidden` is
   usually buying one frame that something else was already paying for.
   To audit a built prefab: walk it for `RectTransform`s named `Icon` whose parent has exactly one
   child, and flag any with `anchoredPosition.x < 0`.

@@ -545,7 +545,7 @@ namespace Armagan.AUI.Core
             // ---- literal text as a translation-less label
             // An EMPTY literal has nothing to translate, so it is not worth a line. That covers
             // `<text> </text>`, which the parser trims to "", and the empty label every reserved
-            // <select> row carries — which would otherwise report once per reserved row.
+            // <select> row carries (which would otherwise report once per reserved row).
             if (n.Text != null && n.Text.Length > 0 && def.AllowsText && n.Get("key") == null && n.Get("text") == null && n.Tag != "empty")
             {
                 // Allowed, but a translated view usually wants a key. Only an info so single-language worlds stay quiet.

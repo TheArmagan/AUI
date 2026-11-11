@@ -14,7 +14,7 @@ Every tag AUI understands. The source of truth is `Core/Schema/AuiSchema.cs`; th
 | `class` | string | space-separated class names. May contain bindings: `class="card {tone}"` |
 | `style` | declarations | inline style, `prop: value; prop: value`. May contain bindings |
 | `if` | `{binding}` | shows or hides the element and frees its space. Starts `true` |
-| `hidden` | flag | hidden at bake, statically. **Never on an element with `icon=` or `key=`** — see below |
+| `hidden` | flag | hidden at bake, statically. **Never on an element with `icon=` or `key=`** (see below) |
 
 ::: warning `hidden` breaks icons permanently
 A hidden element's subtree is not laid out, at bake time included, and a clickable's icon is

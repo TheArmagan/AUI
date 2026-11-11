@@ -120,7 +120,7 @@ namespace Armagan.AUI
 
         // Resizing a popup when the row count changes. selectOptionShown is how many rows were
         // baked active, selectOptionH one row's height, and selectPopupEdge the edge that stays
-        // put as it grows — its top when it hangs below the header, its bottom when it opens up.
+        // put as it grows: its top when it hangs below the header, its bottom when it opens up.
         [HideInInspector] public int[] selectOptionShown;
         [HideInInspector] public float[] selectOptionH;
         [HideInInspector] public bool[] selectPopupUp;
@@ -937,7 +937,7 @@ namespace Armagan.AUI
             if (_selectValue[select] >= count) SetSelect(select, count - 1);
 
             // Grow or shrink the popup to the rows that are actually showing. The rows never
-            // move — each is baked at its own y — so only the well behind them changes, and it
+            // move (each is baked at its own y), so only the well behind them changes, and it
             // keeps whichever edge it was placed against. Without this a select that reserved
             // twenty rows for four would open a well with sixteen empty rows in it.
             ResizeSelectPopup(select, count);

@@ -30,13 +30,13 @@ Units are **millimetres** unless stated. `12` and `12mm` are the same thing.
 
 In this order, each tier overriding the one before:
 
-1. **Theme** — the package's `Theme/Default.auis`, always applied.
-2. **Utilities** — the built-in star classes (`*p-8`, `*flex-row`, ...). Only the ones a view
+1. **Theme**: the package's `Theme/Default.auis`, always applied.
+2. **Utilities**: the built-in star classes (`*p-8`, `*flex-row`, ...). Only the ones a view
    mentions are baked into it.
-3. **Linked** — every `<link href="...">` in the view, in order. If the view links nothing, the
+3. **Linked**: every `<link href="...">` in the view, in order. If the view links nothing, the
    sibling `Name.auis` is picked up automatically instead.
-4. **Inline** — `<style>` blocks in the view file.
-5. **Attribute** — a `style=""` on the element itself.
+4. **Inline**: `<style>` blocks in the view file.
+5. **Attribute**: a `style=""` on the element itself.
 
 ```aui
 <view name="Shop" width="440" height="360">

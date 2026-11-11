@@ -182,7 +182,7 @@ namespace Armagan.AUI.Core
         ///
         /// `max` is documented as reserving rows the view fills at runtime with
         /// SetSelectOptionCount / SetSelectOptionLabel, and the analyzer has always parsed and
-        /// range-checked it — but nothing ever baked those rows. The index map walks a select's
+        /// range-checked it, but nothing ever baked those rows. The index map walks a select's
         /// authored children and only those, so a select with one &lt;option&gt; and max="20" got
         /// exactly one row, and SetSelectOptionLabel then dropped every index past 0 in silence
         /// (its `index >= selectOptionCount` guard). Measured on a four-filter panel: each popup
@@ -190,7 +190,7 @@ namespace Armagan.AUI.Core
         ///
         /// A reserved row is a copy of the last authored option carrying only its class and
         /// style, so it MEASURES like its siblings, plus an empty literal text so the builder
-        /// gives it a label to write into — without one, `hasLabel` is false, no TMP is created
+        /// gives it a label to write into. Without one, `hasLabel` is false, no TMP is created
         /// and SetSelectOptionLabel silently writes to a null.
         /// </summary>
         private static bool ExpandSelectRows(AuiMarkupDocument doc)

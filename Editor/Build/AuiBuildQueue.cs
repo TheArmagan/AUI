@@ -96,14 +96,66 @@ namespace Armagan.AUI.Editor
         private const string AttemptsKey = "AUI.BuildAttempts.";
         private const string ReasonKey = "AUI.BuildReason.";
         private const int MaxAttempts = 4;
-        private const string ForceKey = "AUI.BuildForce";
+        private const string ForcedKey = "AUI.BuildForced";
         private const string ExplicitKey = "AUI.BuildExplicit";
+        private const string BuiltSinceHooksKey = "AUI.BuiltSinceHooks";
         private static bool _scheduled;
 
-        /// <summary>True while a user-driven Rebuild All is draining: prefabs rebuild even when their bake hash matches.</summary>
-        public static bool Forced
+        /// <summary>Raised at the end of every finished drain that built something, after the [AuiAfterBuild] hooks.</summary>
+        public static event System.Action<AuiBuildReport> Built;
+
+        /// <summary>Raised at the end of every drain, built or not (the Build Status window repaints on it).</summary>
+        public static event System.Action Drained;
+
+        // FORCE IS PER PATH. It used to be one bool for the whole queue, so the inspector's "Rebuild
+        // view" forced every other view that happened to be queued with it. A path leaves the set when
+        // it leaves the queue.
+        private static List<string> ForcedPaths()
         {
-            get { return SessionState.GetBool(ForceKey, false); }
+            var list = new List<string>();
+            foreach (string p in SessionState.GetString(ForcedKey, "").Split(new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries)) list.Add(p);
+            return list;
+        }
+
+        /// <summary>True when <paramref name="assetPath"/> (a .aui asset path) rebuilds even though its bake hash matches.</summary>
+        public static bool IsForced(string assetPath)
+        {
+            return ForcedPaths().Contains(assetPath);
+        }
+
+        private static void SetForced(string assetPath, bool on)
+        {
+            List<string> list = ForcedPaths();
+            bool has = list.Contains(assetPath);
+            if (on == has) return;
+            if (on) list.Add(assetPath); else list.Remove(assetPath);
+            SessionState.SetString(ForcedKey, string.Join("|", list));
+        }
+
+        public static int Attempts(string assetPath)
+        {
+            return SessionState.GetInt(AttemptsKey + assetPath, 0);
+        }
+
+        /// <summary>Why a queued path is still queued (the last step it reached), or null.</summary>
+        public static string Reason(string assetPath)
+        {
+            string s = SessionState.GetString(ReasonKey + assetPath, "");
+            return s.Length > 0 ? s : null;
+        }
+
+        /// <summary>Drop every queued path, its force flag, attempts and reason.</summary>
+        public static void ClearQueue()
+        {
+            foreach (string p in Pending())
+            {
+                SessionState.EraseInt(AttemptsKey + p);
+                SessionState.EraseString(ReasonKey + p);
+            }
+            Save(new List<string>());
+            SessionState.EraseString(ForcedKey);
+            SessionState.SetBool(ExplicitKey, false);
+            if (Drained != null) Drained();
         }
 
         // AUTO-BUILD CAN BE PAUSED. While prototyping with the live preview, every save of a
@@ -188,6 +240,9 @@ namespace Armagan.AUI.Editor
             }
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
+            var drain = new AuiDrainRecord { time = System.DateTime.Now.ToString("HH:mm:ss"), views = list.Count };
+            // UdonSharp may have compiled since the last drain (any script save does it).
+            AuiProgramAssets.ForgetPrograms();
             AuiSettings settings = AuiEditorEnv.FindSettings();
             AuiWorkspace ws = AuiEditorEnv.Scan(settings);
             long scanMs = clock.ElapsedMilliseconds;
@@ -219,16 +274,18 @@ namespace Armagan.AUI.Editor
                 if (cs == null || !File.Exists(cs)) continue;
                 if (AuiProgramAssets.Ensure(cs)) needUsharp = true;
                 UdonSharp.UdonSharpProgramAsset pa = AuiProgramAssets.Find(cs);
-                if (pa != null && (pa.SerializedProgramAsset == null || pa.SerializedProgramAsset.RetrieveProgram() == null)) needUsharp = true;
+                if (pa != null && !AuiProgramAssets.HasProgram(pa)) needUsharp = true;
             }
             if (needUsharp)
             {
                 long t0 = clock.ElapsedMilliseconds;
                 UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(new UdonSharp.Compiler.UdonSharpCompileOptions());
+                AuiProgramAssets.ForgetPrograms();
                 usharpMs = clock.ElapsedMilliseconds - t0;
             }
 
             bool wroteSource = false;
+            bool progressed = false;
             int built = 0;
             long buildStart = clock.ElapsedMilliseconds;
             var remaining = new List<string>(list);
@@ -236,75 +293,256 @@ namespace Armagan.AUI.Editor
             // straight into SessionState, which Save(remaining) then overwrote with the pre-drain
             // list: the child never entered the queue and the parent failed four times.
             var lateChildren = new List<string>();
+            // Parents of a view built in this drain that were not queued with it (see ForceParents).
+            var lateParents = new List<string>();
+            Dictionary<string, List<string>> parentsOf = null;
             // One scene sweep for the whole drain: RevertInstanceSizeOverrides used to do one per built view.
             AuiView[] sceneViews = Object.FindObjectsOfType<AuiView>(true);
+
+            // ONE IMPORT PER DEPTH LEVEL, NOT ONE PER PREFAB. Saving a prefab makes Unity re-import
+            // every prefab that nests it and re-merge the scene's instances right away: a 9-element
+            // pager nested by the console and by a world prefab took 5 s to save, against 0.2 s for a
+            // prefab nobody nests (measured 2026-11-11, 23 views: 77 s of 79 in SaveAsPrefabAsset).
+            // Views at the same depth never nest each other, so a level's saves go inside one
+            // StartAssetEditing and are imported together at its StopAssetEditing, before the next
+            // level (whose parents instantiate these prefabs) starts.
+            var depthOf = new Dictionary<string, int>();
+            foreach (string p in list) depthOf[p] = Depth(p, results, ws);
+            int level = int.MinValue;
+            bool editing = false;
+            long importMs = 0;
+            var deferredReverts = new List<string>();
+            try
+            {
             foreach (string p in list)
             {
+                int pd;
+                if (!depthOf.TryGetValue(p, out pd)) pd = 0;
+                if (pd != level)
+                {
+                    EndLevel(ref editing, deferredReverts, sceneViews, ref importMs);
+                    level = pd;
+                }
+                var rec = new AuiViewBuildRecord { path = p, view = System.IO.Path.GetFileNameWithoutExtension(p) };
+                drain.records.Add(rec);
                 AuiCompileResult r;
-                if (!results.TryGetValue(p, out r)) { remaining.Remove(p); continue; }
+                if (!results.TryGetValue(p, out r)) { remaining.Remove(p); SetForced(p, false); rec.status = AuiViewBuildRecord.Failed; rec.reason = "file not found"; progressed = true; continue; }
                 int attempts = SessionState.GetInt(AttemptsKey + p, 0) + 1;
                 SessionState.SetInt(AttemptsKey + p, attempts);
                 if (attempts > MaxAttempts)
                 {
-                    AuiLog.Error(AuiCodes.PrefabBuildFailed + " " + p + ": giving up after " + MaxAttempts + " build attempts (last step: " + SessionState.GetString(ReasonKey + p, "unknown") + "). Fix the errors above and save the file again.");
+                    rec.status = AuiViewBuildRecord.GaveUp;
+                    rec.reason = SessionState.GetString(ReasonKey + p, "unknown");
+                    AuiLog.Error(AuiCodes.PrefabBuildFailed + " " + p + ": giving up after " + MaxAttempts + " build attempts (last step: " + rec.reason + "). Fix the errors above and save the file again.");
                     remaining.Remove(p);
+                    SetForced(p, false);
                     SessionState.EraseInt(AttemptsKey + p);   // the next save starts a fresh count
                     SessionState.EraseString(ReasonKey + p);
+                    progressed = true;
                     continue;
                 }
                 if (r.HasErrors)
                 {
+                    rec.status = AuiViewBuildRecord.Errors;
+                    rec.reason = "the view has errors (see the import log)";
                     AuiLog.Error(p + ": not built, the view has errors (see the import log).");
                     remaining.Remove(p);
+                    SetForced(p, false);
                     SessionState.EraseInt(AttemptsKey + p);
+                    progressed = true;
                     continue;
                 }
                 // Step A
-                if (AuiSourceWriter.Write(r, settings)) { SessionState.SetString(ReasonKey + p, "waiting for the generated source to compile"); wroteSource = true; continue; }
+                if (AuiSourceWriter.Write(r, settings))
+                {
+                    rec.status = AuiViewBuildRecord.Waiting;
+                    rec.reason = "waiting for the generated source to compile";
+                    SessionState.SetString(ReasonKey + p, rec.reason);
+                    wroteSource = true;
+                    continue;
+                }
                 // A parent needs its children's prefabs; leave it queued until they exist. Waiting
                 // for a child is not a failed attempt of the parent's.
                 string missingChild = MissingChild(r, ws, lateChildren);
                 if (missingChild != null)
                 {
-                    SessionState.SetString(ReasonKey + p, "waiting for the child prefab " + missingChild);
+                    rec.status = AuiViewBuildRecord.Waiting;
+                    rec.reason = "waiting for the child prefab " + missingChild;
+                    SessionState.SetString(ReasonKey + p, rec.reason);
                     SessionState.SetInt(AttemptsKey + p, attempts - 1);
                     continue;
                 }
                 // Step B
-                if (AuiPrefabBuilder.Build(r, settings, ws, sceneViews))
+                if (!editing && BatchImports)
                 {
-                    built++;
+                    AssetDatabase.StartAssetEditing();
+                    editing = true;
+                    AuiPrefabBuilder.DeferredReverts = deferredReverts;
+                }
+                if (AuiPrefabBuilder.Build(r, settings, ws, sceneViews, IsForced(p), rec))
+                {
+                    if (rec.status == AuiViewBuildRecord.Built)
+                    {
+                        built++;
+                        NoteBuilt(r.ViewName, p);
+                        if (parentsOf == null) parentsOf = ParentMap(ws);
+                        ForceParents(r.ViewName, parentsOf, remaining, lateParents);
+                    }
                     remaining.Remove(p);
+                    SetForced(p, false);
                     SessionState.EraseInt(AttemptsKey + p);
                     SessionState.EraseString(ReasonKey + p);
+                    progressed = true;
                 }
-                else SessionState.SetString(ReasonKey + p, "prefab build failed (see the error above)");
+                else
+                {
+                    rec.status = AuiViewBuildRecord.Failed;
+                    rec.reason = "prefab build failed (see the error above)";
+                    SessionState.SetString(ReasonKey + p, rec.reason);
+                }
+            }
+            }
+            finally
+            {
+                EndLevel(ref editing, deferredReverts, sceneViews, ref importMs);
             }
             foreach (string cp in lateChildren) if (!remaining.Contains(cp)) remaining.Add(cp);
+            foreach (string pp in lateParents) if (!remaining.Contains(pp)) { remaining.Add(pp); progressed = true; }
             Save(remaining);
-            if (remaining.Count == 0) { SessionState.SetBool(ForceKey, false); SessionState.SetBool(ExplicitKey, false); }
+            if (remaining.Count == 0) { SessionState.EraseString(ForcedKey); SessionState.SetBool(ExplicitKey, false); }
+            long buildMs = clock.ElapsedMilliseconds - buildStart;
             // The views carry key indices into the CURRENT language files; the scene's service must
             // carry the same table or every key added since the last bake shows "??". Checked on
             // every drain, not only when a prefab was built: a translation edit that does not move
             // the widest width leaves every hash alone and builds nothing, yet the service's strings
             // are what the player reads. One string compare per cell when nothing changed.
+            long langStart = clock.ElapsedMilliseconds;
             AuiLanguageTableBuilder.ApplyIfChanged(settings, ws);
-            long buildMs = clock.ElapsedMilliseconds - buildStart;
+            long langMs = clock.ElapsedMilliseconds - langStart;
+
+            // HOOKS RUN ONCE THE QUEUE IS EMPTY, not after every drain: a drain that wrote sources
+            // continues after a domain reload, and a hook running in between would wire half a build.
+            long hooksMs = 0;
+            bool finished = !wroteSource && remaining.Count == 0;
+            if (finished && !AuiBuildHooks.Running) hooksMs = RunHooks();
+
+            drain.built = built;
+            drain.sourcesWritten = wroteSource;
+            drain.cached = cached;
+            drain.scanMs = scanMs; drain.compileMs = compileMs; drain.usharpMs = usharpMs; drain.buildMs = buildMs; drain.importMs = importMs; drain.langMs = langMs; drain.hooksMs = hooksMs;
+            drain.totalMs = clock.ElapsedMilliseconds;
+            drain.Save();
             AuiLog.Info("drain: " + list.Count + " view(s), " + built + " built, " + (wroteSource ? "sources written, " : "") +
-                        clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + " with " + cached + " cached, udonsharp " + usharpMs + ", build " + buildMs + ")");
+                        clock.ElapsedMilliseconds + " ms (scan " + scanMs + ", compile " + compileMs + " with " + cached + " cached, udonsharp " + usharpMs + ", build " + buildMs + " of which batched import " + importMs + ", language table " + langMs + ", hooks " + hooksMs + ")");
+            if (Drained != null) { try { Drained(); } catch (System.Exception e) { AuiLog.Error("Drained listener threw: " + e); } }
             if (wroteSource)
             {
                 // Sources changed: let Unity compile; the queue resumes after the reload.
                 AssetDatabase.Refresh();
                 return;
             }
-            if (remaining.Count > 0 && remaining.Count < list.Count) Kick(explicitRun);
+            if (remaining.Count > 0 && progressed) Kick(explicitRun);
             else if (remaining.Count > 0)
             {
                 // Nothing progressed this pass (children missing or program assets pending): try once more after a refresh.
                 AssetDatabase.Refresh();
                 Kick(explicitRun);
             }
+        }
+
+        /// <summary>Off only to measure the difference (or to rule the batching out when chasing a bug). Per project.</summary>
+        public static bool BatchImports
+        {
+            get { return EditorPrefs.GetBool("AUI.BatchImports." + Application.dataPath.GetHashCode().ToString("x"), true); }
+            set { EditorPrefs.SetBool("AUI.BatchImports." + Application.dataPath.GetHashCode().ToString("x"), value); }
+        }
+
+        /// <summary>Import the level's saved prefabs, then put back the scene instances' sizes (which needed the import).</summary>
+        private static void EndLevel(ref bool editing, List<string> deferredReverts, AuiView[] sceneViews, ref long importMs)
+        {
+            if (!editing) return;
+            editing = false;
+            AuiPrefabBuilder.DeferredReverts = null;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            AssetDatabase.StopAssetEditing();
+            foreach (string prefabPath in deferredReverts) AuiPrefabBuilder.RevertInstanceSizeOverrides(prefabPath, sceneViews);
+            deferredReverts.Clear();
+            importMs += clock.ElapsedMilliseconds;
+        }
+
+        // ================================================================ parents and hooks
+
+        /// <summary>Child view name -> asset paths of the views that nest it, read off the imported AuiViewAssets.</summary>
+        private static Dictionary<string, List<string>> ParentMap(AuiWorkspace ws)
+        {
+            var map = new Dictionary<string, List<string>>();
+            foreach (string abs in ws.Views.Values)
+            {
+                string ap = AuiEditorEnv.AssetPath(abs);
+                if (ap == null) continue;
+                var va = AssetDatabase.LoadAssetAtPath<AuiViewAsset>(ap);
+                if (va == null || va.childViews == null) continue;
+                foreach (string child in va.childViews)
+                {
+                    List<string> parents;
+                    if (!map.TryGetValue(child, out parents)) map[child] = parents = new List<string>();
+                    if (!parents.Contains(ap)) parents.Add(ap);
+                }
+            }
+            return map;
+        }
+
+        /// <summary>
+        /// A BUILT CHILD FORCES ITS PARENTS. A parent's prefab carries overrides on objects inside the
+        /// child's instance (its placement, re-homed circle masks, the parentView link), and a child
+        /// rebuild recreates those objects while the parent's own bake hash stays the same, so a
+        /// hash-based pass would leave the parent pointing at objects that no longer exist. Only the
+        /// direct parents are forced here; each of them, once built, forces its own.
+        /// </summary>
+        private static void ForceParents(string viewName, Dictionary<string, List<string>> parentsOf, List<string> remaining, List<string> lateParents)
+        {
+            List<string> parents;
+            if (viewName == null || !parentsOf.TryGetValue(viewName, out parents)) return;
+            foreach (string pp in parents)
+            {
+                SetForced(pp, true);
+                SessionState.EraseInt(AttemptsKey + pp);
+                if (!remaining.Contains(pp) && !lateParents.Contains(pp)) lateParents.Add(pp);
+            }
+        }
+
+        /// <summary>Kept across the reloads a multi-drain build goes through, so hooks see every view built since they last ran.</summary>
+        private static void NoteBuilt(string viewName, string assetPath)
+        {
+            string entry = viewName + "\t" + assetPath;
+            string s = SessionState.GetString(BuiltSinceHooksKey, "");
+            foreach (string e in s.Split(new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries)) if (e == entry) return;
+            SessionState.SetString(BuiltSinceHooksKey, s.Length == 0 ? entry : s + "|" + entry);
+        }
+
+        private static long RunHooks()
+        {
+            string s = SessionState.GetString(BuiltSinceHooksKey, "");
+            if (s.Length == 0) return 0;
+            SessionState.EraseString(BuiltSinceHooksKey);
+            var views = new List<string>();
+            var paths = new List<string>();
+            foreach (string e in s.Split(new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                int tab = e.IndexOf('\t');
+                if (tab < 0) continue;
+                views.Add(e.Substring(0, tab));
+                paths.Add(e.Substring(tab + 1));
+            }
+            var report = new AuiBuildReport(views, paths);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            AuiBuildHooks.Run(report);
+            if (Built != null)
+            {
+                try { Built(report); }
+                catch (System.Exception e) { AuiLog.Error("AuiBuildQueue.Built listener threw: " + e); }
+            }
+            return clock.ElapsedMilliseconds;
         }
 
         private static int Depth(string path, Dictionary<string, AuiCompileResult> results, AuiWorkspace ws)
@@ -342,24 +580,43 @@ namespace Armagan.AUI.Editor
             return null;
         }
 
-        /// <summary>Force-rebuild one view even when its bake hash matches.</summary>
+        /// <summary>Force-rebuild one view even when its bake hash matches (the views that nest it follow, see ForceParents).</summary>
         public static void RebuildOne(string assetPath)
         {
-            SessionState.SetBool(ForceKey, true);
-            SessionState.EraseInt(AttemptsKey + assetPath);
-            Enqueue(assetPath);
-            Kick(true);
+            RebuildViews(new[] { assetPath });
+        }
+
+        /// <summary>
+        /// Queue the given .aui asset paths and drain now. <paramref name="force"/> rebuilds them even
+        /// when their bake hash matches; only these paths are forced, not the rest of the queue. Every
+        /// view nesting one that is rebuilt follows on its own.
+        /// </summary>
+        public static void RebuildViews(IEnumerable<string> auiAssetPaths, bool force = true)
+        {
+            int n = 0;
+            foreach (string ap in auiAssetPaths)
+            {
+                if (string.IsNullOrEmpty(ap) || !ap.EndsWith(".aui")) continue;
+                SessionState.EraseInt(AttemptsKey + ap);
+                Enqueue(ap);
+                if (force) SetForced(ap, true);
+                n++;
+            }
+            if (n == 0) return;
+            DrainNow();
         }
 
         /// <summary>Queue every .aui under Assets (and the package's own views). <paramref name="force"/> rebuilds prefabs whose bake hash still matches.</summary>
         public static void EnqueueAll(bool force = true)
         {
-            if (force) SessionState.SetBool(ForceKey, true);
             AuiWorkspace ws = AuiEditorEnv.Scan(AuiEditorEnv.FindSettings());
             foreach (string p in ws.Views.Values)
             {
                 string ap = AuiEditorEnv.AssetPath(p);
-                if (ap != null) { SessionState.EraseInt(AttemptsKey + ap); Enqueue(ap); }
+                if (ap == null) continue;
+                SessionState.EraseInt(AttemptsKey + ap);
+                Enqueue(ap);
+                if (force) SetForced(ap, true);
             }
             Kick(true);
         }

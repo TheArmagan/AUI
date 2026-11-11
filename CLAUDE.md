@@ -5,11 +5,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Always use the Read / Write / Edit tools for files
 
 **Read files with `Read`, create them with `Write`, change them with `Edit`. Never with the shell.**
-No `cat`, no `sed -n`, no heredocs, no `python` patch scripts, no `Set-Content` — not for reading and
+No `cat`, no `sed -n`, no heredocs, no `python` patch scripts, no `Set-Content`: not for reading and
 not for writing, and not "just this once because it is a one-liner". This overrides any harness mode
 that suggests doing file work through Bash.
 
 `Grep` and `Glob` are the search tools; the shell is for git, `gh`, and running programs.
+
+## Writing: no em-dashes, keyboard characters only
+
+Applies to everything a person reads: `README.md`, `USAGE.md`, `REFERENCE.md`, this file, the docs
+site under `tools~/docs/`, code comments and XML docs, log and diagnostic messages, commit messages
+and PR descriptions.
+
+- **No em-dash (U+2014) and no en-dash (U+2013) as punctuation.** Rewrite the sentence instead of
+  swapping in another separator: a comma, a colon, a semicolon, parentheses or a new sentence,
+  whichever reads naturally. A dash pair around an aside becomes parentheses or commas; a dash
+  before an explanation becomes a colon; a dash before a contrast ("it parsed `max` - but nothing
+  baked the rows") becomes a comma or a new sentence. Do not use ` - ` or `--` as a stand-in.
+- **Keyboard characters only in prose:** straight quotes (`"` and `'`), three periods instead of
+  the ellipsis character, words or `->` in code contexts instead of arrow characters, plain spaces.
+  Characters a language needs (Turkish, Arabic, CJK in language files and docs examples), the
+  section sign `§` already used for REFERENCE cross-references, and units like `mm` stay.
+- **Code is exempt:** CSS `--var` names, CLI `--flags`, `->` in code, numeric ranges inside code
+  spans, and anything a test or golden file compares byte for byte.
+- Before committing a docs change, `Grep` for the pattern `\x{2014}|\x{2013}` across the repo
+  (excluding `node_modules` and `tools~/docs/.vitepress/dist`); the expected count is zero.
 
 ## Unity API lookups: use UnityMCP reflection, never DLL string search
 
@@ -172,8 +192,15 @@ add components whose class does not exist yet:
    on lang content; theme only on the theme file).
 3. `AuiBuildQueue.Drain` step A writes `Name.g.cs` if changed and scaffolds `Name.cs` once, then
    stops for the reload. Step B ensures program assets, runs one UdonSharp `CompileSync` per drain,
-   builds prefabs (children before parents, skipped when `auiBakeHash` matches unless forced), then
-   rebakes the scene's language table.
+   builds prefabs (children before parents, skipped when `auiBakeHash` matches unless that path is
+   forced), then rebakes the scene's language table. Force is per path (`IsForced`), never global.
+   A view that was actually rebuilt forces the views nesting it (their prefabs hold overrides on
+   the child's inner objects). Each depth level's saves run inside one
+   `StartAssetEditing`/`StopAssetEditing`: a save otherwise re-imports every prefab and scene
+   instance nesting it on the spot, which was 70 of the 77 s of a full rebuild (REFERENCE §15).
+4. When the queue is empty, the `[AuiAfterBuild]` hooks (`Editor/Build/AuiBuildReport.cs`) run
+   for the views rebuilt since they last ran, so a project's own wiring into AUI prefabs re-applies
+   itself. The drain's per-view record and phase timings go to SessionState for `AUI/Build Status`.
 
 Contracts that must stay in sync:
 

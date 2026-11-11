@@ -10,9 +10,9 @@ actually see if you set nothing.
 
 Units are millimetres unless stated. Three flags matter:
 
-- **Inherited** — passes down to children.
-- **Animatable** — may appear in a `:state` rule and be tweened. Only these seven can.
-- **Bake only** — applied by the prefab builder; cannot change in-world (AUI212).
+- **Inherited**: passes down to children.
+- **Animatable**: may appear in a `:state` rule and be tweened. Only these seven can.
+- **Bake only**: applied by the prefab builder; cannot change in-world (AUI212).
 
 ## Size
 

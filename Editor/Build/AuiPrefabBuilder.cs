@@ -60,6 +60,9 @@ namespace Armagan.AUI.Editor
         //     forward. The root's EventTrigger is gone.
         public const int BuilderVersion = 25;
 
+        /// <summary>While the queue batches a level's saves, the prefabs whose scene-instance size overrides wait for the import (see AuiBuildQueue).</summary>
+        internal static List<string> DeferredReverts;
+
         public static string BakeStamp(AuiCompileResult r)
         {
             return r.Hash + ":" + BuilderVersion;
@@ -151,7 +154,22 @@ namespace Armagan.AUI.Editor
             BuildTree(c, null, root);
         }
 
-        public static bool Build(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiView[] sceneViews = null)
+        /// <summary>
+        /// Build (or skip, when the bake hash matches and <paramref name="force"/> is off) one view's
+        /// prefab. True when the prefab is current afterwards; <paramref name="rec"/>, when given, is
+        /// told whether it was built or skipped and how long each phase took.
+        /// </summary>
+        public static bool Build(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiView[] sceneViews = null, bool force = false, AuiViewBuildRecord rec = null)
+        {
+            if (rec == null) rec = new AuiViewBuildRecord();
+            rec.view = r.ViewName;
+            rec.forced = force;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            try { return BuildTimed(r, settings, ws, sceneViews, force, rec, clock); }
+            finally { rec.totalMs = clock.ElapsedMilliseconds; }
+        }
+
+        private static bool BuildTimed(AuiCompileResult r, AuiSettings settings, AuiWorkspace ws, AuiView[] sceneViews, bool force, AuiViewBuildRecord rec, System.Diagnostics.Stopwatch clock)
         {
             string dir = Path.GetDirectoryName(r.FilePath) ?? "";
             string csAbs = Path.Combine(dir, r.ViewName + ".cs");
@@ -171,10 +189,13 @@ namespace Armagan.AUI.Editor
             // this is only the safety net for a direct Build call.
             AuiProgramAssets.Ensure(cs);
             UdonSharpProgramAsset program = AuiProgramAssets.Find(cs);
-            if (program != null && (program.SerializedProgramAsset == null || program.SerializedProgramAsset.RetrieveProgram() == null))
+            if (program != null && !AuiProgramAssets.HasProgram(program))
+            {
                 UdonSharp.Compiler.UdonSharpCompilerV1.CompileSync(new UdonSharp.Compiler.UdonSharpCompileOptions());
+                AuiProgramAssets.ForgetPrograms();
+            }
             program = AuiProgramAssets.Find(cs);
-            if (program == null || program.SerializedProgramAsset == null || program.SerializedProgramAsset.RetrieveProgram() == null)
+            if (program == null || !AuiProgramAssets.HasProgram(program))
             {
                 AuiLog.Error(AuiCodes.ProgramAssetMissing + " " + r.ViewName + ": UdonSharp did not produce a program for " + cs + ". Fix the U# errors above (a missing handler method is the usual cause).");
                 return false;
@@ -184,8 +205,9 @@ namespace Armagan.AUI.Editor
             if (existing != null)
             {
                 var ev = existing.GetComponent<AuiView>();
-                if (ev != null && ev.auiBakeHash == BakeStamp(r) && !AuiBuildQueue.Forced) return true;
+                if (ev != null && ev.auiBakeHash == BakeStamp(r) && !force) { rec.status = AuiViewBuildRecord.Skipped; return true; }
             }
+            rec.elements = r.Map.ElementCount;
 
             var c = new Ctx { R = r, Settings = settings, Ws = ws, Fonts = settings != null ? settings.fontSet : null };
             // The cached table, the one the view was compiled against; reading the files again cost a table per view.
@@ -202,21 +224,30 @@ namespace Armagan.AUI.Editor
             GameObject root = null;
             try
             {
+                long t = clock.ElapsedMilliseconds;
                 if (reuse)
                 {
                     root = PrefabUtility.LoadPrefabContents(prefabPath);
                     StripRoot(root, type);
                 }
+                rec.loadMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 root = BuildTree(c, type, root);
+                rec.treeMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 FillTables(c);
+                rec.tablesMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 Finish(c, root);
+                rec.finishMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 AuditComponents(root);
+                rec.auditMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(prefabPath)) ?? ".");
                 if (PrefabUtility.SaveAsPrefabAsset(root, prefabPath) == null) { AuiLog.Error(r.ViewName + ": prefab failed to save at " + prefabPath); return false; }
+                rec.saveMs = clock.ElapsedMilliseconds - t; t = clock.ElapsedMilliseconds;
                 // Only after the save: until then the old prefab still pointed at the old materials.
                 CleanCircleMasks(c);
                 RevertInstanceSizeOverrides(prefabPath, sceneViews ?? Object.FindObjectsOfType<AuiView>(true));
-                AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys)");
+                rec.revertMs = clock.ElapsedMilliseconds - t;
+                rec.status = AuiViewBuildRecord.Built;
+                AuiLog.Info("built " + prefabPath + " (" + c.N + " elements, " + r.Map.SignalCount + " signals, " + r.Info.Keys.Count + " keys) in " + clock.ElapsedMilliseconds + " ms: " + rec.Phases());
                 return true;
             }
             catch (System.Exception e)
@@ -241,8 +272,15 @@ namespace Armagan.AUI.Editor
         /// view that grew in markup keeps its old card while its content runs past the bottom.
         /// Position, rotation, scale and author references stay as the instance set them.
         /// </summary>
-        private static void RevertInstanceSizeOverrides(string prefabPath, AuiView[] sceneViews)
+        public static void RevertInstanceSizeOverrides(string prefabPath, AuiView[] sceneViews)
         {
+            if (DeferredReverts != null)
+            {
+                // Inside a batched level the saved prefab is not imported yet, so neither the asset
+                // nor the scene instances are current; the queue reverts after StopAssetEditing.
+                if (!DeferredReverts.Contains(prefabPath)) DeferredReverts.Add(prefabPath);
+                return;
+            }
             GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
             if (asset == null) return;
             foreach (AuiView v in sceneViews)
@@ -1355,15 +1393,15 @@ namespace Armagan.AUI.Editor
             AuiLayoutNode hl = c.R.Layout[n.Index];
 
             // The RESTING height is the author's own options. Rows reserved by `max` are baked
-            // inactive and the popup grows to them when SetSelectOptionCount says so — sizing it
+            // inactive and the popup grows to them when SetSelectOptionCount says so; sizing it
             // for max here would leave a four-option filter standing in a twenty-row well.
             int authored = n.ReservedFrom >= 0 ? n.ReservedFrom : n.Children.Count;
             // ONE ROW HEIGHT FOR EVERY ROW, the tallest the solver measured. The rows do NOT all
             // measure the same: a reserved row carries no key, so it measures at the option's
             // min-height, shorter than an authored row whose label sets the height. The runtime
             // resizes the well to count * selectOptionH, so a row baked shorter than that leaves
-            // the well running past the last row — a twenty-row popup drew 270 mm of empty
-            // background under its options — and a runtime label written into a min-height row
+            // the well running past the last row (a twenty-row popup drew 270 mm of empty
+            // background under its options), and a runtime label written into a min-height row
             // would sit in a shorter chip than the row above it.
             float rowH = 0f;
             foreach (AuiNode o in n.Children)
@@ -1449,13 +1487,13 @@ namespace Armagan.AUI.Editor
                 var ogo = new GameObject(Name(o), typeof(RectTransform));
                 ogo.transform.SetParent(popup.transform, false);
                 var ort = (RectTransform)ogo.transform;
-                // rowH, not this row's own measured height — see above.
+                // rowH, not this row's own measured height (see above).
                 Place(ort, new AuiRect(4f, y, popupRect.W - 8f, rowH), false, popupRect.W, popupRect.H);
                 Register(c, oe, ogo, ort, ort.anchoredPosition);
                 ApplyBackground(c, o, oe, ogo.transform, true);
                 BuildClickableContent(c, o, oe, ogo, os, new AuiRect(0, 0, popupRect.W - 8f, rowH));
                 if (c.Signal[oe] >= 0) AddSignal(c, o, oe, ogo, os, true);
-                // A reserved row is placed like the rest — its y never moves — but starts
+                // A reserved row is placed like the rest (its y never moves) but starts
                 // inactive, so a select shows only the options it actually has until the view
                 // calls SetSelectOptionCount.
                 if (built++ >= authored) ogo.SetActive(false);
@@ -1882,9 +1920,9 @@ namespace Armagan.AUI.Editor
             if (ub == null || !ub.publicVariables.TryGetVariableValue("elemObjects", out probe))
                 AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": element tables did not reach the Udon heap (CopyProxyToUdon failed?).");
             var program = ub != null ? ub.programSource as UdonSharpProgramAsset : null;
-            if (program != null && program.SerializedProgramAsset != null && program.SerializedProgramAsset.RetrieveProgram() != null)
+            HashSet<string> exports = AuiProgramAssets.ExportedSymbols(program);
+            if (exports != null)
             {
-                var exports = new HashSet<string>(program.SerializedProgramAsset.RetrieveProgram().SymbolTable.GetExportedSymbols());
                 foreach (string must in new[] { "inputResult", "inputResultId", "elemObjects", "elemRaw", "elemRawMat", "auiBakeHash", "layParent", "layLangW", "elemChildView", "ruleTag", "classNames", "declValue", "idNames", "iconSprites", "modalElem", "repeatIsTemplate", "poolTag", "ruleStar", "starNames", "varNames", "declTemplate", "elemColorPickers", "colorResult", "colorResultElem", "colorResultFinal" })
                     if (!exports.Contains(must)) AuiLog.Error(AuiCodes.ExportMissing + " " + c.R.ViewName + ": '" + must + "' is not an exported symbol; a cross-behaviour write to it would be a silent no-op.");
             }

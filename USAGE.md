@@ -539,7 +539,7 @@ to its parent's content box. Tick `debugLayout` on a view to log every solve wit
 
 **Do not put the `hidden` attribute on an element that has an `icon=` or a `key=`.** A hidden
 element's subtree is not laid out, at bake time either, and a clickable's icon is positioned by
-the builder exactly once — the runtime solver never writes it. So an icon-only button baked
+the builder exactly once; the runtime solver never writes it. So an icon-only button baked
 hidden has its glyph placed against a zero-wide box, ends up hanging outside the button's left
 edge, and stays there no matter what is shown or relaid out afterwards. A keyed one collapses to
 its padding instead, because TMP measures nothing on an inactive object.
@@ -554,7 +554,7 @@ does for a nested view's props anyway:
 <button onclick="Next" icon="chevron-right" if="{hasNext}"/>
 ```
 
-`hidden` is still the right thing on a plain `panel` or `text` — those the solver owns and
+`hidden` is still the right thing on a plain `panel` or `text`: those the solver owns and
 re-places whenever they are shown.
 
 ### Changing classes at runtime
@@ -790,7 +790,12 @@ you add a runtime feature.
 - `Name.g.cs` did not update: the queue only runs when the project compiles. Fix the C# errors
   (usually a handler with the wrong signature) and save the `.aui` again, or `AUI/Rebuild All
   Views`.
-- The prefab did not change: its bake stamp matched. `AUI/Rebuild All Views` forces it.
+- The prefab did not change: its bake stamp matched. Right-click the `.aui` (or its prefab) and
+  `AUI/Rebuild View` forces that one, and the views nesting it follow; `AUI/Force Rebuild All
+  Views` forces every view. `AUI/Build Status` shows what the last build did with each view.
+- Your own wiring into an AUI prefab is gone after a rebuild: a rebuild replaces every object under
+  the view's root. Put the code that writes it behind `[AuiAfterBuild("ViewName")]` and it re-runs
+  by itself (see the docs site's menu reference, "After-build hooks").
 - Boxes instead of letters: `AUI/Bake Fonts`.
 - A key shows as its own name in-world: it is missing from the default language.
 - Every text shows `??`: the scene's language table is older than the views. The build rebakes it

@@ -77,7 +77,6 @@ namespace Armagan.AUI.Editor
             string aui = SourcePath(view, ".aui");
             if (aui == null || !File.Exists(aui)) { AuiLog.Error("no .aui next to " + view.GetType().Name + ".cs"); return; }
             AuiBuildQueue.RebuildOne(aui);
-            AuiBuildQueue.DrainNow();
         }
 
         private static void OpenSource(AuiView view, string extension)

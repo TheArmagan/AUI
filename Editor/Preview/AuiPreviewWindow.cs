@@ -170,7 +170,7 @@ namespace Armagan.AUI.Editor
                     if (GUILayout.Button("Build prefab"))
                     {
                         string ap = AuiEditorEnv.AssetPath(AuiPreview.ViewPath);
-                        if (ap != null) { AuiBuildQueue.RebuildOne(ap); AuiBuildQueue.DrainNow(); }
+                        if (ap != null) AuiBuildQueue.RebuildOne(ap);
                     }
                 }
                 bool auto = GUILayout.Toggle(AuiBuildQueue.AutoBuild, "Auto-build prefabs");

@@ -37,6 +37,49 @@ namespace Armagan.AUI.Editor
             return AssetDatabase.LoadAssetAtPath<UdonSharpProgramAsset>(assetPath);
         }
 
+        // RETRIEVEPROGRAM DESERIALIZES THE WHOLE UDON PROGRAM, about 50 ms for a world-sized view
+        // (measured 2026-11-11), and a build asked for it six times. The answer only changes when
+        // UdonSharp compiles, so it is kept per program asset until ForgetPrograms (called after every
+        // CompileSync AUI runs and at the start of every drain, since U# may have compiled in between).
+        private static readonly System.Collections.Generic.Dictionary<UdonSharpProgramAsset, VRC.Udon.Common.Interfaces.IUdonProgram> Programs =
+            new System.Collections.Generic.Dictionary<UdonSharpProgramAsset, VRC.Udon.Common.Interfaces.IUdonProgram>();
+        private static readonly System.Collections.Generic.Dictionary<UdonSharpProgramAsset, System.Collections.Generic.HashSet<string>> Exports =
+            new System.Collections.Generic.Dictionary<UdonSharpProgramAsset, System.Collections.Generic.HashSet<string>>();
+
+        public static void ForgetPrograms()
+        {
+            Programs.Clear();
+            Exports.Clear();
+        }
+
+        /// <summary>The compiled program, or null when UdonSharp has not produced one (cached; see ForgetPrograms).</summary>
+        public static VRC.Udon.Common.Interfaces.IUdonProgram Program(UdonSharpProgramAsset asset)
+        {
+            if (asset == null) return null;
+            VRC.Udon.Common.Interfaces.IUdonProgram p;
+            if (Programs.TryGetValue(asset, out p) && p != null) return p;
+            p = asset.SerializedProgramAsset != null ? asset.SerializedProgramAsset.RetrieveProgram() : null;
+            if (p != null) Programs[asset] = p;   // a null is not cached: the next CompileSync may fill it
+            return p;
+        }
+
+        public static bool HasProgram(UdonSharpProgramAsset asset)
+        {
+            return Program(asset) != null;
+        }
+
+        /// <summary>The program's exported symbols, or null when there is no program (cached with it).</summary>
+        public static System.Collections.Generic.HashSet<string> ExportedSymbols(UdonSharpProgramAsset asset)
+        {
+            System.Collections.Generic.HashSet<string> s;
+            if (asset != null && Exports.TryGetValue(asset, out s)) return s;
+            var p = Program(asset);
+            if (p == null) return null;
+            s = new System.Collections.Generic.HashSet<string>(p.SymbolTable.GetExportedSymbols());
+            Exports[asset] = s;
+            return s;
+        }
+
         /// <summary>Every runtime behaviour in the package gets its asset; the package ships them, this is the safety net.</summary>
         public static void EnsurePackageRuntime()
         {
