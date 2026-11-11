@@ -5,7 +5,7 @@ description: A UI engine for VRChat worlds. Write a view in an HTML-like file an
 hero:
   name: AUI
   text: UI for VRChat worlds
-  tagline: Write a view in an HTML-like file and a small stylesheet. The editor compiles them into a uGUI prefab with generated UdonSharp wiring. Every string is a translation key.
+  tagline: Write your UI like HTML and CSS. AUI builds the uGUI prefab and the UdonSharp code for you. Every text is a translation key, so translating your world is just writing a JSON file.
   image:
     src: /logo.svg
     alt: AUI
