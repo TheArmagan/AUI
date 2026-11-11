@@ -128,20 +128,6 @@ run in play mode.
   errors from UdonSharp's serializer. The prefab, its instance and the Udon heap are correct
   afterwards.
 
-## Not verified
-
-These compile, pass the edit-mode tests and run in the editor's play mode, where they cannot be
-judged:
-
-- VRCTween transitions (inert in ClientSim; the code applies final states there).
-- The VRChat keyboard opening from an `input`, on desktop and in VR, and laser hover reliability
-  on Quest.
-- `OnLanguageChanged` from the live client, and the PlayerData save of a language pick.
-- Legibility of the default text sizes at 2 m, atlas memory on Quest, and the cost of a runtime
-  layout solve on Quest hardware (measured only in the editor: about 2 ms for a 42-element view
-  with five nested views).
-- `attach` as a whole has not been run in ClientSim or the real client.
-
 ## Documentation in this repository
 
 - `USAGE.md`: recipes for building panels.
