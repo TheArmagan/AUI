@@ -7,7 +7,10 @@
   "author": {
     "name": "Armagan"
   },
-  "license": "UNLICENSED",
+  "license": "MPL-2.0",
+  "licensesUrl": "https://github.com/TheArmagan/AUI/blob/main/LICENSE",
+  "documentationUrl": "https://auidocs.thearmagan.workers.dev",
+  "changelogUrl": "https://github.com/TheArmagan/AUI/releases",
   "dependencies": {
     "com.unity.vectorgraphics": "2.0.0-preview.25"
   },

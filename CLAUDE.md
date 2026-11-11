@@ -65,10 +65,23 @@ deliberate and kept current: `README.md` (overview), `USAGE.md` (author recipes)
 index-map contract, measured platform facts and change workflows). Read the relevant REFERENCE
 section before changing a subsystem, and update the docs when behaviour changes.
 
-AUI is a **private-source, paid subscription** product, distributed to subscribers as a
-`.unitypackage` (plus the `.vsix` for the editor extension) through the Discord,
-`discord.gg/armagan`. Nothing in the repo or on the docs site may describe it as open source, link
-to a public source repository, or claim an open licence.
+AUI is distributed through **GitHub releases** of `github.com/TheArmagan/AUI` and a **VPM
+listing** on GitHub Pages (`https://thearmagan.github.io/AUI/index.json`) built from them. Support
+is the Discord, `discord.gg/armagan`. (It was a private, paid Discord download until 2026-11; the
+repository is being made public.) **The licence is MPL-2.0** (`LICENSE`, the canonical text from
+mozilla.org; never edit it), copyright Kıraç Armağan Önal. `package.json` and the VS Code
+extension's `package.json` both say `MPL-2.0`. Describe it as MPL-2.0, never as MIT or as "free to
+do anything with": the MPL keeps changed AUI files open while a world using AUI stays closed.
+
+Releasing: bump `version` in `package.json`, commit, push a tag `vX.Y.Z` with the same number.
+`.github/workflows/release.yml` runs `.github/scripts/build_release.py` (the VPM `.zip` with
+`package.json` at its root, a `.unitypackage` under `Packages/rest.armagan.aui/`, and a
+`package.json` listing entry with `url` and `zipSHA256`), builds the `.vsix`, publishes the
+release, then calls `listing.yml`, which rebuilds `index.json` and its landing page from every
+release's `package.json` asset (`build_listing.py`). A release made with the workflow's own token
+does not trigger other workflows, which is why the listing is a `workflow_call` rather than a
+`release:` trigger alone. Never run `build_release.py` in a junctioned checkout and leave `dist/`
+there: it is inside the package folder and Unity imports it.
 
 ## Keep the docs site in sync with the code
 
@@ -97,7 +110,8 @@ now include the docs page, so that section stays the single place to look.
 Site rules: every snippet must compile against the current schema (the gallery under
 `Samples~/Demo` is the reference for what real markup looks like); never document behaviour that is
 not implemented; no marketing language, no badges, no emoji as UI icons (use the Lucide set in
-`Icons/`); no claim that AUI is open source and no link to a source repository.
+`Icons/`); the licence is named as MPL-2.0 and nothing else (see above). Download instructions
+point at the GitHub releases and the VPM listing.
 
 Screenshots under `tools~/docs/public/img/` and the social card `public/og-image.png` are rendered
 from the demo gallery **in play mode** (so bindings show real values, not `{placeholder}`), with an

@@ -4,7 +4,7 @@
   "description": "Language support for AUI view files (.aui) and stylesheets (.auis): diagnostics, completion, hover, go to definition, references, rename, quick fixes, colours, inlay hints, generated code preview, document formatting.",
   "version": "0.6.1",
   "publisher": "armagan",
-  "license": "MIT",
+  "license": "MPL-2.0",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -144,7 +144,7 @@
     "watch": "esbuild src/extension.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/extension.js --watch",
     "server": "dotnet publish ../aui-lsp/AuiLsp.csproj -c Release -o ./server",
     "smoke": "node smoke.js",
-    "package": "npm run server && npm run compile && vsce package --no-dependencies --allow-missing-repository"
+    "package": "npm run server && npm run compile && vsce package --no-dependencies --allow-missing-repository --skip-license"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

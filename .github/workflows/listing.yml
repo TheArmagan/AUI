@@ -1,0 +1,51 @@
+# The VPM listing: https://<owner>.github.io/<repo>/index.json, rebuilt from the releases.
+# Runs after the Release workflow, when a release is edited or deleted by hand, or on demand.
+# Needs Settings > Pages > Source: "GitHub Actions".
+name: VPM listing
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  release:
+    types: [published, edited, deleted, unpublished]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build index.json from the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/build_listing.py "${{ github.repository }}" "${{ steps.pages.outputs.base_url }}/index.json" site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -13,17 +13,23 @@ A squiggle in VS Code is the line the Unity console would print.
 
 ## Install
 
-You receive the extension as a `.vsix` alongside the package.
+The extension is the `aui-X.Y.Z.vsix` file on each
+[GitHub release](https://github.com/TheArmagan/AUI/releases/latest). It is not on the VS Code
+Marketplace.
 
-1. In VS Code, open the Extensions view.
-2. From the `...` menu, choose **Install from VSIX**, and pick the file.
-3. Reload when prompted.
+1. Download the `.vsix` from the latest release.
+2. In VS Code, open the Extensions view.
+3. From the `...` menu, choose **Install from VSIX**, and pick the file.
+4. Reload when prompted.
 
 Or from a terminal:
 
 ```
-code --install-extension aui-0.5.1.vsix
+code --install-extension aui-X.Y.Z.vsix
 ```
+
+Use the extension from the same release as the package: it carries its own copy of the compiler,
+so an older extension reports errors for markup a newer package accepts.
 
 **Requires the .NET 8 runtime** (or newer) on your PATH as `dotnet`. If it lives somewhere else,
 set `aui.dotnetPath`.

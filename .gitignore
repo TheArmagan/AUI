@@ -13,6 +13,11 @@ tools~/docs/.vitepress/cache/
 tools~/docs/.vitepress/dist/
 tools~/docs/.wrangler/
 
+# Release build output (.github/scripts/build_release.py). It lands inside the package folder,
+# so the editor imports it if it is left there; the script is meant for CI.
+/dist/
+/dist.meta
+
 # The golden test's diff-me file (written on a mismatch, deleted on the next pass)
 Tests/Editor/Golden/*.actual.txt
 Tests/Editor/Golden/*.actual.txt.meta

@@ -1,0 +1,56 @@
+# Push a tag vX.Y.Z (equal to package.json's version) to publish a release:
+#   rest.armagan.aui-X.Y.Z.zip           VPM package
+#   rest.armagan.aui-X.Y.Z.unitypackage  the same files, for a plain import
+#   aui-<ext version>.vsix               the VS Code extension with its language server
+#   package.json                         the listing entry (url + zipSHA256)
+# then rebuild the VPM listing on GitHub Pages.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package zip and unitypackage
+        run: python .github/scripts/build_release.py "${{ github.repository }}" "${{ github.ref_name }}"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: VS Code extension
+        working-directory: tools~/vscode-aui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run package
+          cp aui-*.vsix ../../dist/
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* \
+            --title "AUI ${{ github.ref_name }}" \
+            --generate-notes
+
+  listing:
+    needs: release
+    uses: ./.github/workflows/listing.yml

@@ -89,6 +89,7 @@ export default defineConfig({
       { text: 'Reference', link: '/reference/elements', activeMatch: '/reference/' },
       { text: 'Examples', link: '/examples/', activeMatch: '/examples/' },
       { text: 'Tooling', link: '/tooling/vscode', activeMatch: '/tooling/' },
+      { text: 'Download', link: 'https://github.com/TheArmagan/AUI/releases/latest' },
       { text: 'Discord', link: 'https://discord.gg/armagan' },
     ],
 
@@ -194,9 +195,14 @@ export default defineConfig({
       ],
     },
 
-    // The source is private, so there is no repository link and no edit link. Support and
-    // distribution both go through Discord.
+    // Downloads are the GitHub releases (and the VPM listing built from them); support is the
+    // Discord.
     socialLinks: [
+      {
+        icon: 'github',
+        link: 'https://github.com/TheArmagan/AUI',
+        ariaLabel: 'GitHub',
+      },
       {
         icon: 'discord',
         link: 'https://discord.gg/armagan',
@@ -208,7 +214,7 @@ export default defineConfig({
 
     footer: {
       message: 'Need help? <a href="https://discord.gg/armagan">Join the Discord</a>.',
-      copyright: 'AUI, a UI engine for VRChat worlds.',
+      copyright: 'AUI, a UI engine for VRChat worlds. Released under the <a href="https://github.com/TheArmagan/AUI/blob/main/LICENSE">MPL-2.0</a>.',
     },
 
     outline: [2, 3],

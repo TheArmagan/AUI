@@ -1,11 +1,19 @@
 ---
-description: Requirements, importing the unitypackage, and the four one-time setup steps that give a project settings, languages, fonts and its scene services.
+description: Requirements, installing AUI from its VPM listing or a GitHub release, and the four one-time setup steps that give a project settings, languages, fonts and its scene services.
 ---
 
 # Installation
 
-AUI is a paid product. Access, downloads and support all go through the
-[Discord](https://discord.gg/armagan); if you do not have the package yet, start there.
+Get the latest AUI from the [GitHub releases](https://github.com/TheArmagan/AUI/releases). Every
+release has the same package in two forms, plus the VS Code extension:
+
+| File | Use it for |
+|---|---|
+| `rest.armagan.aui-X.Y.Z.zip` | the VPM package (VCC and ALCOM install this one for you) |
+| `rest.armagan.aui-X.Y.Z.unitypackage` | a plain import, without VCC |
+| `aui-X.Y.Z.vsix` | the [VS Code extension](/tooling/vscode) |
+
+Questions and bug reports go to the [Discord](https://discord.gg/armagan).
 
 ## Requirements
 
@@ -15,26 +23,47 @@ AUI is a paid product. Access, downloads and support all go through the
 | VRChat Worlds SDK | 3.10.4 or newer, with UdonSharp |
 | TextMeshPro | included with the SDK |
 
-Install the VRChat SDK **before** importing AUI. The package references
-`com.vrchat.worlds` and UdonSharp, and importing it into a project without them gives you a wall
-of missing-type errors rather than a clear message.
+AUI needs `com.vrchat.worlds` and UdonSharp. Through VCC the SDK comes in as a dependency; with
+the `.unitypackage`, install the VRChat SDK **before** importing AUI, or the import gives you a
+wall of missing-type errors rather than a clear message.
 
-## Import the package
+## Install with VCC or ALCOM (recommended)
 
-You receive AUI as a `.unitypackage`.
+1. Add the AUI listing. Either open
+   [thearmagan.github.io/AUI](https://thearmagan.github.io/AUI/) and press **Add to VCC**, or in
+   VCC / ALCOM go to Settings, Packages, Add Repository and paste:
 
-1. Open your VRChat world project.
-2. `Assets > Import Package > Custom Package`, pick the `.unitypackage`, and import everything.
-   (Double-clicking the file with the project open does the same thing.)
-3. Let Unity finish compiling. You should see an `AUI` menu appear in the menu bar.
+   ```
+   https://thearmagan.github.io/AUI/index.json
+   ```
 
-If the `AUI` menu does not appear, the import did not compile. Check the console for errors, and
+2. Open your world project in VCC / ALCOM, find **AUI** in the package list and add it.
+3. Open the project in Unity and let it finish compiling. An `AUI` menu appears in the menu bar.
+
+The package lands in `Packages/rest.armagan.aui`. **Updating** is the same list: pick the newer
+version. Your own `.aui`, `.auis`, `.cs` and language files live under `Assets/` and are never
+touched.
+
+## Install from the .unitypackage
+
+1. Download `rest.armagan.aui-X.Y.Z.unitypackage` from the latest
+   [release](https://github.com/TheArmagan/AUI/releases/latest).
+2. Open your VRChat world project, `Assets > Import Package > Custom Package`, pick the file and
+   import everything. (Double-clicking the file with the project open does the same.)
+3. Let Unity finish compiling. An `AUI` menu appears in the menu bar.
+
+The files import to `Packages/rest.armagan.aui`, the same place VCC puts them. To update, import
+the newer `.unitypackage` over the top. A `.unitypackage` cannot carry the `Samples~` folder in a
+way Unity's package manager recognises; if **Demo** does not appear under Samples, take the
+`Samples~/Demo` folder from the release `.zip`.
+
+If the `AUI` menu does not appear, the install did not compile. Check the console for errors, and
 confirm the SDK is present.
 
-::: tip Updating
-Import the new `.unitypackage` over the top; it replaces the package files in place. Your own
-`.aui`, `.auis`, `.cs` and language files live outside the package folder and are untouched. After
-a version that changes what the prefab builder emits, run `AUI/Rebuild All Views` once.
+::: tip After an update
+After a version that changes what the prefab builder emits, existing prefabs rebuild on their own
+(the builder version is part of each prefab's bake stamp). `AUI/Rebuild All Views` runs that
+check for every view at once.
 :::
 
 ## One-time project setup
